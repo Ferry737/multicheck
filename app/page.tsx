@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useLearner } from "@/lib/useLearner";
 import { overallReadiness, decideToday, masteryOf, accuracy, avgSpeed } from "@/lib/learner";
+import { weeklyPlan } from "@/lib/exam";
 import { AREAS, subskillById, EXAM_DATE_DEFAULT } from "@/lib/curriculum";
 import { Card, ProgressRing, StatCard, Bar, StatusDot, Button } from "@/components/ui";
 
@@ -14,6 +15,7 @@ export default function Heuten() {
   if (!ready || !model) return <Skeleton />;
 
   const plan = decideToday(model);
+  const weekly = weeklyPlan(model);
   const overall = overallReadiness(model);
   const dLeft = daysUntil(model.examDate || EXAM_DATE_DEFAULT.toISOString());
   const studiedMin = Math.round(model.totalStudyMs / 60000);
@@ -59,6 +61,20 @@ export default function Heuten() {
             );
           })}
         </div>
+      </Card>
+
+      {/* Weekly rolling plan (autopilot default ON) */}
+      <Card className="mt-4 p-5">
+        <div className="flex items-center justify-between">
+          <p className="text-2xs uppercase tracking-wide text-ink-faint font-medium">Wochenplan (KI)</p>
+          <span className="inline-flex items-center gap-1.5 text-2xs text-good"><StatusDot status="strong" /> Autopilot an</span>
+        </div>
+        <div className="mt-2 space-y-1.5 text-sm">
+          <div className="flex justify-between"><span className="text-ink-muted">Heute</span><span className="font-medium">{weekly.today}</span></div>
+          <div className="flex justify-between"><span className="text-ink-muted">Morgen</span><span>{weekly.tomorrow}</span></div>
+          <div className="flex justify-between"><span className="text-ink-muted">Übermorgen</span><span>{weekly.in2}</span></div>
+        </div>
+        <p className="mt-3 text-2xs text-ink-faint">{weekly.notes.join(" · ")}</p>
       </Card>
 
       {/* Secondary — decision-useful, restrained */}

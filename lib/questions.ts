@@ -29,6 +29,7 @@ export interface Question {
   estimatedTime: number;
   examRelevance: number;
   commonErrors: string;
+  memorizeMs?: number; // if set, stimulus is shown only this long, then hidden (memory realism)
   // for writing
   minWords?: number;
   topic?: string;
@@ -257,7 +258,7 @@ function genSchilder(r: () => number, d: number): Question {
     id: "merk-" + ri(r, 1000, 9999), area: "merkfaehigkeit", subskill: "schilder_erinnern", type: "recall", kind: "visual",
     difficulty: d, prompt: "Erinnere dich: War das Schild " + ask + " unter den gezeigten Schildern?", stimulus: svg,
     options: ["Ja", "Nein"], answer: "Ja", explanation: "Das Schild war zu sehen.", hint: "Konzentriere dich kurz auf die Menge.", estimatedTime: 15, examRelevance: 2, commonErrors: "Nach Aufmerksamkeit vergessen.",
-    difficultyScore: 60, concept: "recall",
+    difficultyScore: 60, concept: "recall", memorizeMs: 4000,
   };
 }
 
