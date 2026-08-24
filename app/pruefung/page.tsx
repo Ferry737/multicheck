@@ -84,6 +84,7 @@ export default function Pruefung() {
 
   const begin = () => set(enterActive({ ...snap, phase: "active" }, Date.now()));
   const onAnswer = (v: string) => {
+    setInput(""); // never carry an answer into the next question
     set(answerCurrent({ ...snap, phase: snap.phase === "active" ? "active" : snap.phase }, v, Date.now()));
     // auto-advance after answer (exam: no "try again")
     setTimeout(() => next(), 250);
@@ -92,6 +93,24 @@ export default function Pruefung() {
     let s = advance(snap, Date.now());
     set(s);
     if (s.phase === "active") s = enterActive(s, Date.now());
+    set(s);
+  };
+
+  // finish MUST be declared before any phase render that references it (TDZ crash otherwise)
+  const finish = () => {
+    let s = submit(snap, Date.now());
+    s = finalize(s);
+    const bd = examBreakdown(s);
+    const fat = fatigueAnalysis(s);
+    let m2 = applyExamToModel(model, s, snap.mode);
+    applySim(Object.keys(s.correct).map((id) => {
+      const sec2 = s.sections.find((x) => x.questions.some((q2) => q2.id === id))!;
+      const q2 = sec2.questions.find((x) => x.id === id)!;
+      return { subskill: q2.subskill, correct: s.correct[id], ms: s.responseTimes[id] || 0 };
+    }), snap.mode === "voll" ? "full-sim" : "mini-sim");
+    const plan = weeklyPlan(m2);
+    clearExam();
+    setResult({ overall: bd.overall, areas: bd.areas, subs: bd.subs, fatigue: fat, plan });
     set(s);
   };
 
@@ -121,9 +140,11 @@ export default function Pruefung() {
 
   if (snap.phase === "transition") {
     const nextArea = AREAS.find((a) => a.id === snap.sectionOrder[snap.currentSection])?.label ?? "";
+    const lastFinished = snap.finishedSections[snap.finishedSections.length - 1];
+    const finishedArea = AREAS.find((a) => a.id === snap.sectionOrder[lastFinished])?.label ?? "";
     return (
       <Card className="mt-6 p-6 max-w-xl text-center">
-        <p className="text-sm text-ink-muted">{areaName} abgeschlossen.</p>
+        <p className="text-sm text-ink-muted">{finishedArea} abgeschlossen.</p>
         <h1 className="mt-2 text-xl font-semibold">Nächster Bereich: {nextArea}</h1>
         <div className="mt-4 text-xs text-ink-faint">Fortschritt: {snap.finishedSections.length}/{snap.sections.length} Bereiche</div>
         <Button className="mt-5" onClick={() => set(enterActive(snap, Date.now()))}>Weiter</Button>
@@ -164,24 +185,6 @@ export default function Pruefung() {
   }
 
   // active session
-  const finish = () => {
-    let s = submit(snap, Date.now());
-    s = finalize(s);
-    const bd = examBreakdown(s);
-    const fat = fatigueAnalysis(s);
-    let m2 = applyExamToModel(model, s, snap.mode);
-    // also feed via applySim for history/fehler consistency
-    applySim(Object.keys(s.correct).map((id) => {
-      const sec2 = s.sections.find((x) => x.questions.some((q2) => q2.id === id))!;
-      const q2 = sec2.questions.find((x) => x.id === id)!;
-      return { subskill: q2.subskill, correct: s.correct[id], ms: s.responseTimes[id] || 0 };
-    }), snap.mode === "voll" ? "full-sim" : "mini-sim");
-    const plan = weeklyPlan(m2);
-    clearExam();
-    setResult({ overall: bd.overall, areas: bd.areas, subs: bd.subs, fatigue: fat, plan });
-    set(s);
-  };
-
   // Memory realism render
   if (isMemoryStimulusPhase) {
     return (
@@ -212,8 +215,12 @@ export default function Pruefung() {
               <button key={opt} onClick={() => onAnswer(opt)} className="w-full text-left rounded-md border border-line px-4 py-3 hover:border-brand transition-colors">{opt}</button>
             ))}
             {!q.options && (
-              <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&onAnswer(input)}
-                className="w-full rounded-md border border-line px-4 py-3 outline-none focus:border-brand" placeholder="Antwort…" />
+              <div className="flex gap-2">
+                <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&input&&onAnswer(input)}
+                  className="w-full rounded-md border border-line px-4 py-3 outline-none focus:border-brand" placeholder="Antwort…" />
+                <button onClick={() => input && onAnswer(input)} disabled={!input}
+                  className="shrink-0 rounded-md bg-brand px-5 py-3 text-white font-medium disabled:opacity-40">Antworten</button>
+              </div>
             )}
           </div>
         </div>
