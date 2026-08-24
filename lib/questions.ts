@@ -178,11 +178,16 @@ function genTextverst(r: () => number, d: number): Question {
 
 // ===== LOGIK =====
 function genProzess(r: () => number, d: number): Question {
+  // a wrong order that is GUARANTEED different from the correct one (deterministic rotation)
+  const wrongOrder = (steps: string[]) => {
+    const w = [...steps.slice(1), steps[0]]; // rotate by one — always different for len > 1
+    return w;
+  };
   if (d === 3) {
     // conditional rule — harder sequencing with a constraint
     const steps = ["Bestellung prüfen", "Kreditlimit prüfen", "Freigabe einholen", "Versand buchen", "Rechnung senden"];
     const correct = steps.join(" → ");
-    const wrong = shuffle(steps, r).join(" → ");
+    const wrong = wrongOrder(steps).join(" → ");
     return mk("logik", "prozesslogik", "process2", d, "Ordne mit Bedingung: Freigabe erst NACH Kreditlimitprüfung. Reihenfolge:", [correct, wrong], correct,
       "Logische Reihenfolge mit Bedingung: " + correct, "Achte auf die Bedingung.", 30, 4, "Bedingung ignoriert.");
   }
@@ -192,7 +197,7 @@ function genProzess(r: () => number, d: number): Question {
     ["Material holen", "schneiden", "kleben", "trocknen lassen"],
   ]);
   const correct = steps.join(" → ");
-  const wrong = shuffle(steps, r).join(" → ");
+  const wrong = wrongOrder(steps).join(" → ");
   const opts = shuffle([correct, wrong], r);
   return mk("logik", "prozesslogik", "process", d, "Ordne die Schritte sinnvoll:", opts, correct,
     "Logische Reihenfolge: " + correct, "Denke an die natürliche Abfolge.", 22, 3, "Reihenfolge falsch.", "sort");
