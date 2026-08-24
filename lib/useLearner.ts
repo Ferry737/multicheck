@@ -2,35 +2,23 @@
 import { useEffect, useState, useCallback } from "react";
 import { LearnerModel, emptyModel, recordAttempt, Attempt } from "@/lib/learner";
 
-const KEY = "multicheck-model-v1";
+const KEY = "multicheck-model-v2";
 
 export function useLearner() {
   const [model, setModel] = useState<LearnerModel | null>(null);
-
   useEffect(() => {
     let m: LearnerModel;
-    try {
-      const raw = localStorage.getItem(KEY);
-      m = raw ? JSON.parse(raw) : emptyModel();
-    } catch {
-      m = emptyModel();
-    }
-    // ensure all skills exist (schema migration safety)
+    try { const raw = localStorage.getItem(KEY); m = raw ? JSON.parse(raw) : emptyModel(); }
+    catch { m = emptyModel(); }
     const base = emptyModel();
-    m.skills = { ...base.skills, ...(m.skills || {}) };
+    m.subs = { ...base.subs, ...(m.subs || {}) };
+    if (!m.fehler) m.fehler = [];
     setModel(m);
   }, []);
-
-  const save = useCallback((m: LearnerModel) => {
-    setModel(m);
-    try { localStorage.setItem(KEY, JSON.stringify(m)); } catch {}
-  }, []);
-
+  const save = useCallback((m: LearnerModel) => { setModel(m); try { localStorage.setItem(KEY, JSON.stringify(m)); } catch {} }, []);
   const record = useCallback((a: Attempt) => {
     setModel((prev) => { if (!prev) return prev; const next = recordAttempt(prev, a); try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {} return next; });
   }, []);
-
   const reset = useCallback(() => save(emptyModel()), [save]);
-
   return { model, record, reset, ready: model !== null };
 }

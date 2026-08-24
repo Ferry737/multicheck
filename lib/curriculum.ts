@@ -1,57 +1,90 @@
 // lib/curriculum.ts
-// ASSUMED Multicheck® Attest (EBA) structure — NOT OFFICIAL, pending verification.
-// Source: general knowledge of Swiss EBA intake assessment + spec §2/§15/§24.
-// Correct me and I will adjust. Labeled "assumed" in the UI/docs.
+// OFFICIAL Multicheck Attest (EBA) taxonomy, per gateway.one 2026/2027 structure.
+// Source: established Attest EBA category model (Schulwissen / Potenzial / Berufsbezogen).
+// Independent prep tool — NOT affiliated with gateway.one or Multicheck®.
+// Subskills mapped to the official areas.
 
-export type Subject = "math" | "german" | "logic";
+export type AreaId =
+  | "deutsch" | "mathematik" | "logik" | "konzentration"
+  | "merkfaehigkeit" | "praktisch" | "textschreiben";
 
-export interface Skill {
+export interface Subskill {
   id: string;
-  subject: Subject;
+  area: AreaId;
   name: string;
-  prerequisites: string[]; // skill ids required first
-  examWeight: number; // 1..5 relative importance for EBA
-  // difficulty band 1..5 (1 = most elementary)
-  band: number;
+  examWeight: number; // 1..5
 }
 
-export const SKILLS: Skill[] = [
-  // MATH — elementary foundation (band 1)
-  { id: "add", subject: "math", name: "Addition", prerequisites: [], examWeight: 3, band: 1 },
-  { id: "sub", subject: "math", name: "Subtraction", prerequisites: ["add"], examWeight: 3, band: 1 },
-  { id: "mul", subject: "math", name: "Multiplication facts", prerequisites: ["add"], examWeight: 4, band: 1 },
-  { id: "div", subject: "math", name: "Division", prerequisites: ["mul"], examWeight: 4, band: 1 },
-  { id: "mental", subject: "math", name: "Mental arithmetic", prerequisites: ["mul", "div"], examWeight: 3, band: 1 },
-  { id: "order", subject: "math", name: "Order of operations", prerequisites: ["add", "sub", "mul", "div"], examWeight: 3, band: 2 },
-  { id: "frac", subject: "math", name: "Fractions", prerequisites: ["div"], examWeight: 4, band: 2 },
-  { id: "dec", subject: "math", name: "Decimals", prerequisites: ["div", "frac"], examWeight: 4, band: 2 },
-  { id: "pct", subject: "math", name: "Percentages", prerequisites: ["dec", "frac"], examWeight: 5, band: 2 },
-  { id: "ratio", subject: "math", name: "Ratios & proportions", prerequisites: ["pct"], examWeight: 3, band: 3 },
-  { id: "money", subject: "math", name: "Money & units", prerequisites: ["dec"], examWeight: 2, band: 2 },
-  { id: "word", subject: "math", name: "Word problems", prerequisites: ["pct", "ratio", "money"], examWeight: 5, band: 3 },
-  { id: "charts", subject: "math", name: "Tables & charts", prerequisites: ["frac", "dec"], examWeight: 2, band: 3 },
-  // GERMAN
-  { id: "de-vocab", subject: "german", name: "Everyday & exam vocabulary", prerequisites: [], examWeight: 4, band: 1 },
-  { id: "de-read", subject: "german", name: "Reading comprehension", prerequisites: ["de-vocab"], examWeight: 5, band: 2 },
-  { id: "de-grammar", subject: "german", name: "Grammar & sentence structure", prerequisites: ["de-vocab"], examWeight: 4, band: 2 },
-  { id: "de-spell", subject: "german", name: "Spelling", prerequisites: ["de-vocab"], examWeight: 2, band: 1 },
-  { id: "de-exam", subject: "german", name: "Exam-style instructions", prerequisites: ["de-read", "de-grammar"], examWeight: 4, band: 3 },
-  // LOGIC / COGNITIVE
-  { id: "log-seq", subject: "logic", name: "Logical sequences", prerequisites: [], examWeight: 3, band: 1 },
-  { id: "log-pattern", subject: "logic", name: "Pattern recognition", prerequisites: ["log-seq"], examWeight: 3, band: 2 },
-  { id: "log-analogy", subject: "logic", name: "Analogies", prerequisites: ["log-seq"], examWeight: 2, band: 2 },
-  { id: "log-spatial", subject: "logic", name: "Spatial reasoning", prerequisites: [], examWeight: 2, band: 2 },
-];
-
-export const SUBJECTS: { id: Subject; label: string }[] = [
-  { id: "math", label: "Mathematics" },
-  { id: "german", label: "German" },
-  { id: "logic", label: "Logical reasoning" },
-];
-
-export function skillById(id: string): Skill | undefined {
-  return SKILLS.find((s) => s.id === id);
+export interface Area {
+  id: AreaId;
+  label: string;
+  group: "Schulwissen" | "Potenzial" | "Berufsbezogen";
+  subskills: Subskill[];
 }
 
-// Exam target date — derived from the learner's October 2026 goal.
-export const EXAM_DATE = new Date("2026-10-15T00:00:00");
+export const AREAS: Area[] = [
+  {
+    id: "deutsch", group: "Schulwissen", label: "Deutsch",
+    subskills: [
+      { id: "satzbau", area: "deutsch", name: "Satzbau", examWeight: 3 },
+      { id: "textverstaendnis", area: "deutsch", name: "Textverständnis", examWeight: 5 },
+    ],
+  },
+  {
+    id: "mathematik", group: "Schulwissen", label: "Mathematik",
+    subskills: [
+      { id: "textaufgaben", area: "mathematik", name: "Textaufgaben", examWeight: 5 },
+      { id: "kopfrechnen", area: "mathematik", name: "Kopfrechnen & Umwandeln", examWeight: 4 },
+    ],
+  },
+  {
+    id: "logik", group: "Potenzial", label: "Logik",
+    subskills: [
+      { id: "prozesslogik", area: "logik", name: "Prozesslogik", examWeight: 3 },
+      { id: "wortgruppen", area: "logik", name: "Wortgruppen", examWeight: 3 },
+    ],
+  },
+  {
+    id: "konzentration", group: "Potenzial", label: "Konzentration",
+    subskills: [
+      { id: "bilder_zaehlen", area: "konzentration", name: "Bilder zählen", examWeight: 3 },
+      { id: "symbole_entdecken", area: "konzentration", name: "Symbole entdecken", examWeight: 3 },
+    ],
+  },
+  {
+    id: "merkfaehigkeit", group: "Potenzial", label: "Merkfähigkeit",
+    subskills: [
+      { id: "schilder_erinnern", area: "merkfaehigkeit", name: "Schilder erinnern", examWeight: 2 },
+    ],
+  },
+  {
+    id: "praktisch", group: "Berufsbezogen", label: "Praktisches Grundwissen",
+    subskills: [
+      { id: "sortierverfahren", area: "praktisch", name: "Sortierverfahren", examWeight: 3 },
+      { id: "alltagswissen", area: "praktisch", name: "Praktisches Alltagswissen", examWeight: 3 },
+    ],
+  },
+  {
+    id: "textschreiben", group: "Berufsbezogen", label: "Textschreiben",
+    subskills: [
+      { id: "textschreiben", area: "textschreiben", name: "Textschreiben (10 Min.)", examWeight: 2 },
+    ],
+  },
+];
+
+export const ALL_SUBSKILLS: Subskill[] = AREAS.flatMap((a) => a.subskills);
+
+export function subskillById(id: string): Subskill | undefined {
+  return ALL_SUBSKILLS.find((s) => s.id === id);
+}
+export function areaOf(id: string): Area | undefined {
+  return AREAS.find((a) => a.subskills.some((s) => s.id === id));
+}
+
+export const EXAM_DATE_DEFAULT = new Date("2026-10-15T00:00:00");
+export const EXAM_MINUTES = 90;
+export const WRITING_MINUTES = 10;
+
+export const DISCLAIMER =
+  "Unabhängiges Vorbereitungswerkzeug — nicht verbunden mit gateway.one oder Multicheck®. " +
+  "Unsere Werte sind Trainingswerte, keine offiziellen Multicheck-Ergebnisse.";

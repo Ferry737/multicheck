@@ -1,216 +1,253 @@
 // lib/questions.ts
-// Deterministic question engine. Math answers are COMPUTED, never guessed.
-// Each question: { id, skill, subject, difficulty(1-5), prompt, options?, correct,
-//   explanation, hint, estimatedTime, examRelevance, commonErrors, kind }
+// Reusable question engine covering all 7 Attest EBA areas.
+// Math answers are COMPUTED and validated. Visual tasks use inline SVG (no external images).
+// Every question: id, area, subskill, type, difficulty(1-3), prompt, stimulus?, options?,
+//   answer, explanation, hint, estimatedTime, examRelevance, commonErrors, kind.
 
-export type QKind = "multiple-choice" | "numeric" | "text";
+export type QType =
+  | "multiple-choice" | "numeric" | "text" | "sequence" | "count"
+  | "symbol" | "recall" | "writing" | "sort" | "reading";
+
+export type QKind = "choice" | "input" | "visual" | "writing" | "sort";
 
 export interface Question {
   id: string;
-  skill: string;
-  subject: string;
-  difficulty: number; // 1=easy .. 5=hard
+  area: string;
+  subskill: string;
+  type: QType;
   kind: QKind;
+  difficulty: number; // 1 easy .. 3 hard
   prompt: string;
-  options?: string[]; // for multiple-choice
-  answer: string; // correct answer string
+  stimulus?: string; // SVG markup or text shown before answer
+  options?: string[];
+  answer: string;
   explanation: string;
   hint: string;
-  estimatedTime: number; // seconds
-  examRelevance: number; // 1..5
+  estimatedTime: number;
+  examRelevance: number;
   commonErrors: string;
+  // for writing
+  minWords?: number;
+  topic?: string;
 }
 
-// ---- seeded RNG so a session is reproducible if needed ----
+// ---- seeded RNG ----
 function rng(seed: number) {
   let s = seed % 2147483647;
   if (s <= 0) s += 2147483646;
   return () => (s = (s * 16807) % 2147483647) / 2147483647;
 }
-
-function randInt(min: number, max: number, r: () => number) {
-  return Math.floor(r() * (max - min + 1)) + min;
-}
-
-function shuffle<T>(arr: T[], r: () => number): T[] {
+const ri = (r: () => number, a: number, b: number) => Math.floor(r() * (b - a + 1)) + a;
+const pick = <T,>(r: () => number, arr: T[]): T => arr[Math.floor(r() * arr.length)];
+const shuffle = <T,>(arr: T[], r: () => number): T[] => {
   const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(r() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; }
   return a;
-}
+};
+const round1 = (n: number) => Math.round(n * 10) / 10;
 
-// ---------------- MATH GENERATORS ----------------
-function genAdd(r: () => number, diff: number): Question {
-  const max = diff <= 2 ? 20 : diff <= 3 ? 100 : 1000;
-  const a = randInt(1, max, r), b = randInt(1, max, r);
-  const ans = a + b;
-  return {
-    id: `add-${a}-${b}`, skill: "add", subject: "math", difficulty: diff, kind: "numeric",
-    prompt: `Rechne: ${a} + ${b} = ?`, answer: String(ans),
-    explanation: `${a} + ${b} = ${ans}.`,
-    hint: "Zähle vom ersten Zahlenwert weiter.", estimatedTime: diff <= 2 ? 8 : 20, examRelevance: 3,
-    commonErrors: "Zehner überspringen bei Übergang (z.B. 48+7).",
-  };
+// ===== MATHEMATIK =====
+function genPercent(r: () => number, d: number): Question {
+  const base = d <= 1 ? ri(r, 2, 20) * 10 : ri(r, 10, 200);
+  const p = pick(r, [10, 20, 25, 30, 40, 50, 75]);
+  const ans = round1((base * p) / 100);
+  const opts = shuffle([String(ans), String(round1((base * (p + 10)) / 100)), String(round1((base * (p - 10)) / 100)), String(round1((base * (p + 5)) / 100))], r);
+  return mk("mathematik", "textaufgaben", "pct", d, "Wie viel sind " + p + "% von " + base + "?", opts, String(ans),
+    p + "% von " + base + " = " + base + " × " + p + "/100 = " + ans + ".",
+    "10% sind " + base / 10 + ".", 28, 5, "Komma falsch setzen.");
 }
-
-function genSub(r: () => number, diff: number): Question {
-  const max = diff <= 2 ? 20 : diff <= 3 ? 100 : 1000;
-  let a = randInt(1, max, r), b = randInt(1, max, r);
-  if (b > a) [a, b] = [b, a];
-  const ans = a - b;
-  return {
-    id: `sub-${a}-${b}`, skill: "sub", subject: "math", difficulty: diff, kind: "numeric",
-    prompt: `Rechne: ${a} − ${b} = ?`, answer: String(ans),
-    explanation: `${a} − ${b} = ${ans}.`,
-    hint: "Wenn nötig, leihe von der nächsten Zehnerstelle.", estimatedTime: diff <= 2 ? 9 : 22, examRelevance: 3,
-    commonErrors: "Zehner borgen falsch anwenden.",
-  };
+function genMoney(r: () => number, d: number): Question {
+  // discount: price reduced by x%
+  const price = pick(r, [40, 60, 80, 100, 120, 150]);
+  const disc = pick(r, [10, 20, 25, 30]);
+  const ans = price - (price * disc) / 100;
+  const opts = shuffle([String(ans), String(price - (price * (disc + 5)) / 100), String(price - (price * (disc - 5)) / 100), String(price)], r).map(String);
+  return mk("mathematik", "textaufgaben", "money", d, "Ein Artikel kostet CHF " + price + ". Er wird " + disc + "% reduziert. Neuer Preis?", opts, String(ans),
+    "CHF " + price + " − " + disc + "% = " + ans + " CHF.", "Berechne " + disc + "% von " + price + ".", 25, 4, "Rabatt falsch abziehen.");
 }
-
-function genMul(r: () => number, diff: number): Question {
-  // band 1: small facts; higher: larger
-  const small = [2, 3, 4, 5, 6, 7, 8, 9, 10];
-  const a = small[randInt(0, small.length - 1, r)];
-  const b = diff <= 2 ? small[randInt(0, 5, r)] : small[randInt(0, small.length - 1, r)];
-  const ans = a * b;
-  return {
-    id: `mul-${a}-${b}`, skill: "mul", subject: "math", difficulty: diff, kind: "numeric",
-    prompt: `Rechne: ${a} × ${b} = ?`, answer: String(ans),
-    explanation: `${a} × ${b} = ${ans}. Tipp: ${b} mal ${a} ist dasselbe.`,
-    hint: "Nutze das Einmaleins. Bei 7×8: 7×10=70, minus 2×7=14 → 56.", estimatedTime: diff <= 2 ? 12 : 18, examRelevance: 4,
-    commonErrors: "Einmaleins-Fakten (bes. 6,7,8) vergessen.",
-  };
+function genWord(r: () => number, d: number): Question {
+  const a = ri(r, 3, 9), b = ri(r, 3, 9), total = a + b;
+  const opts = shuffle([String(total), String(a - b), String(a * b), String(Math.abs(a - b))], r);
+  return mk("mathematik", "textaufgaben", "word", d,
+    "Im Lager sind " + a + " rote und " + b + " blaue Kisten. Wie viele Kisten insgesamt?", opts, String(total),
+    a + " + " + b + " = " + total + ".", "Addiere die beiden Mengen.", 22, 5, "Falsche Rechenart wählen.");
 }
-
-function genDiv(r: () => number, diff: number): Question {
-  const b = diff <= 2 ? randInt(2, 9, r) : randInt(2, 12, r);
-  const ans = randInt(2, diff <= 2 ? 9 : 12, r);
-  const a = b * ans;
-  return {
-    id: `div-${a}-${b}`, skill: "div", subject: "math", difficulty: diff, kind: "numeric",
-    prompt: `Rechne: ${a} ÷ ${b} = ?`, answer: String(ans),
-    explanation: `${a} ÷ ${b} = ${ans}, weil ${b} × ${ans} = ${a}.`,
-    hint: "Denke: welche Zahl mal " + b + " ergibt " + a + "?", estimatedTime: diff <= 2 ? 12 : 20, examRelevance: 4,
-    commonErrors: "Division mit Rest verwechseln; falscher Faktor.",
-  };
-}
-
-function genPct(r: () => number, diff: number): Question {
-  // ASSUMED exam-relevant: percentage of a number, common values
-  const base = diff <= 2 ? randInt(2, 20, r) * 10 : randInt(10, 200, r);
-  const pct = shuffle([10, 20, 25, 30, 40, 50, 75], r)[0];
-  const ans = (base * pct) / 100;
-  const ansStr = Number.isInteger(ans) ? String(ans) : ans.toFixed(1);
-  const mc = shuffle([
-    ansStr,
-    String((base * (pct + 10)) / 100),
-    String((base * (pct - 10)) / 100),
-  ], r).map(String);
-  return {
-    id: `pct-${base}-${pct}`, skill: "pct", subject: "math", difficulty: diff, kind: "multiple-choice",
-    prompt: `Wie viel sind ${pct}% von ${base}?`, options: mc, answer: ansStr,
-    explanation: `${pct}% von ${base} = ${base} × ${pct}/100 = ${ansStr}.`,
-    hint: "10% sind " + base / 10 + ". Baue davon auf.", estimatedTime: diff <= 2 ? 18 : 28, examRelevance: 5,
-    commonErrors: "Komma falsch setzen; Prozent und Bruch verwechseln.",
-  };
-}
-
-function genFrac(r: () => number, diff: number): Question {
-  if (diff <= 2) {
-    const a = randInt(1, 3, r), b = randInt(2, 4, r);
-    return {
-      id: `frac-${a}-${b}`, skill: "frac", subject: "math", difficulty: diff, kind: "numeric",
-      prompt: `Welcher Bruch entspricht ${a}/${b}? (schreibe als Bruch, z.B. 1/2)`, answer: `${a}/${b}`,
-      explanation: `Der Bruch ist ${a} von ${b} gleichen Teilen.`,
-      hint: "Zähler / Nenner.", estimatedTime: 12, examRelevance: 4,
-      commonErrors: "Zähler und Nenner vertauschen.",
-    };
+function genMental(r: () => number, d: number): Question {
+  // conversions: e.g. 1.5 kg = ? g ; or simple mental arithmetic
+  if (r() < 0.5) {
+    const x = ri(r, 1, 9), unit = pick(r, [["kg", "g", 1000], ["m", "cm", 100], ["h", "min", 60], ["t", "kg", 1000]] as [string, string, number][]);
+    const ans = x * unit[2];
+    return mk("mathematik", "kopfrechnen", "conv", d, "Rechne um: " + x + " " + unit[0] + " = ? " + unit[1], undefined, String(ans),
+      "1 " + unit[0] + " = " + unit[2] + " " + unit[1] + " → " + x + " × " + unit[2] + " = " + ans + ".", "Einheiten umrechnen.", 15, 4, "Faktor vergessen.");
   }
-  // add fractions same denominator
-  const d = shuffle([2, 3, 4, 5, 10], r)[0];
-  const a = randInt(1, d - 1, r), b = randInt(1, d - 1, r);
-  const num = a + b;
-  return {
-    id: `frac-add-${a}-${b}-${d}`, skill: "frac", subject: "math", difficulty: diff, kind: "numeric",
-    prompt: `Addiere: ${a}/${d} + ${b}/${d} = ? (als Bruch)`, answer: num > d ? `${Math.floor(num / d)} ${num % d}/${d}` : `${num}/${d}`,
-    explanation: `Gleicher Nenner ${d}: ${a}+${b}=${num}.`,
-    hint: "Nur Zähler addieren, Nenner bleibt.", estimatedTime: 22, examRelevance: 4,
-    commonErrors: "Auch Nenner addieren.",
-  };
+  const a = ri(r, 2, 9), b = ri(r, 2, 9), op = pick(r, ["+", "−", "×"]);
+  const ans = op === "+" ? a + b : op === "−" ? a - b : a * b;
+  return mk("mathematik", "kopfrechnen", "mental", d, "Kopfrechnen: " + a + " " + op + " " + b + " = ?", undefined, String(ans),
+    a + " " + op + " " + b + " = " + ans + ".", "Rechne schrittweise.", 12, 4, "Grundrechenart.");
+}
+function genFrac(r: () => number, d: number): Question {
+  const den = pick(r, [2, 3, 4, 5, 10]);
+  const n1 = ri(r, 1, den - 1), n2 = ri(r, 1, den - 1);
+  const sum = n1 + n2; const ans = sum > den ? Math.floor(sum / den) + " " + (sum % den) + "/" + den : sum + "/" + den;
+  const opts = shuffle([ans, n1 + "/" + den, n2 + "/" + den, (n1 * n2) + "/" + den], r);
+  return mk("mathematik", "textaufgaben", "frac", d, "Addiere: " + n1 + "/" + den + " + " + n2 + "/" + den + " = ?", opts, String(ans),
+    "Gleicher Nenner " + den + ": " + n1 + "+" + n2 + "=" + sum + ".", "Nur Zähler addieren.", 22, 4, "Nenner addieren.");
 }
 
-function genDec(r: () => number, diff: number): Question {
-  const a = randInt(1, 9, r) + r() * 0.9;
-  const b = randInt(1, 9, r) + r() * 0.9;
-  const ans = Math.round((a + b) * 100) / 100;
-  return {
-    id: `dec-${a.toFixed(1)}-${b.toFixed(1)}`, skill: "dec", subject: "math", difficulty: diff, kind: "numeric",
-    prompt: `Rechne: ${a.toFixed(1)} + ${b.toFixed(1)} = ?`, answer: ans.toFixed(1),
-    explanation: `Kommastellen untereinander, dann addieren: ${ans.toFixed(1)}.`,
-    hint: "Komma gerade untereinander schreiben.", estimatedTime: 18, examRelevance: 4,
-    commonErrors: "Komma falsch ausrichten.",
-  };
-}
-
-// ---------------- GERMAN GENERATORS (assumed) ----------------
-const DE_VOCAB: [string, string][] = [
-  ["die Rechnung", "the bill / calculation"],
-  ["der Betrag", "the amount"],
-  ["die Lieferung", "the delivery"],
-  ["der Kunde", "the customer"],
-  ["die Ware", "the goods"],
-  ["die Bestellung", "the order"],
+// ===== DEUTSCH =====
+const SENTENCES = [
+  ["Der", "Kunde", "bezahlt", "an", "der", "Kasse", "."],
+  ["Wir", "bestellen", "die", "Ware", "online", "."],
+  ["Die", "Lieferung", "kommt", "morgen", "an", "."],
+  ["Er", "schreibt", "eine", "E-Mail", "an", "den", "Chef", "."],
 ];
-function genDeVocab(r: () => number, diff: number): Question {
-  const [de, en] = DE_VOCAB[randInt(0, DE_VOCAB.length - 1, r)];
-  const others = shuffle(DE_VOCAB.filter((x) => x[0] !== de).map((x) => x[0]), r).slice(0, 3);
-  const opts = shuffle([de, ...others], r);
-  const targetEn = EN_DE.find((x) => x[0] === en)?.[1] ?? "";
-  return {
-    id: `de-vocab-${de}`, skill: "de-vocab", subject: "german", difficulty: diff, kind: "multiple-choice",
-    prompt: `Wähle die richtige Bedeutung: "${de}"`, options: opts, answer: de,
-    explanation: `"${de}" doesn't apply; correct mapping: ${de} = ${en}.`,
-    hint: "Denke an den Kontext Geschäft/Administration.", estimatedTime: 14, examRelevance: 4,
-    commonErrors: "Wörter mit ähnlichem Klang verwechseln.",
-  };
+function genSatzbau(r: () => number, d: number): Question {
+  const parts = pick(r, SENTENCES);
+  const correct = parts.join(" ");
+  const scrambled = shuffle(parts, r).join(" ");
+  return mk("deutsch", "satzbau", "order", d, "Bilde einen korrekten Satz: " + scrambled, undefined, correct,
+    "Richtig: " + correct, "Subjekt zuerst, dann Verb.", 20, 3, "Wortstellung (Verbposition).", "sort");
 }
-const EN_DE: [string, string][] = DE_VOCAB.map(([d, e]) => [e, d]);
-
-// ---------------- LOGIC GENERATORS ----------------
-function genSeq(r: () => number, diff: number): Question {
-  const step = randInt(2, diff <= 2 ? 4 : 9, r);
-  const start = randInt(1, 10, r);
-  const seq = [start, start + step, start + 2 * step, start + 3 * step];
-  const next = start + 4 * step;
-  const opts = shuffle([next, next + step, next - step, next + 1], r).map(String);
+function genTextverst(r: () => number, d: number): Question {
+  const texts: [string, string, string[]][] = [
+    ["Achtung: Die Lieferung erfolgt nur nach Voranmeldung.", "Was ist nötig vor der Lieferung?", ["eine Voranmeldung", "eine Zahlung", "ein Ausweis"]],
+    ["Die Sprechstunde ist von 9 bis 12 Uhr. Bitte pünktlich erscheinen.", "Wann ist die Sprechstunde geöffnet?", ["9 bis 12 Uhr", "ganztags", "nachmittags"]],
+    ["Bestellungen bis 18 Uhr werden am selben Tag versandt.", "Wann wird noch am selben Tag versandt?", ["bis 18 Uhr", "vor 12 Uhr", "nach 20 Uhr"]],
+  ];
+  const [text, q, opts] = pick(r, texts);
+  const ans = opts[0];
   return {
-    id: `seq-${seq.join("-")}`, skill: "log-seq", subject: "logic", difficulty: diff, kind: "multiple-choice",
-    prompt: `Reihe fortsetzen: ${seq.join(", ")}, ?`, options: opts, answer: String(next),
-    explanation: `Jede Zahl steigt um ${step}. Nächste: ${next}.`,
-    hint: "Differenz zwischen zwei Zahlen finden.", estimatedTime: 14, examRelevance: 3,
-    commonErrors: "Falschen Abstand annehmen.",
+    id: "de-tv-" + ri(r, 1000, 9999), area: "deutsch", subskill: "textverstaendnis", type: "reading", kind: "choice",
+    difficulty: d, prompt: q, stimulus: "Text: " + text, options: shuffle(opts, r), answer: ans,
+    explanation: "Im Text steht: die richtige Info ist „" + ans + "“.", hint: "Lies genau die gesuchte Angabe.", estimatedTime: 30, examRelevance: 5, commonErrors: "Oberflächlich lesen.",
   };
 }
 
-// ---------------- DISPATCH ----------------
-const GENERATORS: Record<string, (r: () => number, d: number) => Question> = {
-  add: genAdd, sub: genSub, mul: genMul, div: genDiv, pct: genPct, frac: genFrac,
-  dec: genDec, "de-vocab": genDeVocab, "log-seq": genSeq,
+// ===== LOGIK =====
+function genProzess(r: () => number, d: number): Question {
+  const steps = pick(r, [
+    ["Bestellung aufgeben", "Ware prüfen", "Versand", "Rechnung"],
+    ["Brief öffnen", "lesen", "antworten", "absenden"],
+    ["Material holen", "schneiden", "kleben", "trocknen lassen"],
+  ]);
+  const correct = steps.join(" → ");
+  const wrong = shuffle(steps, r).join(" → ");
+  const opts = shuffle([correct, wrong], r);
+  return mk("logik", "prozesslogik", "process", d, "Ordne die Schritte sinnvoll:", opts, correct,
+    "Logische Reihenfolge: " + correct, "Denke an die natürliche Abfolge.", 22, 3, "Reihenfolge falsch.", "sort");
+}
+function genWortgruppen(r: () => number, d: number): Question {
+  const sets: [string[], string][] = [
+    [["Apfel", "Birne", "Banane"], "Traktor"],
+    [["Auto", "Bus", "Zug"], "Stift"],
+    [["Tisch", "Stuhl", "Regal"], "Hund"],
+  ];
+  const [group, odd] = pick(r, sets);
+  const opts = shuffle([odd, ...group.slice(0, 2)], r);
+  return mk("logik", "wortgruppen", "odd", d, "Welches Wort passt NICHT zur Gruppe? (Apfel, Birne, Banane, …)", opts, odd,
+    "„" + odd + "“ gehört nicht zur Kategorie.", "Finde die Kategorie.", 18, 3, "Kategorie nicht erkannt.");
+}
+
+// ===== KONZENTRATION (visual SVG) =====
+function grid(n: number, r: () => number) {
+  // n×n grid of cells; returns svg string
+  const cell = 44, pad = 6, sz = n * (cell + pad);
+  let cells = "";
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const sym = ri(r, 0, 3);
+    cells += `<g transform="translate(${pad + x * (cell + pad)},${pad + y * (cell + pad)})"><rect width="${cell}" height="${cell}" rx="6" fill="#F0EEE9" stroke="#E2DFD8"/><text x="${cell / 2}" y="${cell / 2 + 7}" font-size="22" text-anchor="middle">${["●", "▲", "■", "★"][sym]}</text></g>`;
+  }
+  return `<svg viewBox="0 0 ${sz} ${sz}" width="${sz}" height="${sz}">${cells}</svg>`;
+}
+function genBilderZaehlen(r: () => number, d: number): Question {
+  const n = d <= 1 ? 4 : d === 2 ? 5 : 6;
+  const target = ri(r, 0, 3);
+  const svg = grid(n, r);
+  const count = (svg.match(new RegExp("[" + ["●", "▲", "■", "★"][target] + "]", "g")) || []).length;
+  const symName = ["Kreise", "Dreiecke", "Quadrate", "Sterne"][target];
+  return {
+    id: "kon-bz-" + ri(r, 1000, 9999), area: "konzentration", subskill: "bilder_zaehlen", type: "count", kind: "visual",
+    difficulty: d, prompt: "Zähle die " + symName + " (●▲■★) im Raster.", stimulus: svg, options: shuffle([String(count), String(count + 1), String(Math.max(0, count - 1)), String(count + 2)], r),
+    answer: String(count), explanation: "Es sind " + count + " " + symName + ".", hint: "Systematisch zeilenweise zählen.", estimatedTime: 25, examRelevance: 3, commonErrors: "Übersehen/Zu viel zählen.",
+  };
+}
+function genSymbole(r: () => number, d: number): Question {
+  const n = d <= 1 ? 4 : 5;
+  const svg = grid(n, r);
+  const target = ri(r, 0, 3);
+  const count = (svg.match(new RegExp("[" + ["●", "▲", "■", "★"][target] + "]", "g")) || []).length;
+  return {
+    id: "kon-se-" + ri(r, 1000, 9999), area: "konzentration", subskill: "symbole_entdecken", type: "symbol", kind: "visual",
+    difficulty: d, prompt: "Wie viele Symbole der gesuchten Art (▲) sind im Raster?", stimulus: svg, options: shuffle([String(count), String(count + 1), String(Math.max(0, count - 1))], r),
+    answer: String(count), explanation: "Anzahl = " + count + ".", hint: "Nutze ein Suchmuster.", estimatedTime: 22, examRelevance: 3, commonErrors: "Doppelzählung.",
+  };
+}
+
+// ===== MERKFÄHIGKEIT (stimulus → recall) =====
+const SIGNS = ["⛔", "⚠️", "ℹ️", "↩️", "♿", "🅿️", "🚭", "🔧"];
+function genSchilder(r: () => number, d: number): Question {
+  const k = d <= 1 ? 3 : 4;
+  const chosen = shuffle(SIGNS, r).slice(0, k);
+  const svg = `<svg viewBox="0 0 ${k * 70} 60" width="${k * 70}" height="60">` +
+    chosen.map((s, i) => `<text x="${i * 70 + 35}" y="42" font-size="34" text-anchor="middle">${s}</text>`).join("") + `</svg>`;
+  const ask = pick(r, chosen);
+  return {
+    id: "merk-" + ri(r, 1000, 9999), area: "merkfaehigkeit", subskill: "schilder_erinnern", type: "recall", kind: "visual",
+    difficulty: d, prompt: "Erinnere dich: War das Schild " + ask + " unter den gezeigten Schildern?", stimulus: svg,
+    options: ["Ja", "Nein"], answer: "Ja", explanation: "Das Schild war zu sehen.", hint: "Konzentriere dich kurz auf die Menge.", estimatedTime: 15, examRelevance: 2, commonErrors: "Nach Aufmerksamkeit vergessen.",
+  };
+}
+
+// ===== PRAKTISCH =====
+function genSort(r: () => number, d: number): Question {
+  const nums = shuffle([ri(r, 10, 99), ri(r, 10, 99), ri(r, 10, 99), ri(r, 10, 99)], r);
+  const asc = [...nums].sort((a, b) => a - b).join(", ");
+  return mk("praktisch", "sortierverfahren", "numbers", d, "Sortiere aufsteigend: " + nums.join(", "), undefined, asc,
+    "Aufsteigend: " + asc, "Kleinste zuerst.", 18, 3, "Reihenfolge vertauscht.", "sort");
+}
+function genAlltag(r: () => number, d: number): Question {
+  const q: [string, string[]][] = [
+    ["Du siehst Rauch im Lager. Was tust du ZUERST?", ["Alarm auslösen", "weiterarbeiten", "fenster öffnen"]],
+    ["Eine Kollegin ist gestürzt. Was ist richtig?", ["Erste Hilfe holen", "allein hochziehen", "ignorieren"]],
+    ["Der Feuerwehrplan zeigt den Fluchtweg. Wo stehst du?", ["am Ausgang", "am Fenster", "am Lift"]],
+  ];
+  const [text, opts] = pick(r, q);
+  const ans = opts[0];
+  return mk("praktisch", "alltagswissen", "safety", d, text, shuffle(opts, r), ans,
+    "Richtig: " + ans, "Sicherheit geht vor.", 16, 3, "Falsche Priorität.");
+}
+
+// ===== HELPERS / DISPATCH =====
+function mk(area: string, sub: string, type: string, d: number, prompt: string, options: string[] | undefined, answer: string, explanation: string, hint: string, et: number, er: number, ce: string, kind?: QKind): Question {
+  return {
+    id: `${area}-${sub}-${type}-${ri(rng(Date.now()), 1000, 9999)}`, area, subskill: sub, type: type as QType,
+    kind: kind ?? (options ? "choice" : "input"), difficulty: d, prompt, options, answer, explanation, hint,
+    estimatedTime: et, examRelevance: er, commonErrors: ce,
+  };
+}
+
+const GENERATORS: Record<string, ((r: () => number, d: number) => Question)[]> = {
+  textaufgaben: [genPercent, genMoney, genWord, genFrac],
+  kopfrechnen: [genMental],
+  satzbau: [genSatzbau], textverstaendnis: [genTextverst],
+  prozesslogik: [genProzess], wortgruppen: [genWortgruppen],
+  bilder_zaehlen: [genBilderZaehlen], symbole_entdecken: [genSymbole],
+  schilder_erinnern: [genSchilder], sortierverfahren: [genSort], alltagswissen: [genAlltag],
 };
 
-export function generateForSkill(skillId: string, difficulty: number, seed = Date.now()): Question | null {
-  const g = GENERATORS[skillId];
-  if (!g) return null;
-  return g(rng(seed), Math.max(1, Math.min(5, difficulty)));
+export function generate(subskillId: string, difficulty: number, seed = Date.now()): Question | null {
+  const gs = GENERATORS[subskillId];
+  if (!gs || !gs.length) return null;
+  const r = rng(seed);
+  const g = gs[Math.floor(r() * gs.length)];
+  return g(r, Math.max(1, Math.min(3, difficulty)));
 }
 
-// Generate a small batch (variants) for a skill.
-export function generateBatch(skillId: string, difficulty: number, n = 6, baseSeed = Date.now()): Question[] {
+export function generateBatch(subskillId: string, difficulty: number, n = 6, baseSeed = Date.now()): Question[] {
   const out: Question[] = [];
   for (let i = 0; i < n; i++) {
-    const q = generateForSkill(skillId, difficulty, baseSeed + i * 7919);
+    // vary seed per item so prompts differ within a session
+    const q = generate(subskillId, difficulty, baseSeed + i * 7919 + Math.floor(rng(baseSeed + i)() * 1e6));
     if (q) out.push(q);
   }
   return out;
