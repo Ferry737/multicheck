@@ -93,7 +93,8 @@ function genMoney(r: () => number, d: number): Question {
 }
 function genWord(r: () => number, d: number): Question {
   const a = ri(r, 3, 9), b = ri(r, 3, 9), total = a + b;
-  const opts = shuffle([String(total), String(a - b), String(a * b), String(Math.abs(a - b))], r);
+  const diffs = [...new Set([total + 1, total - 1, a * b].filter((v) => v > 0 && v !== total))]; // plausible positive distractors only
+  const opts = shuffle([String(total), ...diffs.slice(0, 3).map(String)], r);
   return mk("mathematik", "textaufgaben", "word", d,
     "Im Lager sind " + a + " rote und " + b + " blaue Kisten. Wie viele Kisten insgesamt?", opts, String(total),
     a + " + " + b + " = " + total + ".", "Addiere die beiden Mengen.", 22, 5, "Falsche Rechenart wählen.");
