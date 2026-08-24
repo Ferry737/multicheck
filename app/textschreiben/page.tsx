@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { Button, Card } from "@/components/ui";
 
 const TOPICS = [
   "Beschreibe deinen letzten Arbeitstag in 3–5 Sätzen.",
@@ -40,32 +41,32 @@ export default function Textschreiben() {
   }
 
   if (!started) return (
-    <main className="container-x py-10 max-w-xl text-center">
-      <h1 className="text-2xl font-bold">Textschreiben</h1>
-      <p className="mt-3 text-ink-muted">10 Minuten. Realistische Schreibaufgabe wie in der Attest EBA.</p>
-      <button onClick={start} className="mt-6 rounded-xl bg-brand px-6 py-3 text-white font-semibold">Schreiben starten</button>
-    </main>
+    <div className="enter">
+      <h1 className="text-2xl font-semibold tracking-tight">Textschreiben</h1>
+      <p className="mt-1 text-sm text-ink-muted">10 Minuten. Realistische Schreibaufgabe wie in der Attest EBA.</p>
+      <div className="mt-5"><Button onClick={start}>Schreiben starten</Button></div>
+    </div>
   );
 
   return (
-    <main className="container-x py-8 max-w-2xl">
+    <div className="enter">
       <div className="flex justify-between text-sm">
         <span className="font-medium">{topic}</span>
-        <span className="tabular text-ink-muted">⏱ {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")} / 10:00</span>
+        <span className="tnum text-ink-muted">⏱ {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")} / 10:00</span>
       </div>
       {timeUp && !done && <p className="mt-2 text-sm text-bad">Zeit um — du kannst noch abschicken.</p>}
       <textarea value={text} onChange={(e) => setText(e.target.value)} disabled={done} rows={10}
         placeholder="Schreibe hier…"
-        className="mt-4 w-full rounded-xl border border-line px-4 py-3 outline-none focus:border-brand resize-none" />
+        className="mt-4 w-full rounded-md border border-line px-4 py-3 outline-none focus:border-brand resize-none text-base" />
       <div className="mt-2 text-xs text-ink-faint">{words} Wörter</div>
       {!done ? (
-        <button onClick={submit} className="mt-3 rounded-xl bg-brand px-6 py-3 text-white font-semibold disabled:opacity-40" disabled={words === 0}>Abschicken</button>
+        <div className="mt-3"><Button onClick={submit} disabled={words === 0}>Abschicken</Button></div>
       ) : (
-        <div className="mt-4 rounded-card border border-line bg-paper p-5 shadow-card">
+        <Card className="mt-4 p-5">
           <p className="text-xs text-ink-faint">Annähernde Trainings-Rückmeldung (KI, nicht offiziell):</p>
           {loading ? <p className="mt-2 text-sm text-ink-muted">Bewertet…</p> : <p className="mt-2 text-sm whitespace-pre-wrap">{feedback}</p>}
-        </div>
+        </Card>
       )}
-    </main>
+    </div>
   );
 }

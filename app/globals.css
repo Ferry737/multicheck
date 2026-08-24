@@ -2,12 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+:root { color-scheme: light; }
+
+html, body { height: 100%; }
+
 body {
-  background: #f6f5f2;
+  background: #f4f3f0;
   color: #16181d;
-  font-family: system-ui, "Archivo", "Inter", sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "ss01";
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-.tabular { font-variant-numeric: tabular-nums; }
-.container-x { width: 100%; max-width: 1100px; margin-inline: auto; padding-inline: 20px; }
+/* Premium focus ring (accessibility) */
+:where(button, a, input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #2C5FE0;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Tabular numerals for data */
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* Shell container */
+.shell { width: 100%; max-width: 1080px; margin-inline: auto; padding-inline: 24px; }
+
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+
+/* Subtle entrance (no bounce) */
+@keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.enter { animation: fade-up 220ms ease-out both; }
+
+/* Skeleton */
+.skeleton { background: linear-gradient(90deg, #ececea 25%, #f4f3f0 37%, #ececea 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; }
+@keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }

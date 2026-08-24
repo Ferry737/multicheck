@@ -2,71 +2,66 @@
 import { useLearner } from "@/lib/useLearner";
 import { AREAS } from "@/lib/curriculum";
 import { masteryOf, accuracy, avgSpeed, quadrant, readinessByArea, overallReadiness } from "@/lib/learner";
+import { Card, StatCard, ProgressRing, Bar } from "@/components/ui";
 
 export default function Fortschritt() {
   const { model, ready } = useLearner();
-  if (!ready || !model) return <div className="container-x py-20 text-ink-muted">Lade…</div>;
+  if (!ready || !model) return <div className="text-sm text-ink-faint">Lade…</div>;
 
   const acc = accuracy(model), spd = avgSpeed(model), q = quadrant(model);
   const byArea = readinessByArea(model);
   const studiedMin = Math.round(model.totalStudyMs / 60000);
 
   return (
-    <main className="container-x py-8 max-w-3xl">
-      <h1 className="text-2xl font-bold">Fortschritt</h1>
+    <div className="enter">
+      <h1 className="text-2xl font-semibold tracking-tight">Fortschritt</h1>
 
-      <div className="grid sm:grid-cols-4 gap-3 mt-6">
-        <Stat label="Bereitschaft" value={overallReadiness(model) + "%"} />
-        <Stat label="Genauigkeit" value={acc + "%"} />
-        <Stat label="Ø Tempo" value={spd + "s"} />
-        <Stat label="Trainiert" value={studiedMin + " Min"} />
+      <div className="grid sm:grid-cols-4 gap-3 mt-5">
+        <StatCard label="Trainingsleistung" value={overallReadiness(model) + "%"} />
+        <StatCard label="Genauigkeit" value={acc + "%"} accent={acc >= 75 ? "good" : acc >= 50 ? "warn" : "bad"} />
+        <StatCard label="Ø Tempo" value={spd + "s"} />
+        <StatCard label="Trainiert" value={studiedMin + "′"} />
       </div>
 
-      {/* Accuracy vs Speed quadrant */}
-      <h2 className="mt-8 text-lg font-semibold">Genauigkeit vs. Tempo</h2>
-      <div className="mt-3 grid grid-cols-2 gap-2 max-w-md">
-        <Quad label="Schnell + genau" active={q === "accurate+fast"} good />
-        <Quad label="Langsam + genau" active={q === "accurate+slow"} />
-        <Quad label="Schnell + fehlerhaft" active={q === "inaccurate+fast"} bad />
-        <Quad label="Langsam + fehlerhaft" active={q === "inaccurate+slow"} bad />
-      </div>
-      <p className="mt-2 text-xs text-ink-faint">Trainingswerte (Genauigkeit / Tempo / Trainingsleistung) — keine offiziellen Multicheck-Werte.</p>
+      <div className="grid md:grid-cols-2 gap-4 mt-5">
+        <Card className="p-5 flex items-center gap-5">
+          <ProgressRing value={overallReadiness(model)} label="bereit" />
+          <div>
+            <p className="font-semibold">Gesamtbereitschaft</p>
+            <p className="text-sm text-ink-muted mt-1">Trainingswert — keine offizielle Multicheck-Note.</p>
+          </div>
+        </Card>
 
-      <h2 className="mt-8 text-lg font-semibold">Bereich nach Bereich</h2>
-      <div className="mt-3 rounded-card border border-line bg-paper shadow-card overflow-hidden">
+        <Card className="p-5">
+          <p className="text-2xs uppercase tracking-wide text-ink-faint">Genauigkeit vs. Tempo</p>
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <Quad label="Schnell + genau" active={q === "accurate+fast"} good />
+            <Quad label="Langsam + genau" active={q === "accurate+slow"} />
+            <Quad label="Schnell + fehlerhaft" active={q === "inaccurate+fast"} bad />
+            <Quad label="Langsam + fehlerhaft" active={q === "inaccurate+slow"} bad />
+          </div>
+        </Card>
+      </div>
+
+      <h2 className="text-sm font-semibold text-ink-soft mt-7 mb-2">Bereich nach Bereich</h2>
+      <Card className="divide-y divide-line">
         {AREAS.map((a) => {
           const r = byArea[a.id];
           return (
-            <div key={a.id} className="flex items-center justify-between px-5 py-3 border-b border-line last:border-0">
-              <span>{a.label}</span>
+            <div key={a.id} className="flex items-center justify-between px-4 py-3">
+              <span className="text-sm">{a.label}</span>
               <div className="flex items-center gap-3 w-44">
-                <div className="flex-1 h-2 rounded-full bg-line overflow-hidden"><div className="h-full bg-brand" style={{ width: `${r}%` }} /></div>
-                <span className="tabular text-sm w-10 text-right">{r}%</span>
+                <div className="flex-1"><Bar value={r} /></div>
+                <span className="text-sm font-semibold tnum w-9 text-right">{r}%</span>
               </div>
             </div>
           );
         })}
-      </div>
-
-      <h2 className="mt-8 text-lg font-semibold">Fertigkeiten</h2>
-      <div className="mt-3 rounded-card border border-line bg-paper shadow-card overflow-hidden">
-        {AREAS.flatMap((a) => a.subskills).map((s) => {
-          const m = Math.round(masteryOf(model, s.id) * 100);
-          return (
-            <div key={s.id} className="flex items-center justify-between px-5 py-2.5 border-b border-line last:border-0">
-              <span className="text-sm">{s.name}</span>
-              <span className="tabular text-sm">{m}%</span>
-            </div>
-          );
-        })}
-      </div>
-    </main>
+      </Card>
+    </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-card border border-line bg-paper p-4 shadow-card"><p className="text-xs text-ink-faint">{label}</p><p className="mt-1 text-xl font-bold tabular">{value}</p></div>;
-}
 function Quad({ label, active, good, bad }: { label: string; active: boolean; good?: boolean; bad?: boolean }) {
-  return <div className={`rounded-xl border p-3 text-sm ${active ? (good ? "border-good bg-good/10" : bad ? "border-bad bg-bad/10" : "border-brand bg-brand-soft") : "border-line bg-paper"}`}>{label}</div>;
+  return <div className={`rounded-md border p-3 text-xs ${active ? (good ? "border-good bg-goodSoft" : bad ? "border-bad bg-badSoft" : "border-brand bg-brand-soft") : "border-line bg-paper"}`}>{label}</div>;
 }
