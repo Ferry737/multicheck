@@ -469,7 +469,6 @@ export function needsLesson(m: CoachModel, id: string): { lesson: boolean; conce
   const st = m.subs[id];
   if (!st) return { lesson: false, reason: "keine Daten" };
   const recent = st.recent.slice(-6);
-  if (recent.length < 4) return { lesson: false, reason: "zu wenig Daten" };
   const wrong = recent.filter(r => !r.correct).length;
   // count repeated concept/mistake types
   const conceptFails = Object.entries(st.mistakeTypes)
@@ -478,7 +477,11 @@ export function needsLesson(m: CoachModel, id: string): { lesson: boolean; conce
   if (wrong >= 4 && conceptFails.length > 0) {
     return { lesson: true, concept: conceptFails[0][0], reason: `${wrong} Fehler, Muster: ${conceptFails[0][0]}` };
   }
+  // persistent weakness: low mastery after enough attempts
   if (st.mastery < 0.3 && st.attempts >= 6) return { lesson: true, concept: conceptFails[0]?.[0] ?? "concept", reason: "anhaltend schwach" };
+  // NEW STUDENT / thin history: a subskill with very low mastery (never really learned)
+  // still warrants a corrective lesson once it shows repeated trouble.
+  if (st.mastery < 0.2 && st.attempts >= 3) return { lesson: true, concept: conceptFails[0]?.[0] ?? "concept", reason: "tiefe Schwäche, wenig Daten" };
   return { lesson: false, reason: "Ok" };
 }
 
@@ -506,7 +509,11 @@ export function midSessionDecision(m: CoachModel, subskill: string, correct: boo
   const SPEED_TARGET = 12000;
   if (!correct) {
     const nl = needsLesson(m, subskill);
-    if (streak >= 3 && nl.lesson) return { kind: "lesson", concept: nl.concept };
+    const st = m.subs[subskill];
+    const weak = (st?.mastery ?? 0) < 0.4;
+    // repeated in-session failures on a weak/sub-zero subskill => corrective lesson.
+    // This is independent of stored history so brand-new students also get help.
+    if (streak >= 3 && (nl.lesson || weak)) return { kind: "lesson", concept: nl.concept };
     if (ms < SPEED_TARGET * 0.4) return { kind: "accuracy" }; // very fast but wrong = careless
     return { kind: "none" };
   }
