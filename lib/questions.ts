@@ -69,7 +69,20 @@ function genPercent(r: () => number, d: number): Question {
     "10% sind " + base / 10 + ".", 28, 5, "Komma falsch setzen.");
 }
 function genMoney(r: () => number, d: number): Question {
-  // discount: price reduced by x%
+  if (d === 3) {
+    // multi-step: discount THEN voucher (Hard mode)
+    const price = pick(r, [120, 180, 240, 300]);
+    const disc = pick(r, [10, 15, 20, 25]);
+    const voucher = pick(r, [10, 20, 30]);
+    const afterDisc = price - (price * disc) / 100;
+    const ans = Math.round((afterDisc - voucher) * 100) / 100;
+    const opts = shuffle([String(ans), String(Math.round((price - voucher) - (price*disc)/100)), String(price - (price*disc)/100), String(ans + voucher)], r).map(String);
+    return mk("mathematik", "textaufgaben", "money2", d,
+      `Ein Artikel kostet CHF ${price}. Er wird ${disc}% reduziert. Danach wird ein Gutschein von CHF ${voucher} abgezogen. Finaler Preis?`,
+      opts, String(ans),
+      `${price} − ${disc}% = ${afterDisc} CHF. − ${voucher} = ${ans} CHF.`,
+      "Zuerst Rabatt, dann Gutschein.", 35, 5, "Reihenfolge der Abzüge verwechseln.");
+  }
   const price = pick(r, [40, 60, 80, 100, 120, 150]);
   const disc = pick(r, [10, 20, 25, 30]);
   const ans = price - (price * disc) / 100;
@@ -86,6 +99,19 @@ function genWord(r: () => number, d: number): Question {
 }
 function genMental(r: () => number, d: number): Question {
   // conversions: e.g. 1.5 kg = ? g ; or simple mental arithmetic
+  if (d === 3) {
+    // two-step mental: convert then apply
+    const x = ri(r, 2, 9);
+    const y = ri(r, 2, 9);
+    const unit = pick(r, [["kg", "g", 1000], ["h", "min", 60], ["m", "cm", 100]] as [string, string, number][]);
+    const op = pick(r, ["+", "×"]);
+    const conv = x * unit[2];
+    const ans = op === "+" ? conv + y : conv * y;
+    return mk("mathematik", "kopfrechnen", "conv2", d,
+      `Rechne und berechne: ${x} ${unit[0]} = ? ${unit[1]}, dann davon ${op === "+" ? "plus" : "mal"} ${y}.`, undefined, String(ans),
+      `${x} ${unit[0]} = ${conv} ${unit[1]}. ${conv} ${op} ${y} = ${ans}.`,
+      "Zuerst umrechnen, dann rechnen.", 18, 5, "Reihenfolge der Schritte.");
+  }
   if (r() < 0.5) {
     const x = ri(r, 1, 9), unit = pick(r, [["kg", "g", 1000], ["m", "cm", 100], ["h", "min", 60], ["t", "kg", 1000]] as [string, string, number][]);
     const ans = x * unit[2];
@@ -114,6 +140,18 @@ const SENTENCES = [
   ["Er", "schreibt", "eine", "E-Mail", "an", "den", "Chef", "."],
 ];
 function genSatzbau(r: () => number, d: number): Question {
+  if (d === 3) {
+    // subordinate clause — harder word order
+    const subj = pick(r, ["Der Mitarbeiter", "Die Kollegin", "Unser Team", "Der Chef"]);
+    const verb = pick(r, ["prüft", "bestellt", "verschickt", "kontrolliert"]);
+    const obj = pick(r, ["die Rechnung", "die Ware", "das Paket", "den Bericht"]);
+    const konj = pick(r, [["weil", "da"], ["obwohl", "auch wenn"], ["wenn", "falls"]]);
+    const reason = pick(r, ["die Frist kurz ist", "das Lager voll ist", "der Kunde wartet", "die Zahlung fehlt"]);
+    const correct = `${subj} ${verb} ${obj}, ${konj[0]} ${reason}.`;
+    const wrong = `${subj}, ${konj[0]} ${reason} ${verb} ${obj}.`;
+    return mk("deutsch", "satzbau", "order2", d, "Bilde einen Satz mit Nebensatz: „" + subj + " " + verb + " " + obj + "“ + „" + konj[0] + " " + reason + "“", undefined, correct,
+      "Mit Komma: " + correct, "Nebensatz mit Komma abtrennen; Verb ans Ende.", 28, 4, "Verbposition im Nebensatz.");
+  }
   const parts = pick(r, SENTENCES);
   const correct = parts.join(" ");
   const scrambled = shuffle(parts, r).join(" ");
@@ -138,6 +176,14 @@ function genTextverst(r: () => number, d: number): Question {
 
 // ===== LOGIK =====
 function genProzess(r: () => number, d: number): Question {
+  if (d === 3) {
+    // conditional rule — harder sequencing with a constraint
+    const steps = ["Bestellung prüfen", "Kreditlimit prüfen", "Freigabe einholen", "Versand buchen", "Rechnung senden"];
+    const correct = steps.join(" → ");
+    const wrong = shuffle(steps, r).join(" → ");
+    return mk("logik", "prozesslogik", "process2", d, "Ordne mit Bedingung: Freigabe erst NACH Kreditlimitprüfung. Reihenfolge:", [correct, wrong], correct,
+      "Logische Reihenfolge mit Bedingung: " + correct, "Achte auf die Bedingung.", 30, 4, "Bedingung ignoriert.");
+  }
   const steps = pick(r, [
     ["Bestellung aufgeben", "Ware prüfen", "Versand", "Rechnung"],
     ["Brief öffnen", "lesen", "antworten", "absenden"],
@@ -186,7 +232,7 @@ function genBilderZaehlen(r: () => number, d: number): Question {
   };
 }
 function genSymbole(r: () => number, d: number): Question {
-  const n = d <= 1 ? 4 : 5;
+  const n = d <= 1 ? 4 : d === 2 ? 5 : 6;
   const svg = grid(n, r);
   const target = ri(r, 0, 3);
   const sym = ["●", "▲", "■", "★"][target];
@@ -202,7 +248,7 @@ function genSymbole(r: () => number, d: number): Question {
 // ===== MERKFÄHIGKEIT (stimulus → recall) =====
 const SIGNS = ["⛔", "⚠️", "ℹ️", "↩️", "♿", "🅿️", "🚭", "🔧"];
 function genSchilder(r: () => number, d: number): Question {
-  const k = d <= 1 ? 3 : 4;
+  const k = d <= 1 ? 3 : d === 2 ? 4 : 6;
   const chosen = shuffle(SIGNS, r).slice(0, k);
   const svg = `<svg viewBox="0 0 ${k * 70} 60" width="${k * 70}" height="60">` +
     chosen.map((s, i) => `<text x="${i * 70 + 35}" y="42" font-size="34" text-anchor="middle">${s}</text>`).join("") + `</svg>`;
@@ -211,7 +257,7 @@ function genSchilder(r: () => number, d: number): Question {
     id: "merk-" + ri(r, 1000, 9999), area: "merkfaehigkeit", subskill: "schilder_erinnern", type: "recall", kind: "visual",
     difficulty: d, prompt: "Erinnere dich: War das Schild " + ask + " unter den gezeigten Schildern?", stimulus: svg,
     options: ["Ja", "Nein"], answer: "Ja", explanation: "Das Schild war zu sehen.", hint: "Konzentriere dich kurz auf die Menge.", estimatedTime: 15, examRelevance: 2, commonErrors: "Nach Aufmerksamkeit vergessen.",
- difficultyScore: 60, concept: "recall",
+    difficultyScore: 60, concept: "recall",
   };
 }
 
@@ -223,6 +269,17 @@ function genSort(r: () => number, d: number): Question {
     "Aufsteigend: " + asc, "Kleinste zuerst.", 18, 3, "Reihenfolge vertauscht.", "sort");
 }
 function genAlltag(r: () => number, d: number): Question {
+  if (d === 3) {
+    const q: [string, string[]][] = [
+      ["Ein Kollege ist bewusstlos und atmet nicht. Was ist die richtige Reihenfolge?", ["Erst Hilfe rufen (144), dann Erste Hilfe beginnen", "Weiterarbeiten und abwarten", "Ihn allein hochziehen", "Erst den Chef informieren"]],
+      ["Brandmeldeanlage läutet, aber kein Rauch sichtbar. Was tust du?", ["Evakuierungsanweisung befolgen und Bereich verlassen", "Weitersuchen nach dem Brand", "Das Signal ignorieren", "Fenster öffnen und warten"]],
+      ["Du findest eine unbekannte USB-Stick im Lager. Richtig ist:", ["Meldung an IT/ Sicherheit, nicht einstecken", "Sofort in den PC stecken", "Für dich behalten", "An Kollegen weitergeben"]],
+    ];
+    const [text, opts] = pick(r, q);
+    const ans = opts[0];
+    return mk("praktisch", "alltagswissen", "safety2", d, text, shuffle(opts, r), ans,
+      "Richtig: " + ans, "Sicherheit und Meldepflicht gehen vor.", 22, 4, "Falsche Priorität bei Gefahr.");
+  }
   const q: [string, string[]][] = [
     ["Du siehst Rauch im Lager. Was tust du ZUERST?", ["Alarm auslösen", "weiterarbeiten", "fenster öffnen"]],
     ["Eine Kollegin ist gestürzt. Was ist richtig?", ["Erste Hilfe holen", "allein hochziehen", "ignorieren"]],

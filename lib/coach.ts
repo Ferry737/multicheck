@@ -48,6 +48,7 @@ export interface CoachModel {
   exposure: Record<string, string[]>; // subskill -> recent templateKeys (anti-memorization)
   calibrationPool: Record<string, Question[]>; // reserved unseen items per subskill
   version: number;
+  simMode?: number;
 }
 
 export interface Fehler {
@@ -402,6 +403,92 @@ export function overallReadiness(m: CoachModel): number {
   const raw = real.reduce((a, b) => a + b, 0) / real.length;
   // conservative: scale by curriculum coverage so 20 easy questions can't reach 90%
   return Math.round(raw * (0.55 + 0.45 * covered));
+}
+
+
+// ---- Simulation feedback (Phase 3): simulations carry MORE weight than training ----
+// A simulation that disagrees with training must pull mastery/confidence DOWN.
+export function recordSimulation(m: CoachModel, results: { subskill: string; correct: boolean; ms: number }[], mode: "mini-sim" | "full-sim"): CoachModel {
+  let model = m;
+  // weight: simulation evidence strongly influences mastery and confidence
+  const bySub: Record<string, { correct: number; total: number; sumMs: number }> = {};
+  for (const r of results) {
+    bySub[r.subskill] = bySub[r.subskill] || { correct: 0, total: 0, sumMs: 0 };
+    bySub[r.subskill].correct += r.correct ? 1 : 0;
+    bySub[r.subskill].total += 1;
+    bySub[r.subskill].sumMs += r.ms;
+  }
+  const subs = { ...model.subs };
+  for (const id of Object.keys(bySub)) {
+    const agg = bySub[id];
+    const simAcc = agg.correct / agg.total;
+    const st = subs[id] ?? emptySub();
+    // disagreement: if training mastery was high but sim low, pull down hard
+    const gap = st.mastery - simAcc;
+    let mastery = st.mastery;
+    if (gap > 0.15) {
+      // simulation reveals over-confidence: converge toward sim, but not fully (training still counts)
+      mastery = st.mastery * 0.4 + simAcc * 0.6;
+    } else {
+      // align gently
+      mastery = st.mastery * 0.7 + simAcc * 0.3;
+    }
+    mastery = Math.max(0, Math.min(1, mastery));
+    const tgt = (SPEED_TARGET_S[id] ?? 25) * 1000;
+    const simSpeed = Math.max(0, Math.min(1, 1 - (agg.sumMs / agg.total - tgt) / (tgt * 3)));
+    const confidence = Math.min(1, st.confidence * 0.8 + 0.1); // sim reduces over-confidence
+    const simPerf = simAcc;
+    subs[id] = {
+      ...st, mastery,
+      accuracy: st.accuracy * 0.5 + simAcc * 0.5,
+      speed: st.speed * 0.5 + simSpeed * 0.5,
+      retention: st.retention * 0.7 + simAcc * 0.3,
+      confidence, simPerf,
+      lastSeen: Date.now(), nextReview: Date.now() + (mastery > 0.7 ? 7 : 2) * DAY,
+    };
+    // record into history so readiness/fatigue analysis sees it
+    const histBatch = agg.total ? results.filter(r => r.subskill === id).map(r => ({ ...r, mode, difficulty: st.difficulty, area: subs[id].difficulty ? "" : "", templateKey: undefined })) : [];
+    // (history appended via updateModel below for proper bookkeeping)
+  }
+  // also feed through updateModel for history/fehler consistency
+  const attempts: Attempt[] = results.map(r => ({
+    subskill: r.subskill, area: subskillById(r.subskill)?.area ?? "", ts: Date.now(), correct: r.correct, ms: r.ms,
+    difficulty: subs[r.subskill]?.difficulty ?? 40, mode, templateKey: undefined,
+  }));
+  model = { ...model, subs };
+  model = updateModel(model, attempts, "sim-" + Date.now(), mode);
+  model.simMode = (model.simMode || 0) + 1;
+  return model;
+}
+
+// ---- Micro-lesson trigger (Phase 1) ----
+// Detect repeated concept failures → recommend a lesson.
+export function needsLesson(m: CoachModel, id: string): { lesson: boolean; concept?: string; reason: string } {
+  const st = m.subs[id];
+  if (!st) return { lesson: false, reason: "keine Daten" };
+  const recent = st.recent.slice(-6);
+  if (recent.length < 4) return { lesson: false, reason: "zu wenig Daten" };
+  const wrong = recent.filter(r => !r.correct).length;
+  // count repeated concept/mistake types
+  const conceptFails = Object.entries(st.mistakeTypes)
+    .filter(([, n]) => n >= 2)
+    .sort((a, b) => b[1] - a[1]);
+  if (wrong >= 4 && conceptFails.length > 0) {
+    return { lesson: true, concept: conceptFails[0][0], reason: `${wrong} Fehler, Muster: ${conceptFails[0][0]}` };
+  }
+  if (st.mastery < 0.3 && st.attempts >= 6) return { lesson: true, concept: conceptFails[0]?.[0] ?? "concept", reason: "anhaltend schwach" };
+  return { lesson: false, reason: "Ok" };
+}
+
+// ---- Decision explanation (Phase 9): short, why-based ----
+export function explainDecision(m: CoachModel, block: SessionBlock): string {
+  const st = m.subs[block.subskill];
+  const name = subskillById(block.subskill)?.name ?? block.subskill;
+  if (block.mode === "spaced") return `${name}: fällige Wiederholung (${Math.round((st?.retention ?? 0) * 100)}% Behalten).`;
+  if (block.mode === "speed") return `${name}: Tempo ${Math.round((st?.speed ?? 0) * 100)}% — Speed-Drill.`;
+  const mk = Math.round((st?.mastery ?? 0) * 100);
+  const due = st && st.nextReview <= Date.now();
+  return `${name}: ${mk}% Beherrschung${due ? ", fällig" : ""} — ${block.mode === "maintenance" ? "Erhaltung" : "Ausbau"}.`;
 }
 
 // ---- Synthetic learners for QA (Phase 33) ----

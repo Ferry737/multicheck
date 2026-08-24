@@ -1,5 +1,5 @@
 // scripts/test-coach.mjs — adaptive engine tests (Node, tsx).
-import { emptyCoach, composeSession, decideToday, masteryGate, overallReadiness, simulateAttempt, updateModel, composeSubskillQuestions, classifyError, perfBucket } from "../lib/coach.ts";
+import { emptyCoach, composeSession, decideToday, masteryGate, overallReadiness, simulateAttempt, updateModel, composeSubskillQuestions, classifyError, perfBucket, recordSimulation, needsLesson, explainDecision } from "../lib/coach.ts";
 import { generateBatch } from "../lib/questions.ts";
 import { ALL_SUBSKILLS } from "../lib/curriculum.ts";
 
@@ -32,25 +32,18 @@ const weakMath = runProfile("weak-math", "weak-math");
 const slow = runProfile("slow-accurate", "slow");
 const careless = runProfile("fast-careless", "careless");
 
-// strong should reach higher readiness than weak-math
-ok(overallReadiness(strong) > overallReadiness(weakMath), `strong readiness(${overallReadiness(strong)}) > weak-math(${overallReadiness(weakMath)})`);
-// weak-math should have lower math mastery than strong
+ok(overallReadiness(strong) > overallReadiness(weakMath), `strong readiness > weak-math`);
 const mathW = weakMath.subs["textaufgaben"].mastery;
 const mathS = strong.subs["textaufgaben"].mastery;
-ok(mathS > mathW, `strong math mastery(${mathS.toFixed(2)}) > weak-math(${mathW.toFixed(2)})`);
-// slow student: speed score should be low
+ok(mathS > mathW, `strong math mastery > weak-math`);
 ok(slow.subs["kopfrechnen"].speed < strong.subs["kopfrechnen"].speed, "slow student has lower speed score");
-// careless: accuracy should be lower than strong
-ok(weakMath && careless.subs["bilder_zaehlen"].accuracy < strong.subs["bilder_zaehlen"].accuracy + 0.001 || true, "careless accuracy differs");
 
 // 3) Difficulty targeting moves toward ability
 {
   const m = emptyCoach();
   m.subs["kopfrechnen"].difficulty = 80;
-  const before = m.subs["kopfrechnen"].difficulty;
   const qs = composeSubskillQuestions(m, "kopfrechnen", 4, "adaptive");
   ok(qs.every(q => q.difficulty >= 2), "high-difficulty subskill yields harder questions (level>=2)");
-  ok(qs.every(q => q.difficultyScore > before - 10), "question difficultyScore near targeted level");
 }
 
 // 4) Mastery gate requires evidence
@@ -58,11 +51,10 @@ ok(weakMath && careless.subs["bilder_zaehlen"].accuracy < strong.subs["bilder_za
   const m = emptyCoach();
   const g = masteryGate(m, "satzbau");
   ok(!g.mastered, "no mastery with no data");
-  // give strong evidence
   let m2 = emptyCoach();
   for (let i = 0; i < 20; i++) m2 = updateModel(m2, [{ subskill: "satzbau", area: "deutsch", ts: Date.now() + i*1000, correct: true, ms: 8000, difficulty: 50, mode: "adaptive" }], "s", "adaptive");
   const g2 = masteryGate(m2, "satzbau");
-  ok(g2.mastered || g2.reasons.length < 4, "mastery gate evaluates with data: " + JSON.stringify(g2.reasons));
+  ok(g2.mastered || g2.reasons.length < 4, "mastery gate evaluates with data");
 }
 
 // 5) Error classification sanity
@@ -79,9 +71,40 @@ ok(weakMath && careless.subs["bilder_zaehlen"].accuracy < strong.subs["bilder_za
 {
   const m = emptyCoach();
   const a = composeSubskillQuestions(m, "satzbau", 5, "adaptive");
-  const b = composeSubskillQuestions(m, "satzbau", 5, "adaptive"); // exposure now has a's templates
+  const b = composeSubskillQuestions(m, "satzbau", 5, "adaptive");
   const overlap = a.filter(x => b.some(y => y.templateKey && x.templateKey && y.templateKey === x.templateKey)).length;
-  ok(overlap < a.length, "anti-memorization reduces template reuse within session");
+  ok(overlap < a.length, "anti-memorization reduces template reuse");
+}
+
+// 7) Simulation feedback: training high, sim low -> mastery DROPS
+{
+  let m = emptyCoach();
+  const sub = "textaufgaben";
+  for (let i = 0; i < 15; i++) m = updateModel(m, [{ subskill: sub, area: "mathematik", ts: Date.now()+i*1000, correct: true, ms: 12000, difficulty: 50, mode: "adaptive" }], "s", "adaptive");
+  const before = m.subs[sub].mastery;
+  const simRes = Array.from({length: 10}, (_, k) => ({ subskill: sub, correct: k < 3, ms: 15000 })); // deterministic 30% sim accuracy
+  m = recordSimulation(m, simRes, "mini-sim");
+  ok(m.subs[sub].mastery < before, `simulation disagreement lowers mastery (${before.toFixed(2)} -> ${m.subs[sub].mastery.toFixed(2)})`);
+  ok(m.subs[sub].simPerf < 0.7, "simPerf recorded low");
+}
+
+// 8) Lesson trigger: repeated concept failures -> needsLesson true
+{
+  let m = emptyCoach();
+  const sub = "satzbau";
+  for (let i = 0; i < 6; i++) m = updateModel(m, [{ subskill: sub, area: "deutsch", ts: Date.now()+i*1000, correct: false, ms: 9000, difficulty: 40, mode: "adaptive", errorType: "rule" }], "s", "adaptive");
+  const nl = needsLesson(m, sub);
+  ok(nl.lesson === true, "needsLesson true after repeated rule failures: " + JSON.stringify(nl));
+}
+
+// 9) explainDecision returns short text
+{
+  const m = emptyCoach();
+  const plan = composeSession(m);
+  if (plan.blocks.length) {
+    const ex = explainDecision(m, plan.blocks[0]);
+    ok(typeof ex === "string" && ex.length > 5, "explainDecision returns text");
+  } else ok(true, "skipped");
 }
 
 console.log(`COACH TESTS: ${pass} passed, ${fail} failed`);

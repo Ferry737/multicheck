@@ -11,9 +11,10 @@ interface TrainerProps {
   showTimer?: boolean; // total timer (no per-q feedback if exam)
   noImmediateFeedback?: boolean;
   onDone?: (results: { correct: number; total: number; ms: number }) => void;
+  onResults?: (attempts: { subskill: string; correct: boolean; ms: number }[]) => void;
 }
 
-export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, onDone }: TrainerProps) {
+export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, onDone, onResults }: TrainerProps) {
   const { record, model, ready, status, retry } = useLearner();
   const [qs, setQs] = useState<Question[]>([]);
   const [i, setI] = useState(0);
@@ -21,6 +22,7 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
   const [revealed, setRevealed] = useState(false);
   const [correct, setCorrect] = useState<boolean | null>(null);
   const [results, setResults] = useState<boolean[]>([]);
+  const [resultsDetail, setResultsDetail] = useState<{ subskill: string; correct: boolean; ms: number }[]>([]);
   const [seconds, setSeconds] = useState(0);
   const startRef = useRef(0);
   const [failed, setFailed] = useState(false);
@@ -55,6 +57,7 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
   if (i >= qs.length) {
     const corr = results.filter(Boolean).length;
     const ms = performance.now() - startRef.current;
+    if (onResults) onResults(resultsDetail);
     if (onDone) onDone({ correct: corr, total: qs.length, ms });
     return (
       <div className="enter max-w-xl mx-auto px-6 py-10 text-center">
@@ -82,6 +85,7 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
     };
     attempt.errorType = c ? undefined : classifyError(q, attempt);
     setRevealed(true); setCorrect(c);
+    setResultsDetail((d) => [...d, { subskill: q.subskill, correct: c, ms: attempt.ms }]);
     record(attempt);
   }
 

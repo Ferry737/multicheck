@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { CoachModel, emptyCoach, updateModel, Attempt, SessionMode } from "@/lib/coach";
+import { CoachModel, emptyCoach, updateModel, Attempt, SessionMode, recordSimulation } from "@/lib/coach";
 
 const KEY = "multicheck-coach-v3";
 const SCHEMA = 3;
@@ -74,5 +74,14 @@ export function useLearner() {
   const reset = useCallback(() => { sessionId.current = newSessionId(); buffer.current = []; save(emptyCoach()); }, [save]);
   const retry = useCallback(() => { started.current = false; init(); }, [init]);
 
-  return { model, record, reset, retry, ready: status === "ready", status, errorMsg };
+  const applySim = useCallback((results: { subskill: string; correct: boolean; ms: number }[], mode: "mini-sim" | "full-sim") => {
+    setModel((prev) => {
+      if (!prev) return prev;
+      const next = recordSimulation(prev, results, mode);
+      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  return { model, record, reset, retry, applySim, ready: status === "ready", status, errorMsg };
 }

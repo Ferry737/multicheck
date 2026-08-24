@@ -4,6 +4,7 @@ import { useLearner } from "@/lib/useLearner";
 import { AREAS } from "@/lib/curriculum";
 import { generateBatch, Question } from "@/lib/questions";
 import { Trainer } from "@/components/Trainer";
+import { recordSimulation } from "@/lib/coach";
 import { Card, Button } from "@/components/ui";
 
 type Mode = null | "standort" | "mini" | "voll";
@@ -15,7 +16,7 @@ const MODES: Record<Exclude<Mode, null>, { title: string; short: string; desc: s
 };
 
 export default function Pruefung() {
-  const { model, ready } = useLearner();
+  const { model, ready, applySim } = useLearner();
   const [mode, setMode] = useState<Mode>(null);
   const [started, setStarted] = useState(false);
   if (!ready || !model) return <div className="text-sm text-ink-faint">Lade…</div>;
@@ -37,12 +38,15 @@ export default function Pruefung() {
 
   if (mode && started) {
     const cfg = MODES[mode];
+    const isSim = mode === "mini" || mode === "voll";
     const all: Question[] = [];
     for (const a of AREAS) for (const s of a.subskills) {
       if (s.id === "textschreiben") continue;
       all.push(...generateBatch(s.id, 2, cfg.perSub, Date.now() + Math.floor(Math.random() * 1e6)));
     }
-    return <Trainer title={cfg.title} getQuestions={() => all.slice(0, cfg.total)} showTimer noImmediateFeedback={cfg.noFeedback} onDone={() => { setMode(null); setStarted(false); }} />;
+    return <Trainer title={cfg.title} getQuestions={() => all.slice(0, cfg.total)} showTimer noImmediateFeedback={cfg.noFeedback}
+      onResults={isSim ? (attempts) => applySim(attempts, mode === "mini" ? "mini-sim" : "full-sim") : undefined}
+      onDone={() => { setMode(null); setStarted(false); }} />;
   }
 
   return (
