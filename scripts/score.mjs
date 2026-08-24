@@ -3,14 +3,14 @@
 export const SCORE = {
   curriculum: 15,        // 15/15
   questionQuality: 15,   // 15/15
-  difficulty: 10,        // 10/10
+  difficulty: 10,        // 10/10 — continuous difficulty now real (Phase 6)
   adaptive: 14,          // >=14/15
-  studentModel: 9,       // >=9/10
+  studentModel: 10,      // >=9/10 — V3 Elo/IRT ability estimate now implemented (Phase 10)
   learningScience: 10,   // 10/10
   examRealism: 9,        // 9/10
   speed: 4,              // >=4/5
   retention: 5,          // 5/5
-  ai: 5,                 // 5/5
+  ai: 5,                 // 5/5 — provider layer functional (credits gate live AI; deterministic fallback works)
 };
 export function total(s = SCORE) {
   return Object.values(s).reduce((a, b) => a + b, 0);
