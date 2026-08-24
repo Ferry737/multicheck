@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import { Question } from "@/lib/questions";
+import { Question, resolveDifficulty } from "@/lib/questions";
 import { useLearner } from "@/lib/useLearner";
 import { subskillById, areaOf } from "@/lib/curriculum";
 import { classifyError, midSessionDecision } from "@/lib/coach";
@@ -30,7 +30,6 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
   const [results, setResults] = useState<boolean[]>([]);
   const [resultsDetail, setResultsDetail] = useState<{ subskill: string; correct: boolean; ms: number }[]>([]);
   const [seconds, setSeconds] = useState(0);
-  const startRef = useRef(0);
   const [failed, setFailed] = useState(false);
 
   const [failStreak, setFailStreak] = useState<Record<string, number>>({});
@@ -39,15 +38,34 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
   const [accuracyFlag, setAccuracyFlag] = useState<Record<string, boolean>>({});
 
   const loadedRef = useRef(false);
+  const qStartRef = useRef(0); // per-question start (Phase 5-A: correct timing)
+  const doneRef = useRef(false); // guard against duplicate completion side effects (Phase 5-I)
   useEffect(() => {
     let cancelled = false;
     const t = setTimeout(() => { if (!cancelled && !loadedRef.current) { console.error("[trainer] load timeout, qs empty"); setFailed(true); } }, 2500);
-    try { const q = getQuestions(); if (!cancelled) { loadedRef.current = q.length > 0; setQs(q); startRef.current = performance.now(); } }
+    try { const q = getQuestions(); if (!cancelled) { loadedRef.current = q.length > 0; setQs(q); qStartRef.current = performance.now(); } }
     catch (e) { console.error("[trainer] getQuestions threw:", e); if (!cancelled) setFailed(true); }
     return () => { cancelled = true; clearTimeout(t); };
   }, []);
 
+  // Reset per-question state (timing + memory stimulus visibility) whenever the question index changes.
+  useEffect(() => {
+    qStartRef.current = performance.now();
+    setHidden(false);
+    setRevealed(false);
+    setInput("");
+    setCorrect(null);
+  }, [i]);
+
   const [hidden, setHidden] = useState(false);
+  // Auto-hide memory stimulus after memorizeMs (Phase 5-F: honor memorizeMs, strict in exam mode)
+  useEffect(() => {
+    const cur = qs[i];
+    if (cur?.type === "recall" && cur.memorizeMs && !hidden) {
+      const t = setTimeout(() => setHidden(true), cur.memorizeMs);
+      return () => clearTimeout(t);
+    }
+  }, [qs, i, hidden]);
 
   if (status === "error") return (
     <div className="enter max-w-md mx-auto px-6 py-20 text-center">
@@ -99,9 +117,13 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
 
   if (i >= qs.length) {
     const corr = results.filter(Boolean).length;
-    const ms = performance.now() - startRef.current;
-    if (onResults) onResults(resultsDetail);
-    if (onDone) onDone({ correct: corr, total: qs.length, ms });
+    const ms = performance.now() - qStartRef.current;
+    // Guard: completion side effects must run EXACTLY once (Phase 5-I).
+    if (!doneRef.current) {
+      doneRef.current = true;
+      if (onResults) onResults(resultsDetail);
+      if (onDone) onDone({ correct: corr, total: qs.length, ms });
+    }
     return (
       <div className="enter max-w-xl mx-auto px-6 py-10 text-center">
         <h1 className="text-2xl font-semibold tracking-tight">Fertig</h1>
@@ -119,10 +141,10 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
 
   function submit() {
     const c = isCorrect;
-    const ms = performance.now() - startRef.current;
+    const ms = performance.now() - qStartRef.current; // per-question timing (Phase 5-A)
     const attempt: any = {
       subskill: q.subskill, area: q.area, ts: Date.now(), correct: c, ms,
-      difficulty: q.difficultyScore ?? q.difficulty,
+      difficulty: q.difficultyScore ?? resolveDifficulty(q.difficulty),
       mode: speedFlag[q.subskill] ? "speed" : "adaptive",
       templateKey: q.templateKey,
       prompt: q.prompt, studentAnswer: input, correctAnswer: q.answer,

@@ -3,7 +3,7 @@
 // AI may LATER augment explanations; it NEVER overrides deterministic answer keys.
 
 import { AREAS, ALL_SUBSKILLS, subskillById, areaOf, Subskill, AreaId } from "./curriculum";
-import { Question, generateBatch } from "./questions";
+import { Question, generateBatch, generate } from "./questions";
 
 export type SessionMode =
   | "learn" | "guided" | "adaptive" | "speed" | "spaced"
@@ -133,18 +133,25 @@ export function updateModel(m: CoachModel, attemptsBatch: Attempt[], sessionId: 
   // session count per subskill
   const touched = new Set(attemptsBatch.map((a) => a.subskill));
   const subs = { ...model.subs };
+  const exposure: Record<string, string[]> = { ...model.exposure };
   for (const id of touched) {
     const st = { ...subs[id] };
     st.sessions = st.sessions + 1;
-    const prevDays = new Set(model.subs[id]?.daysActive ? [model.subs[id].daysActive] : []);
-    // approximate distinct days via recent ts span
-    st.daysActive = Math.max(st.daysActive, new Set(attemptsBatch.filter(x=>x.subskill===id).map(x=>new Date(x.ts).toDateString())).size);
+    // Accumulate DISTINCT calendar days across ALL sessions (not just this batch).
+    const prevDates = new Set((model.exposure["__days_" + id] as unknown as string[]) ?? []);
+    // fall back to recomputing from history if not tracked
+    const batchDates = new Set(attemptsBatch.filter(x => x.subskill === id).map(x => new Date(x.ts).toDateString()));
+    const allDates = new Set([...prevDates, ...batchDates]);
+    st.daysActive = allDates.size;
+    // persist day set in exposure namespace (non-PII)
+    exposure["__days_" + id] = Array.from(allDates);
     subs[id] = st;
   }
   const total = attemptsBatch.reduce((s, a) => s + a.ms, 0);
   return {
     ...model,
     subs,
+    exposure,
     totalStudyMs: model.totalStudyMs + total,
     lastActive: dayKey,
     streakDays: model.streakDays, // refined elsewhere
@@ -157,8 +164,10 @@ function recordOne(m: CoachModel, a: Attempt, dayKey: string): CoachModel {
   const attempts = st.attempts + 1;
   const recent = [...st.recent, { correct: a.correct, ms: a.ms, diff: a.difficulty, ts: a.ts, mode: a.mode }].slice(-25);
 
-  // recency-weighted accuracy
-  const wAcc = recent.reduce((s, r, i) => s + (a.correct === r.correct ? 1 : 0) * (i + 1), 0);
+  // recency-weighted accuracy: weight whether EACH historical attempt was correct,
+  // NOT whether it matched the current answer. Recent attempts weigh more.
+  const n = recent.length;
+  const wAcc = recent.reduce((s, r, i) => s + (r.correct ? 1 : 0) * (i + 1), 0);
   const wTot = recent.reduce((s, _r, i) => s + (i + 1), 0);
   const simW = recent.filter((r) => r.mode === "mini-sim" || r.mode === "full-sim").length;
   let accuracy = wTot ? wAcc / wTot : 0;
@@ -187,9 +196,17 @@ function recordOne(m: CoachModel, a: Attempt, dayKey: string): CoachModel {
   const variance = recent.reduce((s,r)=>s+((r.correct?1:0)-mean)**2,0)/recent.length;
   const consistency = 1 - Math.min(1, variance * 2);
 
-  // difficulty targeting: move toward student's demonstrated level
-  const target = a.correct ? Math.min(100, st.difficulty + 6) : Math.max(10, st.difficulty - 10);
-  const difficulty = st.difficulty + (target - st.difficulty) * 0.25;
+  // difficulty targeting: Elo/IRT-inspired online ability estimate (Phase 10 V3).
+  // Predict P(correct) from current ability vs item difficulty (logistic), then
+  // move ability toward observed outcome. This is adaptive ability, not arbitrary +/-.
+  const ability = st.difficulty; // 0..100 ability estimate
+  const itemDiff = a.difficulty; // 0..100 item difficulty
+  const predP = 1 / (1 + Math.exp(-(ability - itemDiff) / 18)); // logistic, scale ~18
+  const outcome = a.correct ? 1 : 0;
+  const k = 6; // learning rate (small for stability across items)
+  let nextAbility = ability + k * (outcome - predP);
+  nextAbility = Math.max(10, Math.min(98, nextAbility));
+  const difficulty = nextAbility;
 
   // unseen / sim performance
   let unseenPerf = st.unseenPerf, simPerf = st.simPerf;
@@ -302,13 +319,20 @@ export function composeSubskillQuestions(
   m: CoachModel, id: string, count: number, mode: SessionMode
 ): Question[] {
   const st = m.subs[id];
-  const diff = st?.difficulty ?? 35;
-  const level = mode === "speed" ? Math.min(3, diffLevel(diff) + 1) : diffLevel(diff);
+  const ability = st?.difficulty ?? 35;
+  // continuous difficulty: speed mode nudges slightly easier for fluency; otherwise use ability directly
+  const targetDiff = mode === "speed" ? Math.max(15, ability - 8) : ability;
   const out: Question[] = [];
-  const exposure = m.exposure[id];
+  const exposure = m.exposure[id] ?? [];
   for (let i = 0; i < count; i++) {
-    const seed = newTemplate(exposure, 12);
-    const q = generateBatch(id, level, 1, seed)[0];
+    // anti-memorization: avoid recent templateKeys
+    let seed = Math.floor(Math.random() * 1e9);
+    for (let t = 0; t < 12; t++) {
+      const key = "t" + (seed % 100000);
+      if (!exposure.includes(key)) break;
+      seed = Math.floor(Math.random() * 1e9);
+    }
+    const q = generate(id, targetDiff, seed);
     if (q) out.push({ ...q, templateKey: "t" + (seed % 100000) });
   }
   return out;

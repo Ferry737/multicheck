@@ -1,4 +1,4 @@
-import { generateBatch, generate } from "../lib/questions.ts";
+import { generateBatch, generate, hasUniqueOptions } from "../lib/questions.ts";
 
 let checked = 0, fail = 0;
 const failMsg = (m) => { fail++; if (fail <= 20) console.log("FAIL:", m); };
@@ -80,6 +80,40 @@ for (const sub of SUBS) {
     }
   }
 }
+
+// ---- ADVERSARIAL (Phase 22): duplicate options + memory balance + process wrong≠correct ----
+console.log("--- adversarial checks ---");
+let dupChecks = 0, dupFail = 0;
+let memJa = 0, memNein = 0, memChecked = 0;
+let procBad = 0, procChecked = 0;
+for (const sub of SUBS) {
+  for (let seed = 1; seed <= 80; seed++) {
+    for (const q of generateBatch(sub, 2, 6, seed * 307 + 7)) {
+      // duplicate-option check (Phase 5-H / 22)
+      dupChecks++;
+      if (q.options && !hasUniqueOptions(q)) { dupFail++; if (dupFail<=10) failMsg(`${sub}: duplicate options ${JSON.stringify(q.options)}`); }
+      // memory balance (Phase 5-E / 22)
+      if (sub === "schilder_erinnern") {
+        memChecked++;
+        if (q.answer === "Ja") memJa++; else if (q.answer === "Nein") memNein++;
+        // answer must be present in options
+        if (!q.options.includes(q.answer)) failMsg(`memory: answer ${q.answer} not in options`);
+      }
+      // process logic: correct order must differ from the distractor (Phase 5-?/22)
+      if (sub === "prozesslogik") {
+        procChecked++;
+        const opts = q.options || [];
+        const correct = opts.find((o) => o === q.answer);
+        const others = opts.filter((o) => o !== q.answer);
+        if (others.some((o) => o === correct)) { procBad++; failMsg(`prozess: correct equals a distractor`); }
+      }
+    }
+  }
+}
+checked += dupChecks + memChecked + procChecked;
+if (dupFail) fail++;
+if (memChecked && (memJa < memChecked*0.3 || memNein < memChecked*0.3)) { failMsg(`memory imbalance Ja=${memJa} Nein=${memNein}/${memChecked}`); fail++; }
+if (procBad) fail++;
 
 console.log(`VALIDATION: ${checked} checks, ${fail} failures`);
 console.log(fail === 0 ? "VALIDATION PASS ✅" : "VALIDATION FAIL ❌");
