@@ -39,7 +39,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Main */}
-      <main className="flex-1 min-w-0 pb-20 md:pb-0">
+      <main className="flex-1 min-w-0 pb-24 md:pb-0">
         <div className="shell py-7 max-w-shell">{children}</div>
       </main>
 
