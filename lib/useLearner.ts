@@ -1,64 +1,87 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { LearnerModel, emptyModel, recordAttempt, Attempt } from "@/lib/learner";
+import { CoachModel, emptyCoach, updateModel, Attempt, SessionMode, recordSimulation } from "@/lib/coach";
 
-const KEY = "multicheck-model-v2";
-const SCHEMA = 2;
+const KEY = "multicheck-coach-v3";
+const SCHEMA = 3;
 
 export type LoadStatus = "loading" | "ready" | "error";
 
+let sessionCounter = 0;
+function newSessionId() { return "sess-" + (++sessionCounter) + "-" + Date.now(); }
+
 export function useLearner() {
-  const [model, setModel] = useState<LearnerModel | null>(null);
+  const [model, setModel] = useState<CoachModel | null>(null);
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [errorMsg, setErrorMsg] = useState("");
   const started = useRef(false);
+  const sessionId = useRef<string>(newSessionId());
+  const buffer = useRef<Attempt[]>([]);
 
   const init = useCallback(() => {
     setStatus("loading");
     try {
       const raw = localStorage.getItem(KEY);
-      let m: LearnerModel;
+      let m: CoachModel;
       if (raw) {
         const parsed = JSON.parse(raw) as any;
-        // schema migration / corruption guard
         if (!parsed || typeof parsed !== "object" || !parsed.subs) {
-          m = emptyModel();
+          m = emptyCoach();
         } else {
-          m = parsed as LearnerModel;
-          // merge missing subskills so new taxonomy doesn't crash
-          const base = emptyModel();
+          m = parsed as CoachModel;
+          const base = emptyCoach();
           m.subs = { ...base.subs, ...(m.subs || {}) };
           m.fehler = Array.isArray(m.fehler) ? m.fehler : [];
           m.history = Array.isArray(m.history) ? m.history : [];
+          m.exposure = m.exposure || {};
+          m.calibrationPool = m.calibrationPool || {};
           if (typeof m.examDate !== "string") m.examDate = base.examDate;
+          if (m.version !== SCHEMA) m.version = SCHEMA;
         }
       } else {
-        m = emptyModel();
+        m = emptyCoach();
       }
       setModel(m);
       setStatus("ready");
     } catch (e) {
-      // corrupt persisted data must NEVER cause infinite Lade…
-      try { setModel(emptyModel()); setStatus("ready"); }
+      try { setModel(emptyCoach()); setStatus("ready"); }
       catch { setStatus("error"); setErrorMsg("App konnte nicht geladen werden."); }
     }
   }, []);
 
   useEffect(() => {
-    if (started.current) return; // run once (strict-mode safe)
+    if (started.current) return;
     started.current = true;
     init();
   }, [init]);
 
-  const save = useCallback((m: LearnerModel) => {
+  const save = useCallback((m: CoachModel) => {
     setModel(m);
-    try { localStorage.setItem(KEY, JSON.stringify(m)); } catch { /* quota — ignore, in-memory still works */ }
+    try { localStorage.setItem(KEY, JSON.stringify(m)); } catch { /* quota — in-memory still works */ }
   }, []);
+
+  // record a single attempt, buffered per session then flushed
   const record = useCallback((a: Attempt) => {
-    setModel((prev) => { if (!prev) return prev; const next = recordAttempt(prev, a); try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {} return next; });
+    buffer.current.push(a);
+    setModel((prev) => {
+      if (!prev) return prev;
+      const next = updateModel(prev, [a], sessionId.current, a.mode ?? "adaptive");
+      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
   }, []);
-  const reset = useCallback(() => save(emptyModel()), [save]);
+
+  const reset = useCallback(() => { sessionId.current = newSessionId(); buffer.current = []; save(emptyCoach()); }, [save]);
   const retry = useCallback(() => { started.current = false; init(); }, [init]);
 
-  return { model, record, reset, retry, ready: status === "ready", status, errorMsg };
+  const applySim = useCallback((results: { subskill: string; correct: boolean; ms: number }[], mode: "mini-sim" | "full-sim") => {
+    setModel((prev) => {
+      if (!prev) return prev;
+      const next = recordSimulation(prev, results, mode);
+      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  return { model, record, reset, retry, applySim, ready: status === "ready", status, errorMsg };
 }

@@ -3,16 +3,24 @@ import { useEffect, useState, useRef } from "react";
 import { Question } from "@/lib/questions";
 import { useLearner } from "@/lib/useLearner";
 import { subskillById, areaOf } from "@/lib/curriculum";
+import { classifyError, midSessionDecision } from "@/lib/coach";
+import { MicroLesson } from "@/components/MicroLesson";
 
 interface TrainerProps {
-  getQuestions: () => Question[]; // provides the session's questions
+  getQuestions: () => Question[];
   title: string;
-  showTimer?: boolean; // total timer (no per-q feedback if exam)
+  showTimer?: boolean;
   noImmediateFeedback?: boolean;
   onDone?: (results: { correct: number; total: number; ms: number }) => void;
+  onResults?: (attempts: { subskill: string; correct: boolean; ms: number }[]) => void;
 }
 
-export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, onDone }: TrainerProps) {
+type Intervention =
+  | { kind: "lesson"; subskill: string; concept?: string }
+  | { kind: "accuracy"; subskill: string }
+  | { kind: "speed"; subskill: string };
+
+export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, onDone, onResults }: TrainerProps) {
   const { record, model, ready, status, retry } = useLearner();
   const [qs, setQs] = useState<Question[]>([]);
   const [i, setI] = useState(0);
@@ -20,20 +28,26 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
   const [revealed, setRevealed] = useState(false);
   const [correct, setCorrect] = useState<boolean | null>(null);
   const [results, setResults] = useState<boolean[]>([]);
+  const [resultsDetail, setResultsDetail] = useState<{ subskill: string; correct: boolean; ms: number }[]>([]);
   const [seconds, setSeconds] = useState(0);
   const startRef = useRef(0);
   const [failed, setFailed] = useState(false);
 
-  // robust load (avoid indefinite Lade…): timeout fallback
+  const [failStreak, setFailStreak] = useState<Record<string, number>>({});
+  const [intervention, setIntervention] = useState<Intervention | null>(null);
+  const [speedFlag, setSpeedFlag] = useState<Record<string, boolean>>({});
+  const [accuracyFlag, setAccuracyFlag] = useState<Record<string, boolean>>({});
+
+  const loadedRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
-    const t = setTimeout(() => { if (!cancelled && qs.length === 0) setFailed(true); }, 2500);
-    try { const q = getQuestions(); if (!cancelled) { setQs(q); startRef.current = performance.now(); } }
-    catch { if (!cancelled) setFailed(true); }
+    const t = setTimeout(() => { if (!cancelled && !loadedRef.current) { console.error("[trainer] load timeout, qs empty"); setFailed(true); } }, 2500);
+    try { const q = getQuestions(); if (!cancelled) { loadedRef.current = q.length > 0; setQs(q); startRef.current = performance.now(); } }
+    catch (e) { console.error("[trainer] getQuestions threw:", e); if (!cancelled) setFailed(true); }
     return () => { cancelled = true; clearTimeout(t); };
   }, []);
 
-  const [hidden, setHidden] = useState(false); // for recall delay
+  const [hidden, setHidden] = useState(false);
 
   if (status === "error") return (
     <div className="enter max-w-md mx-auto px-6 py-20 text-center">
@@ -50,9 +64,43 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
   );
   if (qs.length === 0) return <div className="enter max-w-md mx-auto px-6 py-20 text-sm text-ink-faint">Lade…</div>;
 
+  if (intervention) {
+    if (intervention.kind === "lesson") {
+      return <MicroLesson concept={intervention.concept} onDone={() => {
+        setIntervention(null);
+        setFailStreak((s) => ({ ...s, [intervention.subskill]: 0 }));
+        setI((v) => v + 1);
+        setRevealed(false); setInput("");
+      }} />;
+    }
+    if (intervention.kind === "accuracy") {
+      return (
+        <div className="enter max-w-xl mx-auto px-6 py-10">
+          <div className="rounded-card border border-bad/30 bg-bad/5 p-6">
+            <p className="text-sm font-medium">Genauigkeit vor Tempo</p>
+            <p className="mt-2 text-sm text-ink-muted">Du warst sehr schnell, aber nicht richtig. Nimm dir beim nächsten Mal eine Sekunde mehr Zeit und prüfe deine Antwort, bevor du sie abgibst.</p>
+            <button onClick={() => { setIntervention(null); setAccuracyFlag((f) => ({ ...f, [intervention.subskill]: true })); }} className="mt-4 rounded-md bg-brand px-5 py-3 text-white font-medium">Verstanden — weiter</button>
+          </div>
+        </div>
+      );
+    }
+    if (intervention.kind === "speed") {
+      return (
+        <div className="enter max-w-xl mx-auto px-6 py-10">
+          <div className="rounded-card border border-brand/30 bg-brand/5 p-6">
+            <p className="text-sm font-medium">Tempo-Training</p>
+            <p className="mt-2 text-sm text-ink-muted">Du rechnest richtig, aber zu langsam. Die nächsten Aufgaben zu dieser Fähigkeit sind als Speed-Drill markiert — versuche, schneller zu entscheiden.</p>
+            <button onClick={() => { setIntervention(null); }} className="mt-4 rounded-md bg-brand px-5 py-3 text-white font-medium">Weiter</button>
+          </div>
+        </div>
+      );
+    }
+  }
+
   if (i >= qs.length) {
     const corr = results.filter(Boolean).length;
     const ms = performance.now() - startRef.current;
+    if (onResults) onResults(resultsDetail);
     if (onDone) onDone({ correct: corr, total: qs.length, ms });
     return (
       <div className="enter max-w-xl mx-auto px-6 py-10 text-center">
@@ -67,15 +115,32 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
   const q = qs[i];
   const norm = (s: string) => s.replace(/\s/g, "").replace(",", ".").toLowerCase();
   const isCorrect = norm(input) === norm(q.answer) || (q.kind === "choice" && input === q.answer);
+  const SPEED_TARGET = 12000;
 
   function submit() {
     const c = isCorrect;
-    setRevealed(true); setCorrect(c);
-    record({
-      subskill: q.subskill, area: q.area, ts: Date.now(), correct: c, ms: performance.now() - startRef.current,
-      errorType: c ? undefined : (q.subskill.includes("zaehlen") || q.subskill.includes("symbole") ? "Konzentration" : q.subskill.includes("satzbau") || q.subskill.includes("textverstaendnis") ? "Deutsch" : "Rechenfehler"),
+    const ms = performance.now() - startRef.current;
+    const attempt: any = {
+      subskill: q.subskill, area: q.area, ts: Date.now(), correct: c, ms,
+      difficulty: q.difficultyScore ?? q.difficulty,
+      mode: speedFlag[q.subskill] ? "speed" : "adaptive",
+      templateKey: q.templateKey,
       prompt: q.prompt, studentAnswer: input, correctAnswer: q.answer,
-    });
+    };
+    attempt.errorType = c ? undefined : classifyError(q, attempt);
+    setRevealed(true); setCorrect(c);
+    setResultsDetail((d) => [...d, { subskill: q.subskill, correct: c, ms }]);
+    record(attempt);
+
+    if (model) {
+      const streak = (failStreak[q.subskill] ?? 0) + (c ? 0 : 1);
+      if (!c) setFailStreak((s) => ({ ...s, [q.subskill]: streak }));
+      else setFailStreak((s) => ({ ...s, [q.subskill]: 0 }));
+      const dec = midSessionDecision(model, q.subskill, c, ms, streak, !!speedFlag[q.subskill]);
+      if (dec.kind === "lesson") { setIntervention({ kind: "lesson", subskill: q.subskill, concept: dec.concept }); return; }
+      if (dec.kind === "accuracy") { setIntervention({ kind: "accuracy", subskill: q.subskill }); return; }
+      if (dec.kind === "speed") { setSpeedFlag((f) => ({ ...f, [q.subskill]: true })); }
+    }
   }
 
   return (
@@ -84,6 +149,8 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
         <span>{title} · {i + 1}/{qs.length}</span>
         {showTimer && <Timer seconds={seconds} setSeconds={setSeconds} />}
       </div>
+      {speedFlag[q.subskill] && <p className="mt-1 text-2xs text-brand">⚡ Tempo-Drill</p>}
+      {accuracyFlag[q.subskill] && <p className="mt-1 text-2xs text-bad">◎ Genauigkeit achten</p>}
       {areaOf(q.subskill) && <p className="mt-1 text-xs text-ink-faint">{areaOf(q.subskill)!.label} → {subskillById(q.subskill)?.name}</p>}
 
       <div className="mt-4 rounded-card border border-line bg-surface p-6 shadow-card">
