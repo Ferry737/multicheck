@@ -17,6 +17,9 @@ export interface Question {
   type: QType;
   kind: QKind;
   difficulty: number; // 1 easy .. 3 hard
+  difficultyScore: number; // continuous 0..100 calibration
+  concept: string; // which concept/method this item exercises
+  templateKey?: string; // anti-memorization fingerprint
   prompt: string;
   stimulus?: string; // SVG markup or text shown before answer
   options?: string[];
@@ -30,6 +33,15 @@ export interface Question {
   minWords?: number;
   topic?: string;
 }
+
+// Per-type base difficulty calibration (solution steps / cognitive load).
+// Continuous score = base + (d-1)*step, then adjusted by distractor closeness conceptually.
+const TYPE_BASE: Record<string, number> = {
+  pct: 35, money: 45, word: 30, frac: 55, conv: 40, mental: 38,
+  order: 42, reading: 50, process: 48, odd: 40,
+  count: 35, symbol: 45, recall: 60, numbers: 30, safety: 55,
+};
+const TYPE_STEP = 18;
 
 // ---- seeded RNG ----
 function rng(seed: number) {
@@ -118,8 +130,9 @@ function genTextverst(r: () => number, d: number): Question {
   const ans = opts[0];
   return {
     id: "de-tv-" + ri(r, 1000, 9999), area: "deutsch", subskill: "textverstaendnis", type: "reading", kind: "choice",
-    difficulty: d, prompt: q, stimulus: "Text: " + text, options: shuffle(opts, r), answer: ans,
-    explanation: "Im Text steht: die richtige Info ist „" + ans + "“.", hint: "Lies genau die gesuchte Angabe.", estimatedTime: 30, examRelevance: 5, commonErrors: "Oberflächlich lesen.",
+    difficulty: d, prompt: q, stimulus: "Text: " + text, options: shuffle(opts, r),
+    answer: ans, explanation: "Im Text steht: die richtige Info ist „" + ans + "“.", hint: "Lies genau die gesuchte Angabe.", estimatedTime: 30, examRelevance: 5, commonErrors: "Oberflächlich lesen.",
+    difficultyScore: 50, concept: "reading",
   };
 }
 
@@ -169,6 +182,7 @@ function genBilderZaehlen(r: () => number, d: number): Question {
     id: "kon-bz-" + ri(r, 1000, 9999), area: "konzentration", subskill: "bilder_zaehlen", type: "count", kind: "visual",
     difficulty: d, prompt: "Zähle die " + symName + " (●▲■★) im Raster.", stimulus: svg, options: shuffle([String(count), String(count + 1), String(Math.max(0, count - 1)), String(count + 2)], r),
     answer: String(count), explanation: "Es sind " + count + " " + symName + ".", hint: "Systematisch zeilenweise zählen.", estimatedTime: 25, examRelevance: 3, commonErrors: "Übersehen/Zu viel zählen.",
+    difficultyScore: 35, concept: "count",
   };
 }
 function genSymbole(r: () => number, d: number): Question {
@@ -181,6 +195,7 @@ function genSymbole(r: () => number, d: number): Question {
     id: "kon-se-" + ri(r, 1000, 9999), area: "konzentration", subskill: "symbole_entdecken", type: "symbol", kind: "visual",
     difficulty: d, prompt: "Wie viele Symbole der gesuchten Art (" + sym + ") sind im Raster?", stimulus: svg, options: shuffle([String(count), String(count + 1), String(Math.max(0, count - 1))], r),
     answer: String(count), explanation: "Anzahl = " + count + ".", hint: "Nutze ein Suchmuster.", estimatedTime: 22, examRelevance: 3, commonErrors: "Doppelzählung.",
+    difficultyScore: 45, concept: "symbol",
   };
 }
 
@@ -196,6 +211,7 @@ function genSchilder(r: () => number, d: number): Question {
     id: "merk-" + ri(r, 1000, 9999), area: "merkfaehigkeit", subskill: "schilder_erinnern", type: "recall", kind: "visual",
     difficulty: d, prompt: "Erinnere dich: War das Schild " + ask + " unter den gezeigten Schildern?", stimulus: svg,
     options: ["Ja", "Nein"], answer: "Ja", explanation: "Das Schild war zu sehen.", hint: "Konzentriere dich kurz auf die Menge.", estimatedTime: 15, examRelevance: 2, commonErrors: "Nach Aufmerksamkeit vergessen.",
+ difficultyScore: 60, concept: "recall",
   };
 }
 
@@ -219,10 +235,13 @@ function genAlltag(r: () => number, d: number): Question {
 }
 
 // ===== HELPERS / DISPATCH =====
-function mk(area: string, sub: string, type: string, d: number, prompt: string, options: string[] | undefined, answer: string, explanation: string, hint: string, et: number, er: number, ce: string, kind?: QKind): Question {
+function mk(area: string, sub: string, type: string, d: number, prompt: string, options: string[] | undefined, answer: string, explanation: string, hint: string, et: number, er: number, ce: string, kind?: QKind, concept?: string): Question {
+  const base = TYPE_BASE[type] ?? 40;
+  const difficultyScore = Math.max(8, Math.min(98, base + (d - 1) * TYPE_STEP));
   return {
     id: `${area}-${sub}-${type}-${ri(rng(Date.now()), 1000, 9999)}`, area, subskill: sub, type: type as QType,
-    kind: kind ?? (options ? "choice" : "input"), difficulty: d, prompt, options, answer, explanation, hint,
+    kind: kind ?? (options ? "choice" : "input"), difficulty: d, difficultyScore,
+    concept: concept ?? type, prompt, options, answer, explanation, hint,
     estimatedTime: et, examRelevance: er, commonErrors: ce,
   };
 }
@@ -241,7 +260,13 @@ export function generate(subskillId: string, difficulty: number, seed = Date.now
   if (!gs || !gs.length) return null;
   const r = rng(seed);
   const g = gs[Math.floor(r() * gs.length)];
-  return g(r, Math.max(1, Math.min(3, difficulty)));
+  const q = g(r, Math.max(1, Math.min(3, difficulty)));
+  if (q.difficultyScore === undefined) {
+    const base = TYPE_BASE[q.type] ?? 40;
+    q.difficultyScore = Math.max(8, Math.min(98, base + (q.difficulty - 1) * TYPE_STEP));
+  }
+  if (q.concept === undefined) q.concept = q.type;
+  return q;
 }
 
 export function generateBatch(subskillId: string, difficulty: number, n = 6, baseSeed = Date.now()): Question[] {

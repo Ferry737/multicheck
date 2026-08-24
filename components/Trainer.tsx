@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { Question } from "@/lib/questions";
 import { useLearner } from "@/lib/useLearner";
 import { subskillById, areaOf } from "@/lib/curriculum";
+import { classifyError } from "@/lib/coach";
 
 interface TrainerProps {
   getQuestions: () => Question[]; // provides the session's questions
@@ -71,12 +72,17 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
 
   function submit() {
     const c = isCorrect;
-    setRevealed(true); setCorrect(c);
-    record({
-      subskill: q.subskill, area: q.area, ts: Date.now(), correct: c, ms: performance.now() - startRef.current,
-      errorType: c ? undefined : (q.subskill.includes("zaehlen") || q.subskill.includes("symbole") ? "Konzentration" : q.subskill.includes("satzbau") || q.subskill.includes("textverstaendnis") ? "Deutsch" : "Rechenfehler"),
+    const attempt: any = {
+      subskill: q.subskill, area: q.area, ts: Date.now(), correct: c,
+      ms: performance.now() - startRef.current,
+      difficulty: q.difficultyScore ?? q.difficulty,
+      mode: "adaptive",
+      templateKey: q.templateKey,
       prompt: q.prompt, studentAnswer: input, correctAnswer: q.answer,
-    });
+    };
+    attempt.errorType = c ? undefined : classifyError(q, attempt);
+    setRevealed(true); setCorrect(c);
+    record(attempt);
   }
 
   return (
