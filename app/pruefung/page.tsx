@@ -85,9 +85,13 @@ export default function Pruefung() {
   const begin = () => set(enterActive({ ...snap, phase: "active" }, Date.now()));
   const onAnswer = (v: string) => {
     setInput(""); // never carry an answer into the next question
-    set(answerCurrent({ ...snap, phase: snap.phase === "active" ? "active" : snap.phase }, v, Date.now()));
-    // auto-advance after answer (exam: no "try again")
-    setTimeout(() => next(), 250);
+    // compute answer + advance from the SAME snapshot synchronously — a deferred
+    // next() would close over the stale snap and overwrite the recorded answer.
+    const answered = answerCurrent({ ...snap, phase: snap.phase === "active" ? "active" : snap.phase }, v, Date.now());
+    let s = advance(answered, Date.now());
+    set(s);
+    if (s.phase === "active") s = enterActive(s, Date.now());
+    set(s);
   };
   const next = () => {
     let s = advance(snap, Date.now());
@@ -211,8 +215,8 @@ export default function Pruefung() {
           <p className="text-base leading-relaxed">{q.prompt}</p>
           {q.stimulus && !q.memorizeMs && <div className="mt-4 rounded-md bg-page p-4" dangerouslySetInnerHTML={{ __html: q.stimulus }} />}
           <div className="mt-4 space-y-2">
-            {(q.options ?? []).map((opt) => (
-              <button key={opt} onClick={() => onAnswer(opt)} className="w-full text-left rounded-md border border-line px-4 py-3 hover:border-brand transition-colors">{opt}</button>
+            {(q.options ?? []).map((opt, oi) => (
+              <button key={opt + "#" + oi} onClick={() => onAnswer(opt)} className="w-full text-left rounded-md border border-line px-4 py-3 hover:border-brand transition-colors">{opt}</button>
             ))}
             {!q.options && (
               <div className="flex gap-2">
