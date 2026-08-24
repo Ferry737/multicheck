@@ -175,10 +175,11 @@ function genSymbole(r: () => number, d: number): Question {
   const n = d <= 1 ? 4 : 5;
   const svg = grid(n, r);
   const target = ri(r, 0, 3);
-  const count = (svg.match(new RegExp("[" + ["●", "▲", "■", "★"][target] + "]", "g")) || []).length;
+  const sym = ["●", "▲", "■", "★"][target];
+  const count = (svg.match(new RegExp("[" + sym + "]", "g")) || []).length;
   return {
     id: "kon-se-" + ri(r, 1000, 9999), area: "konzentration", subskill: "symbole_entdecken", type: "symbol", kind: "visual",
-    difficulty: d, prompt: "Wie viele Symbole der gesuchten Art (▲) sind im Raster?", stimulus: svg, options: shuffle([String(count), String(count + 1), String(Math.max(0, count - 1))], r),
+    difficulty: d, prompt: "Wie viele Symbole der gesuchten Art (" + sym + ") sind im Raster?", stimulus: svg, options: shuffle([String(count), String(count + 1), String(Math.max(0, count - 1))], r),
     answer: String(count), explanation: "Anzahl = " + count + ".", hint: "Nutze ein Suchmuster.", estimatedTime: 22, examRelevance: 3, commonErrors: "Doppelzählung.",
   };
 }

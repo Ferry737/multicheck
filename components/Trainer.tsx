@@ -25,11 +25,12 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
   const [failed, setFailed] = useState(false);
 
   // robust load (avoid indefinite Lade…): timeout fallback
+  const loadedRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
-    const t = setTimeout(() => { if (!cancelled && qs.length === 0) setFailed(true); }, 2500);
-    try { const q = getQuestions(); if (!cancelled) { setQs(q); startRef.current = performance.now(); } }
-    catch { if (!cancelled) setFailed(true); }
+    const t = setTimeout(() => { if (!cancelled && !loadedRef.current) { console.error("[trainer] load timeout, qs empty"); setFailed(true); } }, 2500);
+    try { const q = getQuestions(); if (!cancelled) { loadedRef.current = q.length > 0; setQs(q); startRef.current = performance.now(); } }
+    catch (e) { console.error("[trainer] getQuestions threw:", e); if (!cancelled) setFailed(true); }
     return () => { cancelled = true; clearTimeout(t); };
   }, []);
 

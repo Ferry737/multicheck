@@ -8,29 +8,70 @@ const TOPICS = [
   "Erkläre in eigenen Worten, was ein Lagerarbeiter jeden Tag macht.",
   "Schildere eine Situation, in der du höflich um Hilfe gebeten hast.",
 ];
+const MIN = 10 * 60;
+const DRAFT_KEY = "multicheck-textschreiben-draft";
+
+interface Draft { topic: string; text: string; deadline: number; }
 
 export default function Textschreiben() {
   const [started, setStarted] = useState(false);
   const [text, setText] = useState("");
-  const [seconds, setSeconds] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState(MIN);
   const [done, setDone] = useState(false);
   const [topic, setTopic] = useState(TOPICS[0]);
   const [feedback, setFeedback] = useState("");
   const [loading, setLoading] = useState(false);
-  const startRef = useRef(0);
+  const deadlineRef = useRef(0);
 
-  const MIN = 10 * 60;
+  // restore draft on mount (handles refresh / reopen / new tab)
   useEffect(() => {
-    if (started && !done) { const t = setInterval(() => setSeconds((s) => s + 1), 1000); return () => clearInterval(t); }
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw) as Draft;
+        if (d && d.deadline && d.deadline > Date.now()) {
+          setTopic(d.topic); setText(d.text); setStarted(true); setDone(false);
+          deadlineRef.current = d.deadline;
+          setSecondsLeft(Math.max(0, Math.round((d.deadline - Date.now()) / 1000)));
+        } else if (d && d.deadline && d.deadline <= Date.now()) {
+          // time already expired while away — restore text but mark time-up so user can still submit
+          setTopic(d.topic); setText(d.text); setStarted(true); setDone(false);
+          deadlineRef.current = d.deadline;
+          setSecondsLeft(0);
+        }
+      }
+    } catch { /* ignore corrupt draft */ }
+  }, []);
+
+  // tick once per second based on absolute deadline (anti-exploit: refresh does not reset to 10:00)
+  useEffect(() => {
+    if (!started || done) return;
+    const tick = () => setSecondsLeft(Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000)));
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
   }, [started, done]);
 
-  function start() { setTopic(TOPICS[Math.floor(Math.random() * TOPICS.length)]); setText(""); setSeconds(0); setStarted(true); setDone(false); startRef.current = performance.now(); }
+  // autosave draft (text + absolute deadline) on every change
+  useEffect(() => {
+    if (started && !done && deadlineRef.current) {
+      try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ topic, text, deadline: deadlineRef.current } as Draft)); } catch {}
+    }
+  }, [text, topic, started, done]);
+
+  function start() {
+    const t = TOPICS[Math.floor(Math.random() * TOPICS.length)];
+    setTopic(t); setText(""); setDone(false); setStarted(true);
+    deadlineRef.current = Date.now() + MIN * 1000; // absolute deadline, not UI state
+    setSecondsLeft(MIN);
+  }
+  function clearDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch {} }
 
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-  const timeUp = seconds >= MIN;
+  const timeUp = secondsLeft <= 0;
 
   function submit() {
-    setDone(true);
+    setDone(true); clearDraft();
     setLoading(true);
     fetch("/api/tutor", {
       method: "POST",
@@ -52,7 +93,7 @@ export default function Textschreiben() {
     <div className="enter">
       <div className="flex justify-between text-sm">
         <span className="font-medium">{topic}</span>
-        <span className="tnum text-ink-muted">⏱ {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")} / 10:00</span>
+        <span className="tnum text-ink-muted">⏱ {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")} / 10:00</span>
       </div>
       {timeUp && !done && <p className="mt-2 text-sm text-bad">Zeit um — du kannst noch abschicken.</p>}
       <textarea value={text} onChange={(e) => setText(e.target.value)} disabled={done} rows={10}
