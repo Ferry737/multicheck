@@ -94,6 +94,11 @@ export function readinessByArea(m: LearnerModel): Record<AreaId, number> {
   for (const a of AREAS) { out[a.id] = 0; cnt[a.id] = 0; for (const s of a.subskills) { out[a.id] += m.subs[s.id]?.mastery ?? 0; cnt[a.id]++; } out[a.id] = cnt[a.id] ? Math.round((out[a.id] / cnt[a.id]) * 100) : 0; }
   return out;
 }
+// Readiness formula (TRANSPARENT, not an official score):
+//   per-area readiness   = mean(subskill mastery) over that area's subskills
+//   overall readiness    = mean(per-area readiness) across the 7 areas
+// mastery is updated per attempt via EMA(rate 0.22) toward (correct?1:0), capped at 0.82 if correct-but-slow.
+// This is a training estimate only; it does NOT equal the official Multicheck result.
 export function overallReadiness(m: LearnerModel): number {
   const r = readinessByArea(m); const vals = Object.values(r); return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
 }

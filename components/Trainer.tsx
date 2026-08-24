@@ -13,7 +13,7 @@ interface TrainerProps {
 }
 
 export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, onDone }: TrainerProps) {
-  const { record, model, ready } = useLearner();
+  const { record, model, ready, status, retry } = useLearner();
   const [qs, setQs] = useState<Question[]>([]);
   const [i, setI] = useState(0);
   const [input, setInput] = useState("");
@@ -35,9 +35,20 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
 
   const [hidden, setHidden] = useState(false); // for recall delay
 
-  if (!ready) return <div className="container-x py-20 text-ink-muted">Lade…</div>;
-  if (failed) return <div className="container-x py-20">⚠️ Aufgaben konnten nicht geladen werden. <button onClick={() => location.reload()} className="underline">Erneut</button></div>;
-  if (qs.length === 0) return <div className="container-x py-20 text-ink-muted">Lade…</div>;
+  if (status === "error") return (
+    <div className="enter max-w-md mx-auto px-6 py-20 text-center">
+      <p className="text-ink-soft">App konnte nicht geladen werden.</p>
+      <button onClick={retry} className="mt-4 rounded-md border border-line px-5 py-2.5 text-sm font-medium hover:border-brand">Erneut versuchen</button>
+    </div>
+  );
+  if (!ready) return <div className="enter max-w-md mx-auto px-6 py-20 text-sm text-ink-faint">Lade…</div>;
+  if (failed) return (
+    <div className="enter max-w-md mx-auto px-6 py-20 text-center">
+      <p className="text-ink-soft">⚠️ Aufgaben konnten nicht geladen werden.</p>
+      <button onClick={() => location.reload()} className="mt-4 rounded-md border border-line px-5 py-2.5 text-sm font-medium hover:border-brand">Erneut versuchen</button>
+    </div>
+  );
+  if (qs.length === 0) return <div className="enter max-w-md mx-auto px-6 py-20 text-sm text-ink-faint">Lade…</div>;
 
   if (i >= qs.length) {
     const corr = results.filter(Boolean).length;
@@ -80,9 +91,12 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
           <div className="mb-4 flex flex-col items-center rounded-md bg-page p-4">
             <div dangerouslySetInnerHTML={{ __html: q.stimulus }} />
             {q.type === "recall" && !revealed && (
-              <button onClick={() => setHidden(true)} className="mt-3 rounded-md border border-line px-4 py-2 text-sm font-medium hover:border-brand">
-                Gemerkt — zur Frage
-              </button>
+              <div className="mt-3 flex flex-col items-center gap-2">
+                <p className="text-2xs text-ink-faint">Merke dir die Schilder…</p>
+                <button onClick={() => setHidden(true)} className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-deep">
+                  Gemerkt — zur Frage
+                </button>
+              </div>
             )}
           </div>
         )}

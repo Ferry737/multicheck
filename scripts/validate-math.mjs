@@ -23,7 +23,7 @@ function recompute(sub, prompt, answer) {
 
 let checked = 0, wrong = 0;
 for (const sub of ["textaufgaben", "kopfrechnen"]) {
-  for (let seed = 1; seed <= 80; seed++) {
+  for (let seed = 1; seed <= 420; seed++) {
     const qs = generateBatch(sub, 2, 12, seed * 7919 + 3);
     for (const q of qs) {
       const exp = recompute(sub, q.prompt, q.answer);
