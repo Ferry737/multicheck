@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background: #f6f5f2;
+  color: #16181d;
+  font-family: system-ui, "Archivo", "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+.container-x { width: 100%; max-width: 1100px; margin-inline: auto; padding-inline: 20px; }
