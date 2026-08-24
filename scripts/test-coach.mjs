@@ -1,5 +1,5 @@
 // scripts/test-coach.mjs — adaptive engine tests (Node, tsx).
-import { emptyCoach, composeSession, decideToday, masteryGate, overallReadiness, simulateAttempt, updateModel, composeSubskillQuestions, classifyError, perfBucket, recordSimulation, needsLesson, explainDecision } from "../lib/coach.ts";
+import { emptyCoach, composeSession, decideToday, masteryGate, overallReadiness, simulateAttempt, updateModel, composeSubskillQuestions, classifyError, perfBucket, recordSimulation, needsLesson, explainDecision, midSessionDecision } from "../lib/coach.ts";
 import { generateBatch } from "../lib/questions.ts";
 import { ALL_SUBSKILLS } from "../lib/curriculum.ts";
 

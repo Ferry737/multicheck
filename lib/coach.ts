@@ -16,6 +16,8 @@ export type ErrorType =
 export type PerfBucket = "fast-correct" | "slow-correct" | "fast-incorrect" | "slow-incorrect";
 
 // ---- Per-subskill student state ----
+const DRILL = ALL_SUBSKILLS.filter((s) => s.id !== "textschreiben"); // writing is a separate activity, not drilled with computed questions
+
 export interface SubModel {
   mastery: number;        // 0..1
   accuracy: number;       // 0..1 (recent-weighted)
@@ -319,10 +321,10 @@ export interface SessionPlan { minutes: number; blocks: SessionBlock[]; why: str
 
 export function composeSession(m: CoachModel, totalMinutes = 22): SessionPlan {
   const blocks: SessionBlock[] = [];
-  const weak = ALL_SUBSKILLS.filter((s) => (m.subs[s.id]?.mastery ?? 0) < 0.4);
-  const med = ALL_SUBSKILLS.filter((s) => { const x = m.subs[s.id]?.mastery ?? 0; return x >= 0.4 && x < 0.7; });
-  const strong = ALL_SUBSKILLS.filter((s) => (m.subs[s.id]?.mastery ?? 0) >= 0.7);
-  const due = ALL_SUBSKILLS.filter((s) => (m.subs[s.id]?.nextReview ?? 0) <= Date.now());
+  const weak = DRILL.filter((s) => (m.subs[s.id]?.mastery ?? 0) < 0.4);
+  const med = DRILL.filter((s) => { const x = m.subs[s.id]?.mastery ?? 0; return x >= 0.4 && x < 0.7; });
+  const strong = DRILL.filter((s) => (m.subs[s.id]?.mastery ?? 0) >= 0.7);
+  const due = DRILL.filter((s) => (m.subs[s.id]?.nextReview ?? 0) <= Date.now());
 
   // allocations (Phase 7): ~55% weak, ~22% med, ~13% review, ~10% strong
   const totalQ = Math.max(8, Math.round(totalMinutes / 2.2));
@@ -338,8 +340,8 @@ export function composeSession(m: CoachModel, totalMinutes = 22): SessionPlan {
   distribute(blocks, strong, nStrong, m, "maintenance", "Erhaltung");
 
   if (blocks.length === 0) {
-    // brand new student: diagnostic-like mix
-    distribute(blocks, ALL_SUBSKILLS.slice(0, 4), totalQ, m, "adaptive", "Erste Einschätzung");
+    // brand new student: diagnostic-like mix (exclude writing)
+    distribute(blocks, DRILL.slice(0, 4), totalQ, m, "adaptive", "Erste Einschätzung");
   }
 
   const minutes = blocks.reduce((s, b) => s + b.minutes, 0);
@@ -359,7 +361,7 @@ function distribute(blocks: SessionBlock[], subs: Subskill[], n: number, m: Coac
 }
 
 function explainWhy(m: CoachModel, blocks: SessionBlock[]): string {
-  const limiting = [...ALL_SUBSKILLS]
+  const limiting = DRILL
     .map((s) => ({ s, mk: m.subs[s.id]?.mastery ?? 0 }))
     .sort((a, b) => a.mk - b.mk)
     .slice(0, 2)
@@ -489,6 +491,27 @@ export function explainDecision(m: CoachModel, block: SessionBlock): string {
   const mk = Math.round((st?.mastery ?? 0) * 100);
   const due = st && st.nextReview <= Date.now();
   return `${name}: ${mk}% Beherrschung${due ? ", fällig" : ""} — ${block.mode === "maintenance" ? "Erhaltung" : "Ausbau"}.`;
+}
+
+// ---- Mid-session autopilot decision (Loop 13) ----
+// Given the outcome of one answer, decide whether to interrupt the drill.
+// Rules: repeated concept failures -> lesson; careless-fast -> accuracy (never more speed);
+// slow-but-correct -> speed flag (never a beginner lesson).
+export type MidDecision =
+  | { kind: "none" }
+  | { kind: "lesson"; concept?: string }
+  | { kind: "accuracy" }
+  | { kind: "speed" };
+export function midSessionDecision(m: CoachModel, subskill: string, correct: boolean, ms: number, streak: number, speedFlag: boolean): MidDecision {
+  const SPEED_TARGET = 12000;
+  if (!correct) {
+    const nl = needsLesson(m, subskill);
+    if (streak >= 3 && nl.lesson) return { kind: "lesson", concept: nl.concept };
+    if (ms < SPEED_TARGET * 0.4) return { kind: "accuracy" }; // very fast but wrong = careless
+    return { kind: "none" };
+  }
+  if (ms > SPEED_TARGET * 2 && !speedFlag) return { kind: "speed" };
+  return { kind: "none" };
 }
 
 // ---- Synthetic learners for QA (Phase 33) ----
