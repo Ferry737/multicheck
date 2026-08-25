@@ -566,3 +566,56 @@ export function simulateAttempt(m: CoachModel, q: Question, profile: LearnerProf
     templateKey: q.templateKey, errorType: correct ? undefined : "concept",
   };
 }
+
+// ---- Unseen assessment (Phase 16): true ability probe, independent of repetition ----
+// Pulls FRESH questions the student has never been exposed to (novel templateKeys),
+// so the readiness estimate cannot be inflated by memorized items.
+export function buildUnseenAssessment(m: CoachModel, perSubskill = 1, totalCap = 8): Question[] {
+  const out: Question[] = [];
+  for (const s of ALL_SUBSKILLS) {
+    if (s.id === "textschreiben") continue;
+    const ability = m.subs[s.id]?.difficulty ?? 35;
+    const exposed = new Set(m.exposure[s.id] ?? []);
+    let tries = 0;
+    while (out.length < totalCap && tries < 40) {
+      tries++;
+      const q = generate(s.id, ability, Date.now() + tries * 7919 + s.id.length);
+      if (!q) continue;
+      const key = q.templateKey || "";
+      if (exposed.has(key)) continue; // never seen this exact template
+      exposed.add(key);
+      out.push(q);
+      if (out.filter((x) => x.subskill === s.id).length >= perSubskill) break;
+    }
+    if (out.length >= totalCap) break;
+  }
+  return out;
+}
+
+// Record an unseen assessment result as a calibration attempt (does NOT pollute training history).
+export function recordUnseen(m: CoachModel, results: { subskill: string; correct: boolean; ms: number }[]): CoachModel {
+  let model = m;
+  const subs = { ...model.subs };
+  for (const r of results) {
+    const st = subs[r.subskill] ?? emptySub();
+    const prev = st.unseenPerf ?? 0;
+    const n = (st as any)._unseenN ?? 0;
+    const nextPerf = (prev * n + (r.correct ? 1 : 0)) / (n + 1);
+    subs[r.subskill] = { ...st, unseenPerf: nextPerf, _unseenN: n + 1 } as SubModel;
+  }
+  return { ...model, subs };
+}
+
+// ---- Readiness clamp (Phase 16): never claim readiness on insufficient evidence ----
+// A subskill with < MIN_ATTEMPTS or < MIN_DAYS cannot exceed the clamp ceiling.
+export const READINESS_CLAMP = { minAttempts: 8, minDays: 3, ceilingBelow: 0.7 };
+export function clampedReadiness(m: CoachModel, id: string): number {
+  const st = m.subs[id];
+  if (!st) return 0;
+  const raw = st.mastery * 0.5 + st.retention * 0.2 + st.accuracy * 0.2 + st.speed * 0.1;
+  if (st.attempts < READINESS_CLAMP.minAttempts || st.daysActive < READINESS_CLAMP.minDays) {
+    return Math.min(raw, READINESS_CLAMP.ceilingBelow);
+  }
+  return raw;
+}
+
