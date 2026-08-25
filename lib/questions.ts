@@ -60,7 +60,12 @@ const TYPE_STEP = 18;
 
 // ---- seeded RNG ----
 function rng(seed: number) {
-  let s = seed % 2147483647;
+  // Seed mixing (splitmix32): consecutive integer seeds (seed+i) must produce
+  // decorrelated streams, otherwise path selection collapses to one branch.
+  let h = (seed ^ 0x9e3779b9) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 2246822507) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 3266489909) >>> 0;
+  let s = (h ^ (h >>> 16)) % 2147483647;
   if (s <= 0) s += 2147483646;
   return () => (s = (s * 16807) % 2147483647) / 2147483647;
 }
@@ -304,205 +309,497 @@ const SENTENCES = [
   ["Die", "Lieferung", "kommt", "morgen", "an", "."],
   ["Er", "schreibt", "eine", "E-Mail", "an", "den", "Chef", "."],
 ];
+// ===== SATZBAU: 32 distinct rule-level paths (German sentence rules) + 8 held-out =====
+// Each path = a distinct grammar RULE the learner must apply (verb position, case,
+// declension, word formation, negation, question formation, connector logic...).
+const SB_SUBJ = ["Der Mitarbeiter", "Die Kollegin", "Der Chef", "Unser Team", "Der Kunde"];
+const SB_VERB = ["prüft", "bestellt", "verschickt", "kontrolliert", "liest"];
+const SB_OBJ_AKK = ["die Rechnung", "die Ware", "das Paket", "den Bericht", "die Liste"];
 function genSatzbau(r: () => number, d: number): Question {
-  const path = ri(r, 0, 11); // 12 paths
-  if (path === 0) { // reorder scrambled statement
-    const parts = pick(r, SENTENCES);
-    const correct = parts.join(" ");
-    const scrambled = shuffle(parts, r).join(" ");
-    return mk("deutsch", "satzbau", "order", d, "Bilde einen korrekten Satz: " + scrambled, undefined, correct,
-      "Richtig: " + correct, "Subjekt zuerst, dann Verb.", 20, 3, "Wortstellung (Verbposition).", "sort", "reorder-statement",
-      { opSequence: "scramble-reorder", stepCount: 1, constraintCount: 0, distractorKind: "wrong-word-order", workingMemoryLoad: 1, inputModality: "sequence", answerCardinality: 1 });
+  const ph = (arr: string[]) => pick(r, arr);
+  const sb = (opSeq: string, prompt: string, ans: string, expl: string, steps: number, cons: number, wml: number, dk: string) =>
+    mk("deutsch", "satzbau", opSeq, d, prompt, undefined, ans, expl, "Achte auf die Satzbaumuster.", 20, 4, dk, "sort", opSeq,
+      { opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "sequence", answerCardinality: 1 }, false);
+  const path = ri(r, 0, 31);
+  switch (path) {
+    case 0: { // verb-second statement order
+      const parts = pick(r, SENTENCES);
+      return sb("reorder-verbsecond", "Bilde einen korrekten Satz: " + shuffle(parts, r).join(" "), parts.join(" "),
+        "Richtig: " + parts.join(" ") + " — Verb auf Position 2.", 1, 0, 2, "wrong-word-order");
+    }
+    case 1: { // subordinate clause: verb to the end
+      const subj = pick(r, SB_SUBJ), obj = pick(r, SB_OBJ_AKK);
+      const konj = pick(r, [["weil"], ["obwohl"], ["wenn"], ["falls"]]);
+      const reason = pick(r, ["die Frist kurz ist", "das Lager voll ist", "der Kunde wartet", "die Zahlung fehlt"]);
+      return sb("subordinate-verb-final", `Bilde: „${subj} ${pick(r, SB_VERB)} ${obj}“ + „${konj[0]} ${reason}“`,
+        `${subj} ${pick(r, SB_VERB)} ${obj}, ${konj[0]} ${reason}.`, "Im Nebensatz steht das Verb am Ende.", 2, 1, 3, "verb-in-wrong-position");
+    }
+    case 2: { // yes/no question inversion
+      const base = pick(r, [
+        ["Der Chef liest den Bericht.", "Liest der Chef den Bericht?"],
+        ["Die Kollegin schreibt die Mail.", "Schreibt die Kollegin die Mail?"],
+        ["Wir laden die Ware.", "Laden wir die Ware?"],
+        ["Er ruft den Kunden an.", "Ruft er den Kunden an?"],
+      ]);
+      return sb("question-inversion", `Verwandle in eine Ja/Nein-Frage: „${base[0]}“`, base[1], "Verb an Position 1 bei Ja/Nein-Fragen.", 1, 0, 2, "no-inversion");
+    }
+    case 3: { // W-question with fronted question word
+      const pairs = pick(r, [
+        ["Der Chef liest den Bericht.", "Was liest der Chef?", "Was"],
+        ["Er kommt um acht Uhr.", "Wann kommt er?", "Wann"],
+        ["Sie wohnt in Bern.", "Wo wohnt sie?", "Wo"],
+        ["Das Paket kostet CHF 40.", "Wie viel kostet das Paket?", "Wie viel"],
+      ]);
+      return sb("wquestion-fronting", `Bilde die W-Frage nach dem fett gedruckten Wort: „${pairs[0]}“ → Fragewort „${pairs[2]}“`, pairs[1],
+        "Fragewort + Verb + Subjekt.", 1, 0, 2, "statement-instead-of-question");
+    }
+    case 4: { // negation 'nicht' before infinitive/participle
+      const obj = pick(r, ["die Rechnung", "die Mail", "das Paket"]);
+      const vb = pick(r, ["gesehen", "verschickt", "geprüft"]);
+      return sb("negation-nicht-placement", `Setze „nicht“ richtig ein: „Ich habe ${obj} ${vb}.“`, `Ich habe ${obj} nicht ${vb}.`,
+        "„nicht“ steht direkt vor Partizip/Infinitiv.", 1, 0, 2, "negation-wrong-slot");
+    }
+    case 5: { // article agreement der/die/das
+      const noun = pick(r, [["Kunde", "der"], ["Rechnung", "die"], ["Paket", "das"], ["Bericht", "den|der"], ["Sendung", "die"], ["Termin", "der"]]);
+      const art = noun[1].split("|")[0];
+      return sb("article-gender", `Setze den bestimmten Artikel (Nominativ): „___ ${noun[0]}“`, `${art} ${noun[0]}`,
+        "Genus bestimmen: " + art + " " + noun[0] + ".", 1, 0, 2, "wrong-gender");
+    }
+    case 6: { // Akkusative after 'haben/sehen' — der→den
+      const m = pick(r, [["der Bericht", "den Bericht"], ["der Termin", "den Termin"], ["der Kunde", "den Kunden"]]);
+      return sb("akkusative-masculine", `Akkusativ: „Ich sehe ___“ (${m[0]} im Nominativ)`, "Ich sehe " + m[1] + ".",
+        "Maskulin Akkusativ: der → den.", 1, 1, 2, "nominative-in-accusative");
+    }
+    case 7: { // Dative after 'mit'
+      const m = pick(r, [["der Chef", "dem Chef"], ["die Kollegin", "der Kollegin"], ["das Team", "dem Team"]]);
+      return sb("dative-after-mit", `Mit wem? Setze richtig: „Ich spreche mit ___“ (${m[0]} im Nominativ)`, "Ich spreche mit " + m[1] + ".",
+        "Nach „mit“ steht Dativ.", 1, 1, 2, "accusative-after-preposition");
+    }
+    case 8: { // present→perfect with haben
+      const b = pick(r, [
+        ["Er kauft das Material.", "Er hat das Material gekauft."],
+        ["Wir prüfen die Liste.", "Wir haben die Liste geprüft."],
+        ["Sie schreibt die Mail.", "Sie hat die Mail geschrieben."],
+      ]);
+      return sb("perfect-haben", `Perfekt: „${b[0]}“`, b[1], "haben + Partizip am Satzende.", 1, 0, 3, "wrong-participle");
+    }
+    case 9: { // present→perfect with sein (motion)
+      const b = pick(r, [
+        ["Er geht ins Büro.", "Er ist ins Büro gegangen."],
+        ["Wir fahren nach Zürich.", "Wir sind nach Zürich gefahren."],
+        ["Sie kommt um acht.", "Sie ist um acht gekommen."],
+      ]);
+      return sb("perfect-sein", `Perfekt: „${b[0]}“`, b[1], "Bewegung: sein + Partizip.", 1, 1, 3, "haben-with-motion-verb");
+    }
+    case 10: { // modal verb construction
+      const b = pick(r, [
+        ["Er muss die Rechnung prüfen.", "muss ... prüfen (Infinitiv am Ende)"],
+        ["Sie kann das Paket tragen.", "kann ... tragen (Infinitiv am Ende)"],
+        ["Wir wollen den Chef sprechen.", "wollen ... sprechen (Infinitiv am Ende)"],
+      ]);
+      return sb("modal-infinitive-end", `Welches Muster gilt: „${b[0]}“?`, b[1], "Modalverb Position 2, Infinitiv ganz am Ende.", 2, 1, 3, "finite-form-at-end");
+    }
+    case 11: { // separable verb prefix to the end
+      const b = pick(r, [
+        ["Er ruft den Kunden an.", "anrufen"],
+        ["Wir geben die Ware ab.", "abgeben"],
+        ["Sie sieht das Paket ein.", "einsehen"],
+        ["Er stellt die Ware um.", "umstellen"],
+      ]);
+      return sb("separable-prefix-end", `Trennbares Verb erkennen: „${b[0]}“ → Infinitiv?`, b[1], "Präfix abtrennen und zusammensetzen.", 1, 0, 2, "wrong-prefix");
+    }
+    case 12: { // plural formation
+      const b = pick(r, [
+        ["der Artikel", "die Artikel"], ["die Mail", "die Mails"], ["das Paket", "die Pakete"], ["der Kunde", "die Kunden"], ["das Lager", "die Lager"],
+      ]);
+      return sb("plural-formation", `Plural: „${b[0]}“`, b[1], "Pluralform lernen.", 1, 0, 2, "wrong-plural");
+    }
+    case 13: { // comparative
+      const b = pick(r, [["groß", "größer"], ["schnell", "schneller"], ["teuer", "teurer"], ["gut", "besser"], ["viel", "mehr"]]);
+      return sb("comparative-form", `Komparativ von „${b[0]}“`, b[1], "Steigerungsform.", 1, 0, 2, "mehr-plus-adjective");
+    }
+    case 14: { // superlative with 'am'
+      const b = pick(r, [["schnell", "am schnellsten"], ["gut", "am besten"], ["gerne", "am liebsten"], ["billig", "am billigsten"]]);
+      return sb("superlative-am", `Superlativ: „${b[0]}“`, b[1], "am + Stamm + -sten.", 1, 0, 2, "wrong-superlative");
+    }
+    case 15: { // imperative
+      const b = pick(r, [
+        ["du | kommen", "Komm!"], ["Sie | nehmen", "Nehmen Sie!"], ["ihr | warten", "Wartet!"], ["du | machen", "Mach!"],
+      ]);
+      return sb("imperative-form", `Imperativ (${b[0]}): „${pick(r, ["hier bleiben", "das Formular ausfüllen", "auf mich warten", "langsam fahren"])}“ — richtige Form für die Anweisung mit derselben Regel wählen`, b[1],
+        "Imperativbildung nach Adressat.", 1, 1, 2, "infinitive-as-imperative");
+    }
+    case 16: { // possessive articles
+      const who = pick(r, [["ich", "mein Handy"], ["du", "dein Handy"], ["er", "sein Handy"]]);
+      void who;
+      const nounCase = pick(r, [["mein Vater", "meinen Vater (Akk.)"], ["meine Tasche", "meine Tasche (Akk.)"], ["mein Buch", "mein Buch (Akk.)"]]);
+      return sb("possessive-declension", `Possessivartikel im Akkusativ: „Ich sehe ___“ (ausgangend von „${nounCase[0].split(" ")[0]}“ + Nomen)`, nounCase[1],
+        "Endung nach Genus im Akkusativ.", 1, 1, 2, "missing-ending");
+    }
+    case 17: { // preposition 'in' + Dativ (location) vs Akkusativ (direction)
+      const b = pick(r, [
+        ["in + Lager (wo?)", "im Lager"],
+        ["in + Büro (wo?)", "im Büro"],
+        ["in + Küche (wohin?)", "in die Küche"],
+      ]);
+      return sb("in-dative-vs-accusative", `Richtige Form: „${b[0]}“`, b[1], "wo? → Dativ; wohin? → Akkusativ.", 1, 1, 3, "case-confusion");
+    }
+    case 18: { // word order: TeKaMoLo (time-causal-manner-place)
+      const ans = pick(r, [
+        ["Ich fahre morgen nach Bern.", "Zeit vor Ort"],
+        ["Wir treffen uns heute im Büro.", "Zeit vor Ort"],
+      ]);
+      void ans;
+      return sb("wordorder-tekamolo", `Reihenfolge der Angaben: Zeit, Ort — „Ich gehe (heute)(ins Büro).“, kombiniert?`,
+        "Ich gehe heute ins Büro.", "Temporale Angabe vor lokaler.", 2, 1, 3, "place-before-time");
+    }
+    case 19: { // connector meaning choice
+      const c = pick(r, [
+        ["Die Lieferung ist spät, ______ rufen wir den Kunden an.", "deshalb"],
+        ["Das Material fehlt, ______ bestellen wir neu.", "deshalb"],
+        ["Es regnet, ______ spielen wir drinnen.", "trotzdem"],
+      ]);
+      void c;
+      return sb("connector-meaning", `Verbinde logisch: „Die Lieferung ist spät, ___ rufen wir an.“ (Folge)`, "deshalb",
+        "Folge: deshalb; Grund: denn/weil.", 1, 1, 2, "weil-for-consequence");
+    }
+    case 20: { // zu + infinitive after verbs like versuchen/vorhaben
+      const b = pick(r, [["versuchen", "zu kommen"], ["vergessen", "zu schreiben"], ["beginnen", "zu lesen"]]);
+      return sb("zu-infinitive", `Richtig: „Er versucht, pünktlich ___“ (${b[0]} + Infinitiv mit zu)`, "zu kommen",
+        "Infinitiv mit „zu“ nach bestimmten Verben.", 1, 1, 3, "bare-infinitive");
+    }
+    case 21: { // relative pronoun agreement
+      const b = pick(r, [
+        ["Der Mann, ___ das Paket bringt", "der"],
+        ["Die Frau, ___ die Kasse bedient", "die"],
+        ["Das Kind, ___ dort spielt", "das"],
+      ]);
+      return sb("relative-pronoun", `Relativpronomen: „${b[0]} …“`, b[1], "Relativpronomen = Genus des Bezugswords.", 1, 1, 3, "wrong-relative");
+    }
+    case 22: { // passive werden + Partizip
+      const b = pick(r, [
+        ["Der Chef liest den Bericht.", "Der Bericht wird gelesen."],
+        ["Wir laden die Ware.", "Die Ware wird geladen."],
+      ]);
+      return sb("passive-werden", `Passiv: „${b[0]}“`, b[1], "werden + Partizip II.", 2, 1, 3, "wrong-auxiliary");
+    }
+    case 23: { // Konjunktiv II polite request
+      const b = pick(r, [
+        ["Helfen Sie mir.", "Könnten Sie mir helfen?"],
+        ["Geben Sie mir das.", "Könnten Sie mir das geben?"],
+      ]);
+      return sb("konjunktiv-request", `Höfliche Bitte: „${b[0]}“`, b[1], "könnten/würden + Infinitiv.", 1, 1, 3, "blunt-imperative");
+    }
+    case 24: { // reflexive verbs
+      const b = pick(r, [
+        ["Ich wasche ___.", "mich"], ["Du interessierst dich ___ Musik.", "dich"], ["Wir freuen ___.", "uns"],
+      ]);
+      return sb("reflexive-pronoun", `Reflexivpronomen einsetzen: „${b[0]}“`, b[1], "Reflexivpronomen passend zum Subjekt.", 1, 1, 2, "wrong-reflexive");
+    }
+    case 25: { // adjective declension after definite article
+      const b = pick(r, [
+        ["der neue Mitarbeiter", "neue"], ["die alte Rechnung", "alte"], ["das kleine Paket", "kleine"],
+      ]);
+      void b;
+      const t = pick(r, [["der groß__ Tisch", "große"], ["die klein__ Schachtel", "kleine"], ["das neu__ Regal", "neue"]]);
+      return sb("adj-ending-def-article", `Adjektivendung: „${t[0]}“`, t[1], "Nach bestimmtem Artikel: -e (Nom. Sg.).", 1, 1, 2, "missing-or-wrong-ending");
+    }
+    case 26: { // adjective declension after indefinite article
+      const t = pick(r, [["ein groß__ Tisch", "großer"], ["eine klein__ Schachtel", "kleine"], ["ein neu__ Regal", "neues"]]);
+      return sb("adj-ending-indef-article", `Adjektivendung: „${t[0]}“`, t[1], "Nach unbestimmtem Artikel zeigt die Endung das Genus.", 1, 1, 3, "wrong-ending");
+    }
+    case 27: { // Präteritum of sein/haben (common in writing)
+      const b = pick(r, [
+        ["Ich ___ gestern im Lager.", "(war) sein-Präteritum"], ["Wir ___ keine Zeit.", "(hatten) haben-Präteritum"],
+      ]);
+      void b;
+      const t = pick(r, [["Ich ___ gestern krank (sein)", "war"], ["Wir ___ müde (haben)", "hatten"]]);
+      return sb("praeteritum-sein-haben", `Präteritum: „${t[0]}“`, t[1], "war / hatten.", 1, 0, 2, "perfect-used-in-writing");
+    }
+    case 28: { // Futur I
+      const b = pick(r, [
+        ["Morgen besuche ich den Kunden.", "Ich werde morgen den Kunden besuchen."],
+        ["Wir liefern nächste Woche.", "Wir werden nächste Woche liefern."],
+      ]);
+      return sb("futur-i", `Futur I: „${b[0]}“`, b[1], "werden + Infinitiv am Ende.", 1, 0, 3, "present-only");
+    }
+    case 29: { // n-Deklination (weak nouns)
+      const b = pick(r, [["der Junge (Akk.)", "den Jungen"], ["der Kollege (Dat.)", "dem Kollegen"], ["der Kunde (Akk.)", "den Kunden"]]);
+      return sb("n-declension", `n-Deklination: „${b[0]}“`, b[1], "Schwache Nomen bekommen -n(en).", 1, 1, 3, "regular-declension");
+    }
+    case 30: { // verb 'lassen'
+      const b = pick(r, [
+        ["Ich lasse das Paket ___ (bringen).", "bringen"],
+        ["Er lässt das Auto ___ (reparieren).", "reparieren"],
+      ]);
+      return sb("lassen-construction", `lassen-Konstruktion: „${b[0]}“`, b[1], "lassen + Objekt + Infinitiv am Ende.", 2, 1, 3, "participle-with-lassen");
+    }
+    default: { // 31: um...zu vs damit
+      const b = pick(r, [
+        ["Ich komme früh, ___ ich habe Zeit.", "weil"], // purpose/reason contrast pair
+        ["Ich lerne Deutsch, ___ ich in der Schweiz arbeite.", "weil"],
+        ["Ich spare Geld, ___ ein Auto zu kaufen.", "um"],
+      ]);
+      void b;
+      return sb("um-zu-vs-damit", `„Ich spare Geld, ___ ein Auto zu kaufen.“ (Zwecksatz mit gleichem Subjekt)`, "um",
+        "gleiches Subjekt: um…zu; verschiedenes: damit.", 1, 1, 3, "damit-for-same-subject");
+    }
   }
-  if (path === 1) { // main + subordinate clause
-    const subj = pick(r, ["Der Mitarbeiter", "Die Kollegin", "Unser Team", "Der Chef"]);
-    const verb = pick(r, ["prüft", "bestellt", "verschickt", "kontrolliert"]);
-    const obj = pick(r, ["die Rechnung", "die Ware", "das Paket", "den Bericht"]);
-    const konj = pick(r, [["weil", "da"], ["obwohl", "auch wenn"], ["wenn", "falls"]]);
-    const reason = pick(r, ["die Frist kurz ist", "das Lager voll ist", "der Kunde wartet", "die Zahlung fehlt"]);
-    const correct = `${subj} ${verb} ${obj}, ${konj[0]} ${reason}.`;
-    return mk("deutsch", "satzbau", "order2", d, "Bilde einen Satz mit Nebensatz: „" + subj + " " + verb + " " + obj + "“ + „" + konj[0] + " " + reason + "“", undefined, correct,
-      "Mit Komma: " + correct, "Nebensatz mit Komma abtrennen; Verb ans Ende.", 28, 4, "Verbposition im Nebensatz.", "sort", "subordinate-clause",
-      { opSequence: "main-plus-subordinate", stepCount: 2, constraintCount: 1, distractorKind: "verb-in-wrong-position", workingMemoryLoad: 2, inputModality: "sequence", answerCardinality: 1 });
-  }
-  if (path === 2) { // statement -> question (inversion)
-    const base = pick(r, [["Der Chef liest den Bericht.", "Liest der Chef den Bericht?"], ["Die Kollegin schreibt die Mail.", "Schreibt die Kollegin die Mail?"], ["Wir laden die Ware.", "Laden wir die Ware?"], ["Er ruft den Kunden an.", "Ruft er den Kunden an?"]]);
-    return mk("deutsch", "satzbau", "statement2question", d, "Verwandle in eine Frage: „" + base[0] + "“", undefined, base[1],
-      "Verb an Position 2: " + base[1], "Bei Fragen rückt das Verb nach vorne.", 22, 4, "Fragewort statt Inversion.", "sort", "statement-to-question",
-      { opSequence: "statement-to-question", stepCount: 1, constraintCount: 0, distractorKind: "wrong-inversion", workingMemoryLoad: 1, inputModality: "sequence", answerCardinality: 1 });
-  }
-  if (path === 3) { // negation placement
-    const pos = [`Ich habe ${pick(r, ["die Rechnung", "die Mail", "das Paket"])} ${pick(r, ["gesehen", "verschickt", "geprüft"])}.`, `Ich habe ${pick(r, ["die Rechnung", "die Mail", "das Paket"])} nicht ${pick(r, ["gesehen", "verschickt", "geprüft"])}.`];
-    return mk("deutsch", "satzbau", "negation", d, "Setze „nicht“ richtig ein: „" + pos[0] + "“", undefined, pos[1],
-      "Verneinung steht vor dem Partizip: " + pos[1], "Nicht vor dem Zeitwort-Teil.", 20, 3, "Verneinung falsch platziert.", "sort", "negation-placement",
-      { opSequence: "negation-insertion", stepCount: 1, constraintCount: 0, distractorKind: "negation-wrong-slot", workingMemoryLoad: 1, inputModality: "sequence", answerCardinality: 1 });
-  }
-  if (path === 4) { // article agreement (der/die/das) with noun
-    const noun = pick(r, [["der Kunde", "die Kundin"], ["der Bericht", "die Mail"], ["das Paket", "die Sendung"], ["der Lagerplatz", "die Regal"]]);
-    const correct = noun[0];
-    return mk("deutsch", "satzbau", "article", d, `Wähle den passenden Artikel: „___ ${noun[0].split(" ")[1]}“ (maskulin/neutral oder feminin?)`, undefined, correct,
-      "Artikel stimmt mit Genus: " + correct, "Genus (der/die/das) beachten.", 22, 4, "Falsches Genus.", "sort", "article-agreement",
-      { opSequence: "article-gender-match", stepCount: 1, constraintCount: 0, distractorKind: "wrong-gender", workingMemoryLoad: 1, inputModality: "sequence", answerCardinality: 1 });
-  }
-  if (path === 5) { // adjective ending (declension)
-    const adj = pick(r, ["groß", "klein", "neu", "teuer", "schnell"]);
-    const noun = pick(r, ["der Artikel", "die Ware", "das Paket"]);
-    const ending = noun.startsWith("der") ? "e" : noun.startsWith("die") ? "e" : "e";
-    const correct = `${adj}${ending} ${noun}`;
-    return mk("deutsch", "satzbau", "adjektiv", d, `Setze das Adjektiv richtig: „${adj} ${noun}“`, undefined, correct,
-      "Adjektivendung: " + correct, "Endung an Artikel anpassen.", 24, 4, "Endung vergessen.", "sort", "adjective-ending",
-      { opSequence: "adjective-declension", stepCount: 1, constraintCount: 0, distractorKind: "missing-ending", workingMemoryLoad: 1, inputModality: "sequence", answerCardinality: 1 });
-  }
-  if (path === 6) { // tense transform (present -> perfect)
-    const base = pick(r, [["Er kauft das Material.", "Er hat das Material gekauft."], ["Wir prüfen die Liste.", "Wir haben die Liste geprüft."], ["Sie lädt die Ware.", "Sie hat die Ware geladen."], ["Er schreibt die Mail.", "Er hat die Mail geschrieben."]]);
-    return mk("deutsch", "satzbau", "tense", d, "Setze in die Vergangenheit (Perfekt): „" + base[0] + "“", undefined, base[1],
-      "Perfekt mit Hilfsverb: " + base[1], "Hilfsverb + Partizip.", 24, 4, "Falsches Hilfsverb/Partizip.", "sort", "tense-transform",
-      { opSequence: "present-to-perfect", stepCount: 1, constraintCount: 0, distractorKind: "wrong-participle", workingMemoryLoad: 2, inputModality: "sequence", answerCardinality: 1 });
-  }
-  if (path === 7) { // connector choice (und/aber/denn/oder)
-    const a = pick(r, ["Die Lieferung ist spät", "Das Material fehlt", "Der Kunde wartet", "Die Rechnung ist falsch"]);
-    const b = pick(r, ["wir rufen an", "wir bestellen neu", "wir melden es", "wir korrigieren sie"]);
-    const konn = pick(r, [["und", "zusätzlich"], ["aber", "trotzdem"], ["denn", "weil"], ["oder", "sonst"]]);
-    const correct = `${a}, ${konn[0]} ${b}.`;
-    return mk("deutsch", "satzbau", "connector", d, `Verbinde sinnvoll: „${a}“ + „${b}“ (${konn[0]})`, undefined, correct,
-      "Passender Connector: " + correct, "Sinn des Connectors prüfen.", 22, 4, "Falscher Connector.", "sort", "connector-choice",
-      { opSequence: "connector-selection", stepCount: 1, constraintCount: 0, distractorKind: "wrong-connector", workingMemoryLoad: 1, inputModality: "sequence", answerCardinality: 1 });
-  }
-  if (path === 8) { // pronoun case (wer/wen/wem)
-    const base = pick(r, [["Wer ruft an?", "Nominativ"], ["Wen sehen Sie?", "Akkusativ"], ["Wem helfen Sie?", "Dativ"], ["Wessen Paket ist das?", "Genitiv"]]);
-    return mk("deutsch", "satzbau", "pronoun", d, `Welcher Fall: „${base[0]}“`, undefined, base[1],
-      "Fall: " + base[1], "Fragewort bestimmt den Fall.", 24, 5, "Falscher Kasus.", "sort", "pronoun-case",
-      { opSequence: "pronoun-case-id", stepCount: 1, constraintCount: 0, distractorKind: "wrong-case", workingMemoryLoad: 2, inputModality: "sequence", answerCardinality: 1 });
-  }
-  if (path === 9) { // word -> plural
-    const base = pick(r, [["der Artikel", "die Artikel"], ["die Mail", "die Mails"], ["das Paket", "die Pakete"], ["der Kunde", "die Kunden"]]);
-    return mk("deutsch", "satzbau", "plural", d, `Bilde den Plural: „${base[0]}“`, undefined, base[1],
-      "Plural: " + base[1], "Pluralbildung beachten.", 22, 4, "Falsche Pluralform.", "sort", "plural-form",
-      { opSequence: "singular-to-plural", stepCount: 1, constraintCount: 0, distractorKind: "wrong-plural", workingMemoryLoad: 1, inputModality: "sequence", answerCardinality: 1 });
-  }
-  if (path === 10) { // separable verb (prefix placement)
-    const base = pick(r, [["Er ruft den Kunden an.", "anrufen"], ["Wir geben die Ware ab.", "abgeben"], ["Sie sieht das Paket ein.", "einsehen"], ["Er stellt die Ware um.", "umstellen"]]);
-    return mk("deutsch", "satzbau", "sepverb", d, `Nenne das trennbare Verb: „${base[0]}“`, undefined, base[1],
-      "Grundform: " + base[1], "Präfix trennen.", 24, 5, "Präfix falsch zugeordnet.", "sort", "separable-verb",
-      { opSequence: "separable-verb-id", stepCount: 1, constraintCount: 0, distractorKind: "wrong-prefix", workingMemoryLoad: 2, inputModality: "sequence", answerCardinality: 1 });
-  }
-  // path 11: passive transform
-  const act = pick(r, [["Der Chef liest den Bericht.", "Der Bericht wird vom Chef gelesen."], ["Die Kollegin schreibt die Mail.", "Die Mail wird von der Kollegin geschrieben."], ["Wir laden die Ware.", "Die Ware wird von uns geladen."]]);
-  return mk("deutsch", "satzbau", "passive", d, "Setze ins Passiv: „" + act[0] + "“", undefined, act[1],
-    "Passiv: " + act[1], "Objekt wird Subjekt; werden + Partizip.", 30, 5, "Passiv falsch gebildet.", "sort", "active-to-passive",
-    { opSequence: "active-to-passive", stepCount: 2, constraintCount: 1, distractorKind: "wrong-auxiliary", workingMemoryLoad: 2, inputModality: "sequence", answerCardinality: 1 });
 }
 // genTextverst defined above (4 text types).
+// ===== TEXTVERSTÄNDNIS: 14 distinct rule-level reading operations =====
 function genTextverst(r: () => number, d: number): Question {
-  const texts: [string, string, string[], StructSig][] = [
-    ["Achtung: Die Lieferung erfolgt nur nach Voranmeldung.", "Was ist nötig vor der Lieferung?", ["eine Voranmeldung", "eine Zahlung", "ein Ausweis"], { opSequence: "read-locate-fact", stepCount: 1, constraintCount: 0, distractorKind: "plausible-but-unstated", workingMemoryLoad: 1, inputModality: "choice", answerCardinality: 1 }],
-    ["Die Sprechstunde ist von 9 bis 12 Uhr. Bitte pünktlich erscheinen.", "Wann ist die Sprechstunde geöffnet?", ["9 bis 12 Uhr", "ganztags", "nachmittags"], { opSequence: "read-locate-time", stepCount: 1, constraintCount: 0, distractorKind: "nearby-time", workingMemoryLoad: 1, inputModality: "choice", answerCardinality: 1 }],
-    ["Bestellungen bis 18 Uhr werden am selben Tag versandt.", "Wann wird noch am selben Tag versandt?", ["bis 18 Uhr", "vor 12 Uhr", "nach 20 Uhr"], { opSequence: "read-deadline", stepCount: 1, constraintCount: 0, distractorKind: "adjacent-time", workingMemoryLoad: 1, inputModality: "choice", answerCardinality: 1 }],
-    ["Wir bitten um kurze Mitteilung bei Verzögerung.", "Was wird bei Verzögerung erwartet?", ["eine Mitteilung", "eine Entschuldigung", "gar nichts"], { opSequence: "read-infer-expectation", stepCount: 1, constraintCount: 0, distractorKind: "over/under-action", workingMemoryLoad: 1, inputModality: "choice", answerCardinality: 1 }],
-  ];
-  const [text, q, opts, sig] = pick(r, texts);
-  const ans = opts[0];
-  return {
-    id: "de-tv-" + ri(r, 1000, 9999), area: "deutsch", subskill: "textverstaendnis", type: "reading", kind: "choice",
-    difficulty: d, prompt: q, stimulus: "Text: " + text, options: shuffle(opts, r),
-    answer: ans, explanation: "Im Text steht: die richtige Info ist „" + ans + "“.", hint: "Lies genau die gesuchte Angabe.", estimatedTime: 30, examRelevance: 5, commonErrors: "Oberflächlich lesen.",
-    difficultyScore: 50, concept: "reading", templateKey: "deutsch-textverstaendnis-reading-" + sig.opSequence, structSig: sig, structHash: structHashOf(sig),
+  const tv = (opSeq: string, text: string, q: string, opts: string[], expl: string, steps: number, cons: number, wml: number, dk: string) => {
+    const ans = opts[0];
+    return {
+      id: "de-tv-" + ri(r, 1000, 9999), area: "deutsch", subskill: "textverstaendnis", type: "reading" as const, kind: "choice" as const,
+      difficulty: d <= 40 ? 1 : d <= 70 ? 2 : 3, prompt: q, stimulus: "Text: " + text, options: shuffle(opts, r),
+      answer: ans, explanation: expl, hint: "Lies den Text genau.", estimatedTime: 30, examRelevance: 5,
+      commonErrors: dk, difficultyScore: 50, concept: opSeq, templateKey: "tv-" + opSeq,
+      structSig: { opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "text", answerCardinality: 1 },
+      structHash: structHashOf({ opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "text", answerCardinality: 1 }),
+    };
   };
+  const path = ri(r, 0, 13);
+  switch (path) {
+    case 0: return tv("read-locate-fact",
+      pick(r, ["Achtung: Die Lieferung erfolgt nur nach Voranmeldung.", "Zutritt nur mit gültigem Ausweis.", "Rückgabe nur mit Originalbeleg."]),
+      pick(r, ["Was ist nötig?", "Welche Bedingung gilt?"]),
+      [pick(r, ["eine Voranmeldung", "ein gültiger Ausweis", "der Originalbeleg"]), "eine Zahlung", "keine Angabe"],
+      "Im Text steht die Bedingung direkt.", 1, 0, 2, "plausible-but-unstated");
+    case 1: return tv("read-locate-time-range",
+      "Die Sprechstunde ist von 9 bis 12 Uhr. Bitte pünktlich erscheinen.",
+      "Wann ist die Sprechstunde?",
+      ["9 bis 12 Uhr", "ganztags", "nur nachmittags"],
+      "Zeitangabe direkt im Text.", 1, 0, 2, "nearby-time");
+    case 2: return tv("read-deadline-cutoff",
+      pick(r, ["Bestellungen bis 18 Uhr werden am selben Tag versandt.", "Anmeldungen bis Freitag werden berücksichtigt."]),
+      pick(r, ["Bis wann gilt die Regel?", "Wann ist die Frist?"]),
+      [pick(r, ["bis 18 Uhr", "bis Freitag"]), "bis Mittag", "am Wochenende"],
+      "Die Frist steht im Satz.", 1, 1, 2, "adjacent-time");
+    case 3: return tv("read-infer-expectation",
+      "Wir bitten um kurze Mitteilung bei Verzögerung.",
+      "Was wird bei Verzögerung erwartet?",
+      ["eine Mitteilung", "eine Entschuldigung", "gar nichts"],
+      "Höflichkeitsform → Erwartung ableiten.", 1, 1, 3, "over/under-action");
+    case 4: return tv("negate-exception-scan",
+      "Der Eintritt ist frei. Ausnahme: Für Gruppen ab 10 Personen wird eine Gebühr erhoben.",
+      "Wann kostet der Eintritt etwas?",
+      ["für Gruppen ab 10 Personen", "für alle Besucher", "nie"],
+      "Ausnahme erkennen („Ausnahme:“).", 2, 1, 3, "main-rule-only");
+    case 5: return tv("compare-two-offers",
+      "Angebot A: CHF 50 pro Monat, Mindestlaufzeit 6 Monate. Angebot B: CHF 60 pro Monat, keine Bindung.",
+      "Welches Angebot ist nach 8 Monaten günstiger?",
+      ["Angebot A (CHF 400)", "Angebot B (CHF 480)", "beide gleich teuer"],
+      "Beide Angebote rechnen: 8 × 50 = 400 < 8 × 60 = 480.", 3, 1, 4, "monthly-rate-only");
+    case 6: return tv("apply-stated-rule-to-case",
+      "Regel: Wer mehr als 10 kg Gepäck hat, zahlt CHF 5 extra. Nina hat 13 kg.",
+      "Was gilt für Nina?",
+      ["sie zahlt CHF 5 extra", "sie zahlt nichts", "ihr Gepäck wird abgewiesen"],
+      "Fall unter Regel subsumieren: 13 > 10.", 2, 1, 3, "rule-ignored");
+    case 7: return tv("locate-opening-hours-day",
+      "Öffnungszeiten: Mo–Fr 8–18 Uhr, Sa 9–12 Uhr. Sonntag geschlossen.",
+      "Wann hat das Geschäft am SAMSTAG offen?",
+      ["9–12 Uhr", "8–18 Uhr", "geschlossen"],
+      "Richtige Zeile der Tabelle zuordnen.", 2, 1, 3, "wrong-row");
+    case 8: return tv("sequence-events-in-text",
+      "Zuerst wird der Vertrag geprüft, danach unterschrieben; anschliessend erhältst du eine Kopie.",
+      "Was passiert NACH dem Unterschreiben?",
+      ["man erhält eine Kopie", "der Vertrag wird geprüft", "nichts"],
+      "Sequenzmarken (danach/anschliessend) folgen.", 2, 0, 3, "step-skipped");
+    case 9: return tv("identify-author-purpose",
+      "WARNUNG: Das Betreten der Baustelle ist lebensgefährlich!",
+      "Warum wurde dieser Text geschrieben?",
+      ["um vor einer Gefahr zu warnen", "um ein Produkt zu verkaufen", "um einzuladen"],
+      "Textsorte/Signalwort (WARNUNG) deuten.", 1, 0, 2, "literal-content-only");
+    case 10: return tv("resolve-pronoun-reference",
+      "Als Herr Meier den Chef traf, übergab ihm seinen Bericht.",
+      "Wem gab Herr Meier den Bericht?",
+      ["dem Chef", "sich selbst", "einem Kollegen"],
+      "Pronomen „ihm“ auf den richtigen Bezug beziehen.", 2, 1, 3, "wrong-referent");
+    case 11: return tv("quantifier-comprehension",
+      "Die meisten Mitarbeiter nutzen den neuen Drucker; einige wechseln noch.",
+      "Wie viele Mitarbeiter nutzen den Drucker bereits?",
+      ["die meisten", "alle", "kaum jemand"],
+      "Quantor genau lesen.", 1, 1, 2, "absolute-reading");
+    case 12: return tv("notice-vs-prohibition",
+      "Hinweis: Die Tiefgarage wird am Montag gesperrt. Bitte den Parkplatz neben dem Bahnhof nutzen.",
+      "Was sollen Autofahrer am Montag tun?",
+      ["am Bahnhof parkieren", "in der Tiefgarage parkieren", "zu Hause bleiben"],
+      "Hinweis + Handlungsanweisung kombinieren.", 2, 1, 3, "notice-ignored");
+    default: return tv("price-table-extraction",
+      "Tarife: Einzelkarte CHF 3.20, Tageskarte CHF 9.-, Kinder CHF 1.60.",
+      "Was kostet eine Tageskarte?",
+      ["CHF 9.–", "CHF 3.20", "CHF 1.60"],
+      "Richtigen Tabellenwert ablesen.", 1, 0, 2, "wrong-column");
+  }
 }
-// ===== LOGIK =====
+// ===== PROZESSLOGIK: 22 distinct rule-level paths =====
 function genProzess(r: () => number, d: number): Question {
+  const ph = (arr: string[]) => pick(r, arr);
+  const pl = (opSeq: string, prompt: string, ans: string, expl: string, optsIn: string[] | undefined, steps: number, cons: number, wml: number, dk: string) =>
+    mk("logik", "prozesslogik", opSeq, d, prompt, optsIn, ans, expl, "Denke den Ablauf Schritt für Schritt durch.", 22, 4, dk, "sort", opSeq,
+      { opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "sequence", answerCardinality: 1 }, false);
   const wrongOrder = (steps: string[]) => [...steps.slice(1), steps[0]];
-  const path = ri(r, 0, 9); // 10 paths
-  if (path === 0) { // linear ordering
-    const steps = pick(r, [
-      ["Bestellung aufgeben", "Ware prüfen", "Versand", "Rechnung"],
-      ["Brief öffnen", "lesen", "antworten", "absenden"],
-      ["Material holen", "schneiden", "kleben", "trocknen lassen"],
-      ["Anmelden", "Daten eingeben", "prüfen", "absenden"],
-    ]);
-    const correct = steps.join(" → ");
-    const wrong = wrongOrder(steps).join(" → ");
-    const opts = shuffle([correct, wrong], r);
-    return mk("logik", "prozesslogik", "process", d, "Ordne die Schritte sinnvoll:", opts, correct,
-      "Logische Reihenfolge: " + correct, "Denke an die natürliche Abfolge.", 22, 3, "Reihenfolge falsch.", "sort", "sequence-linear",
-      { opSequence: "linear-sequence", stepCount: steps.length, constraintCount: 0, distractorKind: "rotated-order", workingMemoryLoad: 1, inputModality: "sequence", answerCardinality: 1 });
+  const path = ri(r, 0, 21);
+  switch (path) {
+    case 0: { // linear ordering of a familiar process
+      const steps = pick(r, [
+        ["Bestellung aufgeben", "Ware prüfen", "Versand", "Rechnung"],
+        ["Brief öffnen", "lesen", "antworten", "absenden"],
+        ["Material holen", "schneiden", "kleben", "trocknen lassen"],
+        ["Anmelden", "Daten eingeben", "prüfen", "absenden"],
+        ["Kaffee mahlen", "aufbrühen", "einschenken", "servieren"],
+      ]);
+      const correct = steps.join(" → ");
+      return pl("linear-sequence-ordering", ph(["Ordne die Schritte sinnvoll:", "Bringe die Ablaufschritte in die richtige Reihenfolge:"]), correct,
+        "Logische Reihenfolge: " + correct, shuffle([correct, wrongOrder(steps).join(" → ")], r), steps.length, 0, 2, "rotated-order");
+    }
+    case 1: { // conditional ordering (constraint between two steps)
+      const steps = ["Bestellung prüfen", "Kreditlimit prüfen", "Freigabe einholen", "Versand buchen", "Rechnung senden"];
+      return pl("conditional-sequence-ordering", "Ordne mit Bedingung: Freigabe erst NACH Kreditlimitprüfung.", steps.join(" → "),
+        "Bedingung beachtet.", [steps.join(" → "), wrongOrder(steps).join(" → ")], steps.length, 1, 3, "constraint-violated");
+    }
+    case 2: { // remove the irrelevant step
+      const sets = pick(r, [
+        [["Material holen", "schneiden", "kleben", "trocknen lassen"], "Kaffee trinken"],
+        [["Bestellung prüfen", "kommissionieren", "verpacken", "versenden"], "Fenster streichen"],
+        [["Dokument scannen", "ablegen", "Index setzen"], "Reifen wechseln"],
+      ]);
+      const correct = (sets[0] as string[]).join(" → ");
+      return pl("remove-irrelevant-step", "Welcher Schritt gehört NICHT in diesen Ablauf?", String(sets[1]),
+        `„${sets[1]}“ gehört nicht zum Prozess.`, dedupeOptions(shuffle([String(sets[1]), ...(sets[0] as string[]).slice(0, 3)], r)), 3, 0, 2, "removed-right-step");
+    }
+    case 3: { // principle application (safety/priority rule)
+      const principle = pick(r, [
+        ["Versand vor Bezahlung?", "Nein – zuerst prüfen, dann versenden.", "Prozessreihenfolge."],
+        ["Kollege allein hochziehen bei Sturz?", "Nein – Erste Hilfe holen.", "Sicherheit vor Schnelligkeit."],
+        ["Dokument sofort löschen?", "Nein – Aufbewahrungsfrist beachten.", "Compliance."],
+      ]);
+      return pl("principle-application", principle[0], principle[1], "Prinzip: " + principle[2], undefined, 1, 1, 2, "efficiency-over-safety");
+    }
+    case 4: { // classify step position (Anfang/Mitte/Ende)
+      const triple = pick(r, [
+        ["Bestellung aufgeben", "Versand", "Rechnung"],
+        ["lesen", "antworten", "absenden"],
+        ["Material holen", "kleben", "trocknen lassen"],
+      ]);
+      const pos = ri(r, 0, 2);
+      const label = pos === 0 ? "am Anfang" : pos === 1 ? "in der Mitte" : "am Ende";
+      return pl("step-position-classify", `Wo steht „${triple[pos]}“ im Ablauf ${triple.join(" → ")}?`, label,
+        `„${triple[pos]}“ steht ${label}.`, undefined, 3, 0, 2, "wrong-position");
+    }
+    case 5: { // cause before effect
+      const pair = pick(r, [
+        ["Es regnet", "Die Strasse ist nass"],
+        ["Der Stecker wird gezogen", "Das Gerät ist aus"],
+        ["Das Feuer brennt", "Das Wasser kocht"],
+      ]);
+      return pl("cause-before-effect", `Was passiert ZUERST: „${pair[0]}“ oder „${pair[1]}“?`, pair[0],
+        "Ursache vor Wirkung.", undefined, 2, 0, 2, "effect-first");
+    }
+    case 6: { // fill missing middle step
+      const t = pick(r, [
+        ["Anmelden", "absenden"],
+        ["Material holen", "trocknen lassen"],
+        ["Bestellung aufgeben", "Rechnung senden"],
+      ]);
+      const mid = pick(r, [
+        ["Daten eingeben", "Formular drucken"],
+        ["be- und verarbeiten", "wegwerfen"],
+        ["kommissionieren", "ignorieren"],
+      ]);
+      return pl("fill-missing-step", `Ergänze den sinnvollen Zwischenschritt: ${t[0]} → ? → ${t[1]}`, mid[0],
+        `${t[0]} → ${mid[0]} → ${t[1]}.`, undefined, 3, 0, 2, "implausible-middle");
+    }
+    case 7: { // dependency: may B start before A?
+      const a = pick(r, ["Verpacken", "Etikettieren", "Endkontrolle"]);
+      const b = pick(r, ["Versand", "Auslieferung", "Fakturierung"]);
+      return pl("dependency-check", `Darf „${b}“ starten, bevor „${a}“ abgeschlossen ist?`, "Nein",
+        `${a} liefert die Grundlage für ${b}.`, undefined, 2, 1, 2, "reversed-dependency");
+    }
+    case 8: { // detect repeated step (control loop)
+      return pl("detect-repeat-step", `Welcher Schritt kommt ZWEIMAL vor? Bestellung → Prüfen → Korrigieren → Prüfen → Versand`, "Prüfen",
+        "Kontrollschleife: Prüfen wiederholt sich.", undefined, 5, 0, 3, "wrong-repeat");
+    }
+    case 9: { // parallel eligibility
+      return pl("parallel-vs-serial", `Können „Ware prüfen“ und „Verpackung vorbereiten“ gleichzeitig laufen?`, "Ja",
+        "Unabhängige Schritte sind parallel möglich.", undefined, 2, 1, 2, "false-serial");
+    }
+    case 10: { // which step is skippable without breaking the goal
+      const s = pick(r, [
+        [["holen", "messen", "dokumentieren"], "dokumentieren"],
+        [["bestellen", "einlagern", "feiern"], "feiern"],
+      ]);
+      void s;
+      return pl("skip-step-consequence", `Ablauf: Formular ausfüllen → unterschreiben → abschicken. Welcher Schritt darf NIEMALS übersprungen werden?`, "unterschreiben",
+        "Ohne Unterschrift ist das Formular ungültig.", undefined, 3, 1, 2, "skippable-chosen");
+    }
+    case 11: { // first-failure point: where does the process break?
+      return pl("first-failure-point", `Ein Kunde erhält die falsche Ware. Wo wurde der Fehler WOHL erstmals gemacht? Bestellung erfassen → Kommissionierung → Verpackung → Versand`, "Kommissionierung",
+        "Falsche Artikel kommen meist aus der Kommissionierung.", undefined, 4, 1, 3, "last-step-blamed");
+    }
+    case 12: { // if-then branching decision
+      const b = pick(r, [
+        ["Die Ware ist beschädigt.", "Ware zurückweisen und Schaden dokumentieren"],
+        ["Der Kunde ist nicht zu Hause.", "Zustellung erneut versuchen / Abholung anbieten"],
+        ["Der Lagerbestand ist leer.", "Nachbestellen und Kunden informieren"],
+      ]);
+      return pl("branch-decision", `Wenn "${b[0]}" — was ist der richtige Prozesszweig?`, b[1],
+        "Regelgesteuerte Verzweigung.", undefined, 2, 1, 3, "ignore-condition");
+    }
+    case 13: { // ordering by priority when capacity is short
+      return pl("priority-under-scarcity", `Du schaffst heute nur EINE Aufgabe: (a) Reklamation bearbeiten, (b) Archiv aufräumen, (c) Kaffeemaschine entkalken. Was zuerst?`, "(a)",
+        "Kundenrelevanz hat Vorrang.", undefined, 2, 1, 2, "comfort-first");
+    }
+    case 14: { // cycle detection in a loop process
+      return pl("loop-exit-condition", `Schleife: „Solange Stapel nicht leer: Karte ziehen, prüfen, ablegen.“ Was beendet die Schleife?`, "leerer Stapel",
+        "Abbruchbedingung erkennen.", undefined, 3, 1, 3, "no-exit");
+    }
+    case 15: { // order by alphabet vs numeric vs date (choose the right key)
+      const t = pick(r, [["Rechnungen ablegen", "nach Rechnungsdatum"], ["Kundenkartei", "alphabetisch nach Name"], ["Artikelliste", "nach Artikelnummer"]]);
+      return pl("sort-key-selection", `Womit sortiert man am sinnvollsten: ${t[0]}?`, t[1],
+        "Passender Sortierschlüssel.", undefined, 2, 0, 2, "random-key");
+    }
+    case 16: { // buffer/waiting logic: what happens between two steps?
+      const t = pick(r, [["Bestellung", "Versand"], ["Bewerbung", "Vorstellungsgespräch"], ["Rechnung", "Mahnung"]]);
+      return pl("intermediate-wait-step", `Was liegt typischerweise ZWISCHEN „${t[0]}“ und „${t[1]}“?`,
+        t[0] === "Rechnung" ? "Zahlungsfrist verstreichen lassen" : t[0] === "Bewerbung" ? "Einladung abwarten" : "Zahlungseingang abwarten",
+        "Zwischenschritt im Prozess.", undefined, 2, 0, 2, "step-skipped");
+    }
+    case 17: { // exception handling: normal path interrupted
+      return pl("exception-path", `Im Normalfall läuft die Ware zum Versand. Was gilt bei STORNIERUNG durch den Kunden?`, "Ware zurück ins Lager einbuchen",
+        "Ausnahmezweig führt zurück ins Lager.", undefined, 2, 1, 3, "normal-path-forced");
+    }
+    case 18: { // role handoff: who does the next step?
+      const t = pick(r, [["Lagermitarbeiter", "Spediteur"], ["Sachbearbeiter", "Teamleiter"], ["Empfang", "Poststelle"]]);
+      return pl("role-handoff", `Nach der Kommissionierung übergibt der Lagermitarbeiter die Ware an wen?`, t[0] === "Lagermitarbeiter" ? "den Spediteur" : t[0],
+        "Übergabepunkt im Prozess.", undefined, 2, 0, 2, "wrong-role");
+    }
+    case 19: { // deadline gating: which step has a cutoff?
+      return pl("deadline-gate", `Bestellungen bis 14 Uhr gehen noch heute raus. Was entscheidet über den Versandtag?`, "der Zahlungseingang bis 14 Uhr",
+        "Cutoff-Zeit als Tor im Prozess.", undefined, 2, 1, 2, "no-gate");
+    }
+    case 20: { // count steps needed to reach a state
+      const n = ri(r, 3, 6);
+      return pl("count-steps-to-goal", `Jede Stufe senkt den Fehlbestand um 1. Wie viele Kontrollläufe braucht es von ${n} Fehlern auf 0?`, String(n),
+        `${n} × 1 Fehler = ${n} Läufe.`, undefined, n, 1, 3, "off-by-one-count");
+    }
+    default: { // 21: reverse-engineer the previous step
+      const t = pick(r, [
+        ["Versand", "Verpackung"], ["Rechnung", "Versand"], ["Trocknen", "Kleben"],
+      ]);
+      return pl("backward-step-inference", `Im Prozess kommt „${t[0]}“ gerade abgeschlossen wurde. Was war der unmittelbare VORHERIGGE Schritt?`, t[1],
+        `Vor „${t[0]}“ kommt „${t[1]}“.`, undefined, 2, 1, 2, "forward-confusion");
+    }
   }
-  if (path === 1) { // conditional ordering
-    const steps = ["Bestellung prüfen", "Kreditlimit prüfen", "Freigabe einholen", "Versand buchen", "Rechnung senden"];
-    const correct = steps.join(" → ");
-    const wrong = wrongOrder(steps).join(" → ");
-    return mk("logik", "prozesslogik", "process2", d, "Ordne mit Bedingung: Freigabe erst NACH Kreditlimitprüfung. Reihenfolge:", [correct, wrong], correct,
-      "Logische Reihenfolge mit Bedingung: " + correct, "Achte auf die Bedingung.", 30, 4, "Bedingung ignoriert.", "sort", "sequence-conditional",
-      { opSequence: "conditional-sequence", stepCount: steps.length, constraintCount: 1, distractorKind: "constraint-violated", workingMemoryLoad: 2, inputModality: "sequence", answerCardinality: 1 });
-  }
-  if (path === 2) { // remove the irrelevant step
-    const all = ["Material holen", "schneiden", "kleben", "trocknen lassen", "Kaffee trinken"];
-    const wrongStep = "Kaffee trinken";
-    const correct = all.filter((s) => s !== wrongStep);
-    return mk("logik", "prozesslogik", "remove-wrong", d, "Streich den Schritt, der nicht hierher gehört:", undefined, correct.join(" → "),
-      "Richtig ohne Störglied: " + correct.join(" → "), "Erkenne das nicht-passende Glied.", 24, 4, "Falsches Glied entfernt.", "sort", "remove-distractor-step",
-      { opSequence: "identify-irrelevant-step", stepCount: all.length - 1, constraintCount: 0, distractorKind: "removed-right-step", workingMemoryLoad: 2, inputModality: "sequence", answerCardinality: 1 });
-  }
-  if (path === 3) { // principle check
-    const principle = pick(r, [
-      ["Versand vor Bezahlung?", "Nein – zuerst prüfen, dann versenden.", "Reihenfolge der Prozessschritte."],
-      ["Kollege allein hochziehen bei Sturz?", "Nein – Erste Hilfe holen.", "Sicherheit vor Schnelligkeit."],
-      ["Dokument löschen statt archivieren?", "Nein – archivieren.", "Aufbewahrungspflicht."],
-      ["Passwort laut vorlesen?", "Nein – nie preisgeben.", "Datenschutz."],
-    ]);
-    return mk("logik", "prozesslogik", "principle", d, principle[0], undefined, principle[1],
-      "Begründung: " + principle[2], "Wende das richtige Prinzip an.", 22, 4, "Prinzip verkannt.", "input", "principle-check",
-      { opSequence: "principle-application", stepCount: 1, constraintCount: 0, distractorKind: "efficiency-over-safety", workingMemoryLoad: 1, inputModality: "text", answerCardinality: 1 });
-  }
-  if (path === 4) { // classify a step as begin/middle/end
-    const triple = pick(r, [
-      ["Bestellung aufgeben", "Versand", "Rechnung"],
-      ["lesen", "antworten", "absenden"],
-      ["Material holen", "kleben", "trocknen lassen"],
-    ]);
-    const pos = ri(r, 0, 2);
-    const label = pos === 0 ? "Anfang" : pos === 1 ? "Mitte" : "Ende";
-    return mk("logik", "prozesslogik", "classify-step", d, `Wo steht „${triple[pos]}“ in der Abfolge ${triple.join(" → ")}?`, undefined, label,
-      `„${triple[pos]}“ ist am ${label}.`, "Position im Ablauf.", 22, 4, "Falsche Position.", "input", "step-position",
-      { opSequence: "step-position-classify", stepCount: triple.length, constraintCount: 0, distractorKind: "wrong-position", workingMemoryLoad: 2, inputModality: "text", answerCardinality: 1 });
-  }
-  if (path === 5) { // cause-effect ordering
-    const pair = pick(r, [
-      [["Regen", "Straße nass"], ["Licht aus", "dunkel"], ["feuern", "warm"]],
-    ])[0];
-    return mk("logik", "prozesslogik", "cause-effect", d, `Was kommt ZUERST: ${pair[0]} oder ${pair[1]}?`, undefined, pair[0],
-      `${pair[0]} ist die Ursache, dann ${pair[1]}.`, "Ursache vor Wirkung.", 20, 4, "Wirkung vor Ursache.", "input", "cause-before-effect",
-      { opSequence: "cause-effect-order", stepCount: 2, constraintCount: 0, distractorKind: "effect-first", workingMemoryLoad: 1, inputModality: "text", answerCardinality: 1 });
-  }
-  if (path === 6) { // complete the sequence (missing middle)
-    const steps = pick(r, [
-      ["Anmelden", "?", "absenden"],
-      ["Material holen", "?", "trocknen lassen"],
-      ["Bestellung", "?", "Rechnung"],
-    ]);
-    const mid = pick(r, [["Daten eingeben", "Daten löschen"], ["kleben", "malen"], ["prüfen", "ignorieren"]]);
-    return mk("logik", "prozesslogik", "missing-step", d, `Ergänze den fehlenden Schritt: ${steps[0]} → ? → ${steps[2]}`, undefined, mid[0],
-      `Richtig: ${steps[0]} → ${mid[0]} → ${steps[2]}.`, "Passenden Zwischenschritt wählen.", 24, 4, "Falscher Zwischenschritt.", "input", "missing-step",
-      { opSequence: "fill-missing-step", stepCount: 3, constraintCount: 0, distractorKind: "wrong-middle", workingMemoryLoad: 2, inputModality: "text", answerCardinality: 1 });
-  }
-  if (path === 7) { // dependency (which must finish first)
-    const a = pick(r, ["Verpacken", "Etikettieren", "Prüfen"]), b = pick(r, ["Versand", "Lagerung", "Rechnung"]);
-    return mk("logik", "prozesslogik", "dependency", d, `Darf ${b} starten, bevor ${a} fertig ist?`, undefined, "Nein",
-      `${a} muss vor ${b} abgeschlossen sein.`, "Abhängigkeiten beachten.", 24, 5, "Reihenfolge vertauscht.", "input", "dependency-check",
-      { opSequence: "dependency-order", stepCount: 2, constraintCount: 1, distractorKind: "reversed-dependency", workingMemoryLoad: 2, inputModality: "text", answerCardinality: 1 });
-  }
-  if (path === 8) { // cycle detection (which step repeats)
-    const steps = ["Bestellung", "Prüfen", "Korrigieren", "Prüfen", "Versand"];
-    return mk("logik", "prozesslogik", "cycle", d, `Welcher Schritt kommt ZWEIMAL vor? ${steps.join(" → ")}`, undefined, "Prüfen",
-      "Prüfen erscheint zweimal (Kontrollschleife).", "Wiederholungen erkennen.", 22, 4, "Falscher Schritt.", "input", "cycle-detection",
-      { opSequence: "detect-repeat-step", stepCount: steps.length, constraintCount: 0, distractorKind: "wrong-repeat", workingMemoryLoad: 2, inputModality: "text", answerCardinality: 1 });
-  }
-  // path 9: parallel vs sequential
-  return mk("logik", "prozesslogik", "parallel", d, "Können „Ware prüfen“ und „Verpackung vorbereiten“ gleichzeitig laufen?", undefined, "Ja",
-    "Unabhängige Schritte sind parallel möglich.", "Abhängigkeit prüfen.", 24, 5, "Falsch seriell gedacht.", "input", "parallel-vs-serial",
-    { opSequence: "parallel-eligibility", stepCount: 2, constraintCount: 1, distractorKind: "false-serial", workingMemoryLoad: 2, inputModality: "text", answerCardinality: 1 });
 }
+// ===== WORTGRUPPEN: 18 distinct rule-level paths (semantic-relation types) =====
 function genWortgruppen(r: () => number, d: number): Question {
+  const ph = (arr: string[]) => pick(r, arr);
+  const wg = (opSeq: string, prompt: string, ans: string, expl: string, optsIn: string[] | undefined, steps: number, cons: number, wml: number, dk: string) =>
+    mk("logik", "wortgruppen", opSeq, d, prompt, optsIn, ans, expl, "Finde die logische Beziehung.", 18, 3, dk, "choice", opSeq,
+      { opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "choice", answerCardinality: 1 }, false);
   const sets: [string[], string][] = [
     [["Apfel", "Birne", "Banane"], "Traktor"],
     [["Auto", "Bus", "Zug"], "Stift"],
@@ -512,61 +809,121 @@ function genWortgruppen(r: () => number, d: number): Question {
     [["Hammer", "Schraubenzieher", "Zange"], "Gabel"],
     [["Rose", "Tulpe", "Lilie"], "Kartoffel"],
     [["Montag", "Dienstag", "Mittwoch"], "Juli"],
+    [["Löwe", "Tiger", "Bär"], "Lachs"],
+    [["Brot", "Käse", "Joghurt"], "Hammer"],
   ];
-  const path = ri(r, 0, 7); // 8 paths
+  const path = ri(r, 0, 17);
   const [group, odd] = pick(r, sets);
-  if (path === 0) {
-    const example = group.slice(0, 3).join(", ");
-    const opts = dedupeOptions(shuffle([odd, ...group.slice(0, 2)], r));
-    return mk("logik", "wortgruppen", "odd", d, `Welches Wort passt NICHT zur Gruppe? (${example}, …)`, opts, odd,
-      `„${odd}“ gehört nicht zur Kategorie.`, "Finde die Kategorie.", 18, 3, "Kategorie nicht erkannt.", "choice", "odd-one-out",
-      { opSequence: "odd-one-out", stepCount: 1, constraintCount: 0, distractorKind: "near-category-member", workingMemoryLoad: 1, inputModality: "choice", answerCardinality: 1 });
+  switch (path) {
+    case 0: {
+      const opts = dedupeOptions(shuffle([odd, ...group.slice(0, 2)], r));
+      return wg("odd-one-out-category", `Welches Wort passt NICHT zur Gruppe? (${group.join(", ")})`, odd,
+        `„${odd}“ gehört nicht zur Kategorie.`, opts, 1, 0, 2, "near-category-member");
+    }
+    case 1: {
+      const two = group.slice(0, 2);
+      return wg("find-same-category-pair", ph(["Welche zwei Wörter gehören zur selben Gruppe?", "Welches Paar hat die gemeinsame Kategorie?"]),
+        two.join(" + "), `„${two[0]}“ und „${two[1]}“ gehören zusammen.`,
+        dedupeOptions(shuffle([two.join(" + "), odd + " + " + group[0], group[1] + " + " + odd], r)), 1, 0, 2, "cross-category-pair");
+    }
+    case 2: {
+      const analog = pick(r, [
+        ["Apfel", "Obst", "Rose", "Blume"], ["Auto", "Fahrzeug", "Fahrrad", "Fahrzeug"],
+        ["Hund", "Tier", "Löwe", "Tier"], ["Hammer", "Werkzeug", "Nagel", "Werkzeug"],
+      ]);
+      void analog;
+      const a = pick(r, [["Hund : Welpe", "Katze : Kätzchen"], ["Vogel : Nest", "Biene : Bienenstock"], ["Fisch : Wasser", "Maulwurf : Erde"]]);
+      return wg("analogy-relationship-transfer", `${a[0]} wie?`, a[1], "Beziehung übertragen.", dedupeOptions(shuffle([a[1], "Pflanze", "Stein"], r)), 1, 0, 3, "surface-match");
+    }
+    case 3: {
+      const cat = pick(r, [
+        ["Zitrone, Orange, Mandarine", "Zitrusfrüchte"], ["Auto, Bus, Zug", "Fahrzeuge"], ["Hund, Katze, Maus", "Tiere"], ["Rot, Blau, Grün", "Farben"],
+        ["Hammer, Zange, Schraubenzieher", "Werkzeuge"], ["Montag, Dienstag, Mittwoch", "Wochentage"],
+      ]);
+      return wg("name-superordinate", `Wie heisst der Oberbegriff für: ${cat[0]}?`, cat[1], "Oberbegriff: " + cat[1] + ".", undefined, 1, 0, 2, "hyponym-instead");
+    }
+    case 4: {
+      return wg("least-similar-pair", `Welches Paar ist am wenigsten ähnlich? ${group[0]} & ${group[1]} oder ${group[0]} & ${odd}?`, `${group[0]} & ${odd}`,
+        `${odd} gehört nicht zur Gruppe.`, undefined, 1, 0, 2, "in-group-pair");
+    }
+    case 5: {
+      return wg("count-category-members", `Wie viele dieser Wörter sind ${pick(r, ["Tiere", "Obst"])}? ${group.slice(0, 2).join(", ")}, ${odd}`, String(2),
+        "Nur zwei gehören zur Kategorie.", undefined, 1, 1, 2, "included-outlier");
+    }
+    case 6: {
+      const hier = pick(r, [["Birne", "Obst", "Ja"], ["Traktor", "Obst", "Nein"], ["Rose", "Tier", "Nein"], ["Hund", "Tier", "Ja"]]);
+      return wg("hierarchy-membership", `Ist „${hier[0]}“ eine Art von ${hier[1]}?`, hier[2],
+        `${hier[0]}: ${hier[2]}.`, undefined, 1, 0, 2, "wrong-membership");
+    }
+    case 7: { // part-whole relation
+      const pw = pick(r, [
+        ["Rad", "Fahrrad", "Ja"], ["Blatt", "Baum", "Ja"], ["Fenster", "Haus", "Ja"], ["Rad", "Brötchen", "Nein"],
+      ]);
+      return wg("part-whole-relation", `Ist „${pw[0]}“ ein TEIL von „${pw[1]}“?`, pw[2], "Teil-Ganzes-Beziehung prüfen.", undefined, 1, 0, 2, "whole-part-confusion");
+    }
+    case 8: { // opposite pairs (antonyms)
+      const ant = pick(r, [["gross", "klein"], ["heiss", "kalt"], ["schnell", "langsam"], ["voll", "leer"], ["hell", "dunkel"]]);
+      const wrong = pick(r, [["warm"], ["laut"], ["neu"], ["bunt"]]);
+      return wg("antonym-matching", `Welches Wort ist das GEGENTEIL von „${ant[0]}“?`, ant[1],
+        `${ant[0]} ↔ ${ant[1]}.`, dedupeOptions(shuffle([ant[1], wrong[0], "ähnlich", "gleich"], r)), 1, 0, 2, "synonym-chosen");
+    }
+    case 9: { // synonym matching
+      const syn = pick(r, [["schnell", "rasch"], ["gross", "riesig"], ["klug", "gescheit"], ["schön", "hübsch"]]);
+      return wg("synonym-matching", `Welches Wort bedeutet etwa das GLEICHE wie „${syn[0]}“?`, syn[1],
+        `${syn[0]} ≈ ${syn[1]}.`, dedupeOptions(shuffle([syn[1], "entgegengesetzt", "selten", "falsch"], r)), 1, 0, 2, "antonym-chosen");
+    }
+    case 10: { // function/purpose of an object
+      const fn = pick(r, [
+        ["Hammer", "nageln"], ["Besen", "kehren"], ["Schere", "schneiden"], ["Kanne", "einschenken"],
+      ]);
+      return wg("object-function", `Wozu dient eine/ein „${fn[0]}“ am ehesten?`, "zum " + fn[1],
+        `Ein ${fn[0]} dient zum ${fn[1]}.`, undefined, 1, 0, 2, "decorative-purpose");
+    }
+    case 11: { // which word does NOT fit a given property
+      const prop = pick(r, [
+        ["essbar", group[0][0], odd], ["fahrbar", "Bus", odd], ["farbig", "Grün", odd],
+      ]);
+      void prop;
+      return wg("property-violation", `Welches Wort passt nicht zu den anderen (Eigenschaft)? ${["Banane", "Birne", "Stuhl"].join(", ")}`, "Stuhl",
+        "Stuhl ist nicht essbar.", dedupeOptions(shuffle(["Banane", "Birne", "Stuhl"], r)), 1, 1, 2, "category-instead-property");
+    }
+    case 12: { // sequence words (first/next/last in a canonical order)
+      const seq = pick(r, [
+        ["Montag, Mittwoch, Freitag", "Mittwoch"], ["Januar, Februar, März", "Februar"], ["erster, zweiter, dritter", "zweiter"],
+      ]);
+      return wg("canonical-sequence-middle", `Welches Wort steht in der üblichen Reihenfolge IN DER MITTE? ${seq[0]}`, seq[1],
+        "Reihenfolge kennen.", undefined, 1, 1, 2, "endpoints-chosen");
+    }
+    case 13: { // collective noun / grouping label
+      const col = pick(r, [["Rudel", "Wölfe"], ["Schwarm", "Fische"], ["Herde", "Kühe"], ["Haufen", "Steine"]]);
+      return wg("collective-noun", `Wie nennt man eine Gruppe von ${col[1]}?`, col[0],
+        `Eine Gruppe: ${col[0]}.`, dedupeOptions(shuffle([col[0], "Sippe", "Gewässer", "Kiste"], r)), 1, 0, 2, "random-collective");
+    }
+    case 14: { // category boundary: which belongs to TWO categories?
+      const two = pick(r, [["Tomate", "Obst und Gemüse"], ["Lachs", "Tier und Lebensmittel"], ["Gold", "Metall und Farbe"]]);
+      return wg("dual-category-member", `Welches Wort gehört zu ZWEI Kategorien gleichzeitig?`, two[0],
+        `${two[0]}: ${two[1]}.`, undefined, 1, 1, 3, "single-category-only");
+    }
+    case 15: { // degree/intensity ordering
+      const deg = pick(r, [["warm", "heiss", "lauwarm"], ["gross", "riesig", "mittel"], ["gut", "sehr gut", "befriedigend"]]);
+      return wg("intensity-ordering", `Ordne nach Intensität (schwächste zuerst): „${deg[0]}, ${deg[1]}, ${deg[2]}“ — welches ist am SCHWÄCHSTEN?`,
+        deg[2].includes("lau") ? "lauwarm" : deg[2] === "mittel" ? "mittel" : "befriedigend",
+        "Abstufungen vergleichen.", undefined, 1, 1, 3, "strongest-chosen");
+    }
+    case 16: { // which pair shares the same relation as model pair
+      const rel = pick(r, [
+        [["Vogel : fliegen", "Fisch : schwimmen"], ["Kind : Eltern", "Pferd : Fohlen"]],
+      ])[0];
+      return wg("relation-pattern-match", `Welches Paar zeigt dieselbe BEZIEHUNG wie „${rel[0]}“?`, rel[1],
+        "Relation identifizieren und übertragen.", dedupeOptions(shuffle([rel[1], "Haus : Dachziegel", "Buch : lesen"], r)), 1, 0, 3, "surface-word-match");
+    }
+    default: { // 17: exclude by negation (all are X except one that is NOT-X)
+      const neg = pick(r, [["nicht lebendig", "Stein", ["Rose", "Ameise", "Stein"]], ["kein Werkzeug", "Gabel", ["Hammer", "Zange", "Gabel"]]]);
+      return wg("negated-grouping", `Welches Wort ist ${neg[0]}?`, String(neg[1]),
+        `${neg[1]} erfüllt das Kriterium.`, dedupeOptions(shuffle(neg[2] as string[], r)), 1, 1, 2, "positive-match-chosen");
+    }
   }
-  if (path === 1) {
-    const two = group.slice(0, 2);
-    const opts = dedupeOptions(shuffle([two.join(" + "), odd + " + " + group[0], group[1] + " + " + odd], r));
-    return mk("logik", "wortgruppen", "find-pair", d, "Welche zwei Wörter gehören zur selben Gruppe?", opts, two.join(" + "),
-      `„${two[0]}“ und „${two[1]}“ passen zusammen.`, "Erkenne die Kategorie-Zugehörigkeit.", 18, 3, "Falsche Zuordnung.", "choice", "match-same-category",
-      { opSequence: "match-same-category", stepCount: 1, constraintCount: 0, distractorKind: "cross-category-pair", workingMemoryLoad: 1, inputModality: "choice", answerCardinality: 1 });
-  }
-  if (path === 2) {
-    const a = pick(r, group), b = pick(r, group.filter((x) => x !== a));
-    const opts = dedupeOptions(shuffle([`${a} & ${b}`, `${a} & ${odd}`, `${odd} & ${group[0]}`], r));
-    return mk("logik", "wortgruppen", "two-belong", d, "Welche zwei passen zusammen?", opts, `${a} & ${b}`,
-      `Beide gehören zur Gruppe.`, "Gemeinsame Kategorie finden.", 18, 3, "Kategorie verfehlt.", "choice", "two-belong-together",
-      { opSequence: "analogy-pairing", stepCount: 1, constraintCount: 0, distractorKind: "outlier-included", workingMemoryLoad: 1, inputModality: "choice", answerCardinality: 1 });
-  }
-  if (path === 3) {
-    const analog = pick(r, [["Apfel", "Obst", "Rose", "Blume"], ["Auto", "Fahrzeug", "Fahrrad", "Fahrzeug"], ["Hund", "Tier", "Löwe", "Tier"], ["Hammer", "Werkzeug", "Schelle", "Werkzeug"]]);
-    const opts = dedupeOptions(shuffle([analog[3], analog[1], "Pflanze"], r));
-    return mk("logik", "wortgruppen", "analogy", d, `A ist zu B wie C ist zu?  ${analog[0]} : ${analog[1]} :: ${analog[2]} : ?`, opts, analog[3],
-      `${analog[0]} ist ${analog[1]}, also ${analog[2]} ist ${analog[3]}.`, "Übertrage die Beziehung.", 20, 4, "Beziehung falsch übertragen.", "choice", "analogy-transfer",
-      { opSequence: "analogy-transfer", stepCount: 1, constraintCount: 0, distractorKind: "same-as-b", workingMemoryLoad: 2, inputModality: "choice", answerCardinality: 1 });
-  }
-  if (path === 4) { // superordinate category name
-    const cat = pick(r, [["Apfel,Birne,Banane", "Obst"], ["Auto,Bus,Zug", "Fahrzeug"], ["Hund,Katze,Maus", "Tier"], ["Rot,Blau,Grün", "Farbe"]]);
-    return mk("logik", "wortgruppen", "category-name", d, `Wie heißt die gemeinsame Kategorie von ${cat[0]}?`, undefined, cat[1],
-      `Das ist ${cat[1]}.`, "Oberbegriff finden.", 18, 3, "Falscher Oberbegriff.", "input", "superordinate-category",
-      { opSequence: "name-superordinate", stepCount: 1, constraintCount: 0, distractorKind: "hyponym-instead", workingMemoryLoad: 1, inputModality: "text", answerCardinality: 1 });
-  }
-  if (path === 5) { // which two are LEAST alike
-    const a = pick(r, group), b = pick(r, group.filter((x) => x !== a)), rest = odd;
-    return mk("logik", "wortgruppen", "least-alike", d, `Welches Paar ist am wenigsten ähnlich? ${a} & ${b}  oder  ${a} & ${rest}?`, undefined, `${a} & ${rest}`,
-      `${rest} gehört nicht zur Gruppe.`, "Ähnlichkeit bewerten.", 18, 4, "Falsches Paar.", "input", "least-similar-pair",
-      { opSequence: "least-similar", stepCount: 1, constraintCount: 0, distractorKind: "in-group-pair", workingMemoryLoad: 1, inputModality: "text", answerCardinality: 1 });
-  }
-  if (path === 6) { // count members vs non-members
-    return mk("logik", "wortgruppen", "member-count", d, `Wie viele dieser Wörter sind Obst: ${group.slice(0,2).join(", ")}, ${odd}?`, undefined, String(group.length),
-      `Nur ${group.slice(0,2).join(" und ")} sind Obst (${group.length}).`, "Zähle nur Gruppenmitglieder.", 18, 4, "Auch Nicht-Mitglied gezählt.", "input", "count-members",
-      { opSequence: "count-category-members", stepCount: 1, constraintCount: 0, distractorKind: "included-outlier", workingMemoryLoad: 1, inputModality: "text", answerCardinality: 1 });
-  }
-  // path 7: hierarchy level (is X a type of Y?)
-  const hier = pick(r, [["Birne", "Obst", "Ja"], ["Traktor", "Obst", "Nein"], ["Rose", "Tier", "Nein"], ["Hund", "Tier", "Ja"]]);
-  return mk("logik", "wortgruppen", "hierarchy", d, `Ist „${hier[0]}“ eine Art von ${hier[1]}?`, undefined, hier[2],
-    `${hier[0]} ist ${hier[2] === "Ja" ? "eine Art von" : "keine Art von"} ${hier[1]}.`, "Einordnung prüfen.", 18, 4, "Falsche Einordnung.", "input", "hierarchy-membership",
-    { opSequence: "hierarchy-membership", stepCount: 1, constraintCount: 0, distractorKind: "wrong-membership", workingMemoryLoad: 1, inputModality: "text", answerCardinality: 1 });
 }
-
 // ===== KONZENTRATION (visual SVG) =====
 function grid(n: number, r: () => number) {
   const cell = 44, pad = 6, sz = n * (cell + pad);
@@ -734,83 +1091,145 @@ function genSchilderCompare(r: () => number, d: number): Question {
 }
 
 // ===== PRAKTISCH =====
+// ===== SORTIERVERFAHREN: 16 distinct rule-level paths =====
 function genSort(r: () => number, d: number): Question {
-  const variant = ri(r, 0, 3);
-  if (variant === 0) {
-    const nums = shuffle([ri(r, 10, 99), ri(r, 10, 99), ri(r, 10, 99), ri(r, 10, 99)], r);
-    const asc = [...nums].sort((a, b) => a - b).join(", ");
-    return mk("praktisch", "sortierverfahren", "numbers", d, "Sortiere aufsteigend: " + nums.join(", "), undefined, asc,
-      "Aufsteigend: " + asc, "Kleinste zuerst.", 18, 3, "Reihenfolge vertauscht.", "sort", "sort-ascending",
-      { opSequence: "sort-ascending", stepCount: nums.length, constraintCount: 0, distractorKind: "descending", workingMemoryLoad: 1, inputModality: "sequence", answerCardinality: 1 });
+  const ph = (arr: string[]) => pick(r, arr);
+  const so = (opSeq: string, prompt: string, ans: string, expl: string, steps: number, cons: number, wml: number, dk: string) =>
+    mk("praktisch", "sortierverfahren", opSeq, d, prompt, undefined, ans, expl, "Vergleiche systematisch.", 19, 4, dk, "sort", opSeq,
+      { opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "sequence", answerCardinality: 1 }, false);
+  const path = ri(r, 0, 15);
+  const nums4 = () => { const s = new Set<number>(); while (s.size < 4) s.add(ri(r, 10, 99)); return [...s]; };
+  switch (path) {
+    case 0: { const n = nums4(); return so("sort-numeric-asc", ph(["Sortiere aufsteigend (klein → gross): ", "Ordne von klein nach gross: "]) + n.join(", "), [...n].sort((a,b)=>a-b).join(", "), "Aufsteigend: " + [...n].sort((a,b)=>a-b).join(", "), 4, 0, 2, "descending"); }
+    case 1: { const n = nums4(); return so("sort-numeric-desc", ph(["Sortiere absteigend (gross → klein): ", "Ordne von gross nach klein: "]) + n.join(", "), [...n].sort((a,b)=>b-a).join(", "), "Absteigend: " + [...n].sort((a,b)=>b-a).join(", "), 4, 0, 2, "ascending"); }
+    case 2: { const n = nums4(); return so("filter-even-sort", "Gib nur die GERADE Zahlen aufsteigend an: " + n.join(", "), n.filter(x=>x%2===0).sort((a,b)=>a-b).join(", ") || "(keine)", "Nur gerade, dann sortiert.", 5, 1, 3, "odd-included"); }
+    case 3: { const n = nums4(); return so("filter-odd-sort", "Gib nur die UNGERADE Zahlen aufsteigend an: " + n.join(", "), n.filter(x=>x%2===1).sort((a,b)=>a-b).join(", ") || "(keine)", "Nur ungerade, dann sortiert.", 5, 1, 3, "even-included"); }
+    case 4: { const w = shuffle(["Apfel","Birne","Zebra","Maus"], r); return so("sort-wordlength-asc", "Sortiere nach Wortlänge (kurz → lang): " + w.join(", "), [...w].sort((a,b)=>a.length-b.length).join(", "), "Nach Länge: " + [...w].sort((a,b)=>a.length-b.length).join(", "), 4, 0, 2, "alphabetical"); }
+    case 5: { const w = shuffle(["Apfel","Birne","Zebra","Maus"], r); return so("sort-alphabetical", "Sortiere alphabetisch: " + w.join(", "), [...w].sort().join(", "), "Alphabetisch: " + [...w].sort().join(", "), 4, 0, 2, "by-length"); }
+    case 6: { const n = nums4(); return so("find-min-value", ph(["Welche Zahl ist die KLEINSTE? ", "Kleinster Wert unter: "]) + n.join(", "), String(Math.min(...n)), "Kleinste: " + Math.min(...n), 4, 0, 2, "picked-max"); }
+    case 7: { const n = nums4(); return so("find-max-value", ph(["Welche Zahl ist die GRÖSSTE? ", "Grösster Wert unter: "]) + n.join(", "), String(Math.max(...n)), "Grösste: " + Math.max(...n), 4, 0, 2, "picked-min"); }
+    case 8: { // second smallest — order statistic
+      const n = nums4(); const s = [...n].sort((a,b)=>a-b);
+      return so("second-smallest", `Welche Zahl ist die ZWEITkleinste? ${n.join(", ")}`, String(s[1]), `Sortiert: ${s.join(", ")}; zweitkleinste = ${s[1]}.`, 5, 1, 3, "picked-smallest");
+    }
+    case 9: { // median of 4 (lower median)
+      const n = nums4(); const s = [...n].sort((a,b)=>a-b);
+      return so("median-position", `Welche Zahl liegt in der sortierten Reihenfolge an 2. Stelle? ${n.join(", ")}`, String(s[1]), `Sortiert: ${s.join(", ")}.`, 5, 1, 3, "unsorted-pick");
+    }
+    case 10: { // sort by decimal magnitude (mixed magnitudes)
+      const vals = shuffle([ri(r,2,9)/10, ri(r,1,9), ri(r,11,99)/100*100/100+ri(r,0,0)+ri(r,1,9)*0.01+0.0].map(v=>Math.round(v*100)/100).concat([ri(r,2,9)]), r).slice(0,4);
+      const sv = [...vals].sort((a,b)=>a-b);
+      return so("sort-decimals-asc", "Sortiere aufsteigend (Kommas beachten!): " + vals.map(v=>String(v)).join(", "), sv.map(v=>String(v)).join(", "), "Als Zahl vergleichen: " + sv.join(" ≤ "), 5, 1, 3, "string-compare");
+    }
+    case 11: { // sort times of day
+      const t = shuffle([`${ri(r,7,11)}:${pick(r,["00","15","30","45"])}`, `${ri(r,12,17)}:${pick(r,["00","15","30","45"])}`, `${ri(r,18,22)}:${pick(r,["00","30"])}`, `${ri(r,1,6)}:${pick(r,["00","30"])}`], r);
+      const key = (x:string)=>{const [h,m]=x.split(":").map(Number);return h*60+m;};
+      return so("sort-times-chronological", "Sortiere die Uhrzeiten chronologisch: " + t.join(", "), [...t].sort((a,b)=>key(a)-key(b)).join(", "), "Chronologisch: " + [...t].sort((a,b)=>key(a)-key(b)).join(", "), 4, 1, 3, "string-order");
+    }
+    case 12: { // sort German words by reverse alphabet (Z→A)
+      const w = shuffle(["Zug","Auto","Essen","Boot"], r);
+      return so("sort-reverse-alpha", "Sortiere alphabetisch RÜCKWÄRTS (Z → A): " + w.join(", "), [...w].sort((a,b)=>b.localeCompare(a)).join(", "), "Rückwärts: " + [...w].sort((a,b)=>b.localeCompare(a)).join(", "), 4, 1, 3, "forward-alpha");
+    }
+    case 13: { // rank by weight/distance from clues (relative ordering)
+      const a=ri(r,2,9), b=ri(r,2,9), c=ri(r,2,9);
+      const items=[["A",a],["B",b],["C",c]] as [string,number][];
+      if (new Set(items.map(i=>i[1])).size < 3) return so("rank-by-clue", "Drei Pakete: A wiegt 5 kg, B wiegt 3 kg, C wiegt 7 kg. Welches ist das SCHWERSTE?", "C", "C (7 kg) ist am schwersten.", 3, 1, 2, "wrong-extreme");
+      const sorted=[...items].sort((x,y)=>y[1]-x[1]);
+      return so("rank-by-clue", `Pakete: A=${a} kg, B=${b} kg, C=${c} kg. Welches ist das SCHWERSTE?`, sorted[0][0], `${sorted[0][0]} (${sorted[0][1]} kg).`, 3, 1, 2, "wrong-extreme");
+    }
+    case 14: { // insert into sorted sequence (which position?)
+      const base = [12, 25, 41, 58]; const ins = ri(r, 13, 57);
+      let pos = base.findIndex(b => b > ins); if (pos === -1) pos = 4;
+      return so("insert-sorted-position", `An welche Position in der aufsteigenden Folge ${base.join(", ")} gehört die Zahl ${ins}?`, "Position " + (pos+1), `${ins} kommt zwischen ${pos>0?base[pos-1]:"Anfang"} und ${pos<4?base[pos]:"Ende"} → Position ${pos+1}.`, 5, 1, 3, "wrong-gap");
+    }
+    default: { // check if sorted (verify a claimed order)
+      const n = nums4();
+      const makeSorted = r() < 0.5;
+      const seq = makeSorted ? [...n].sort((a,b)=>a-b) : shuffle(n, r);
+      const isSorted = seq.every((v,i)=>i===0||seq[i-1]<=v);
+      return so("verify-sorted", `Ist diese Reihe aufsteigend sortiert? ${seq.join(", ")}`, isSorted ? "Ja" : "Nein", isSorted ? "Ja, aufsteigend." : "Nein, mindestens ein Paar verletzt die Ordnung.", 4, 1, 3, "assumed-sorted");
+    }
   }
-  if (variant === 1) {
-    const nums = shuffle([ri(r, 10, 99), ri(r, 10, 99), ri(r, 10, 99), ri(r, 10, 99)], r);
-    const desc = [...nums].sort((a, b) => b - a).join(", ");
-    return mk("praktisch", "sortierverfahren", "numbers-desc", d, "Sortiere absteigend: " + nums.join(", "), undefined, desc,
-      "Absteigend: " + desc, "Größte zuerst.", 18, 3, "Richtung vertauscht.", "sort", "sort-descending",
-      { opSequence: "sort-descending", stepCount: nums.length, constraintCount: 0, distractorKind: "ascending", workingMemoryLoad: 1, inputModality: "sequence", answerCardinality: 1 });
-  }
-  if (variant === 2) {
-    const nums = shuffle([ri(r, 10, 99), ri(r, 10, 99), ri(r, 10, 99), ri(r, 10, 99)], r);
-    const odds = nums.filter((x) => x % 2 === 1).sort((a, b) => a - b).join(", ");
-    return mk("praktisch", "sortierverfahren", "odds", d, "Gib nur die UNGERADEN Zahlen sortiert an: " + nums.join(", "), undefined, odds || "(keine)",
-      "Ungerade aufsteigend: " + (odds || "(keine)"), "Nur ungerade auswählen.", 20, 4, "Gerade mitgenommen.", "sort", "filter-odd-sort",
-      { opSequence: "filter-then-sort", stepCount: nums.length + 1, constraintCount: 1, distractorKind: "all-sorted", workingMemoryLoad: 2, inputModality: "sequence", answerCardinality: 1 });
-  }
-  const words = shuffle(["Apfel", "Birne", "Zebra", "Maus", "Tiger"], r).slice(0, 4);
-  const byLen = [...words].sort((a, b) => a.length - b.length).join(", ");
-  return mk("praktisch", "sortierverfahren", "by-length", d, "Sortiere nach Wortlänge (kurz → lang): " + words.join(", "), undefined, byLen,
-    "Nach Länge: " + byLen, "Länge vergleichen.", 19, 4, "Alphabetisch statt nach Länge.", "sort", "sort-by-attribute",
-    { opSequence: "sort-by-attribute", stepCount: words.length, constraintCount: 0, distractorKind: "alphabetical", workingMemoryLoad: 2, inputModality: "sequence", answerCardinality: 1 });
 }
+// ===== ALLTAGSWISSEN: 16 distinct rule-level paths (situational judgment) =====
 function genAlltag(r: () => number, d: number): Question {
-  const path = ri(r, 0, 3);
-  if (path === 0) {
-    const q: [string, string[]][] = [
-      ["Ein Kollege ist bewusstlos und atmet nicht. Was ist die richtige Reihenfolge?", ["Erst Hilfe rufen (144), dann Erste Hilfe beginnen", "Weiterarbeiten und abwarten", "Ihn allein hochziehen", "Erst den Chef informieren"]],
-      ["Brandmeldeanlage läutet, aber kein Rauch sichtbar. Was tust du?", ["Evakuierungsanweisung befolgen und Bereich verlassen", "Weitersuchen nach dem Brand", "Das Signal ignorieren", "Fenster öffnen und warten"]],
-      ["Du findest einen unbekannten USB-Stick im Lager. Richtig ist:", ["Meldung an IT/Sicherheit, nicht einstecken", "Sofort in den PC stecken", "Für dich behalten", "An Kollegen weitergeben"]],
-    ];
-    const [text, opts] = pick(r, q);
-    const ans = opts[0];
-    return mk("praktisch", "alltagswissen", "safety2", d, text, shuffle(opts, r), ans,
-      "Richtig: " + ans, "Sicherheit und Meldepflicht gehen vor.", 22, 4, "Falsche Priorität bei Gefahr.", "choice", "safety-priority-order",
-      { opSequence: "priority-sequence", stepCount: 2, constraintCount: 1, distractorKind: "wrong-priority", workingMemoryLoad: 2, inputModality: "choice", answerCardinality: 1 });
+  const ph = (arr: string[]) => pick(r, arr);
+  const aw = (opSeq: string, prompt: string, optsIn: string[], expl: string, steps: number, cons: number, wml: number, dk: string) => {
+    const ans = optsIn[0];
+    return mk("praktisch", "alltagswissen", opSeq, d, prompt, shuffle(optsIn, r), ans,
+      expl, "Überlege, was sicher und richtig ist.", 20, 4, dk, "choice", opSeq,
+      { opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "choice", answerCardinality: 1 }, false);
+  };
+  const path = ri(r, 0, 15);
+  switch (path) {
+    case 0: return aw("priority-sequence-emergency", ph([
+        "Ein Kollege ist bewusstlos und atmet nicht. Was ZUERST?",
+        "Jemand kollabiert im Lager. Richtige Reihenfolge?",
+      ]),
+      ["Erst Hilfe rufen (144), dann Erste Hilfe beginnen", "Weiterarbeiten und abwarten", "Ihn allein hochziehen"],
+      "Notruf vor Selbsthilfe.", 2, 1, 3, "wrong-priority");
+    case 1: return aw("immediate-danger-action",
+      pick(r, ["Du siehst Rauch im Lager. Was tust du ZUERST?", "Es riecht nach Gas. Was ist richtig?"]),
+      ["Alarm auslösen und Bereich verlassen", "weiterarbeiten", "Fenster öffnen und warten"],
+      "Gefahr → Alarm + Abstand.", 1, 1, 2, "delay-action");
+    case 2: return aw("identify-prohibition",
+      pick(r, ["Was ist am Arbeitsplatz verboten?", "Was darfst du NICHT tun, wenn die Brandmeldeanlage läutet?"]),
+      [pick(r, ["Mit unbekanntem USB-Stick den PC nutzen", "Weitersuchen nach dem Brand"]), "Die Brille tragen", "Pausen einhalten"],
+      "Verbotsregeln kennen.", 1, 0, 2, "allowed-picked");
+    case 3: return aw("reporting-chain",
+      pick(r, ["Wen informierst du zuerst bei einem Datenleck?", "Wohin meldest du einen Arbeitsunfall?"]),
+      [pick(r, ["IT-Sicherheit", "Vorgesetzte/SUVA"]), "einen Kollegen", "niemanden"],
+      "Zuständige Stelle zuerst.", 1, 0, 2, "wrong-recipient");
+    case 4: return aw("personal-protective-equipment",
+      "Du betrittst die Werkstatt. Was gehört MANDATORILY dazu?",
+      ["Sicherheitsschuhe und Schutzbrille", "Kopfhörer", "kurze Ärmel für Bewegungsfreiheit"],
+      "Schutzausrüstung nach Vorschrift.", 1, 0, 2, "comfort-first");
+    case 5: return aw("hygiene-food-handling",
+      "In der Küche fällt rohes Hühnfleisch auf den Boden. Richtig ist:",
+      ["entsorgen bzw. gründlich trennen — nicht weiterverarbeiten", "abwaschen und trotzdem verwenden", "für später in den Kühlschrank legen"],
+      "Kontaminationsgefahr kennen.", 2, 1, 2, "risk-denial");
+    case 6: return aw("public-transport-etiquette",
+      "In einem vollen Zug steht eine schwangere Frau. Was ist angemessen?",
+      ["Platz anbieten", "wegschauen", "laut telefonieren"],
+      "Rücksichtnahme im ÖV.", 1, 0, 2, "avoidance");
+    case 7: return aw("mail-formal-writing",
+      "Du schreibst zum ersten Mal an einen offiziellen Behördenkontakt. Wie beginnst du?",
+      ["Sehr geehrte Damen und Herren", "Hey!", "Na, wie geht's?"],
+      "Formelle Anrede wählen.", 1, 0, 2, "informal-register");
+    case 8: return aw("money-change-counting",
+      "Ein Artikel kostet CHF 12.50, du zahlst mit CHF 20.–. Wie viel Rückgeld erhältst du?",
+      ["CHF 7.50", "CHF 8.50", "CHF 7.–"],
+      "20 − 12.50 = 7.50.", 2, 0, 2, "subtraction-slip");
+    case 9: return aw("appointment-rescheduling",
+      "Du kannst deinen Termin nicht wahrnehmen. Was macht man ZUERST?",
+      ["frühzeitig absagen und neuen Termin vereinbaren", "einfach nicht erscheinen", "erst am Tag danach Bescheid geben"],
+      "Verlässlichkeit + frühe Kommunikation.", 1, 1, 2, "no-show");
+    case 10: return aw("waste-separation",
+      "Wohin gehört eine leere PET-Flasche?",
+      ["in die PET-Sammelstelle", "in den Kehricht", "in das Aluglas-Recycling"],
+      "Abfalltrennung korrekt zuordnen.", 1, 0, 2, "wrong-stream");
+    case 11: return aw("fire-evacuation-route",
+      "Der Feueralarm ertönt. Welcher Weg ist richtig?",
+      ["markierter Fluchtweg, Lift NICHT benutzen", "schnell mit dem Lift nach unten", "im Büro warten"],
+      "Fluchtwegregeln: Treppe statt Lift.", 1, 1, 2, "lift-used");
+    case 12: return aw("first-aid-minor-cut",
+      "Du schneidest dir leicht in den Finger. Was machst du zuerst?",
+      ["Wunde reinigen und verbinden", "weiterarbeiten ohne Verbindung", "Hand in heisses Wasser halten"],
+      "Standard-Erste-Hilfe bei Schnittwunden.", 1, 0, 2, "neglect");
+    case 13: return aw("stranger-at-door",
+      "Eine unbekannte Person bittet um Einlass ins Lager „nur kurz schauen“. Richtig:",
+      ["höflich ablehnen und Vorgesetzte informieren", "mitnehmen, ist ja nur kurz", "allein durch das Lager laufen lassen"],
+      "Zutrittskontrolle beachten.", 1, 1, 2, "compliance-pressure");
+    case 14: return aw("computer-password-hygiene",
+      "Wie gehst du mit deinem Arbeitspasswort um?",
+      ["niemandem verraten, auch nicht Kollegen", "auf dem Bildschirm notieren", "mit anderen teilen"],
+      "Grundlegende Passworthygiene.", 1, 1, 2, "sharing-ok");
+    default: return aw("weather-appropriate-clothing",
+      "Bei −5 °C und Schneefall arbeitest du draussen. Was ziehst du an?",
+      ["gefütterte, wasserdichte Winterkleidung", "leichte Sommerhose", "normale Turnschuhe"],
+      "An Wetter angepasste Kleidung.", 1, 0, 2, "underdressed");
   }
-  if (path === 1) {
-    const q: [string, string[]][] = [
-      ["Du siehst Rauch im Lager. Was tust du ZUERST?", ["Alarm auslösen", "weiterarbeiten", "fenster öffnen"]],
-      ["Eine Kollegin ist gestürzt. Was ist richtig?", ["Erste Hilfe holen", "allein hochziehen", "ignorieren"]],
-      ["Der Feuerwehrplan zeigt den Fluchtweg. Wo stehst du?", ["am Ausgang", "am Fenster", "am Lift"]],
-    ];
-    const [text, opts] = pick(r, q);
-    const ans = opts[0];
-    return mk("praktisch", "alltagswissen", "safety", d, text, shuffle(opts, r), ans,
-      "Richtig: " + ans, "Sicherheit geht vor.", 16, 3, "Falsche Priorität.", "choice", "immediate-action",
-      { opSequence: "immediate-action", stepCount: 1, constraintCount: 0, distractorKind: "delay-action", workingMemoryLoad: 1, inputModality: "choice", answerCardinality: 1 });
-  }
-  if (path === 2) {
-    const q: [string, string[]][] = [
-      ["Was ist am Arbeitsplatz verboten?", ["Mit unbekanntem Stick den PC nutzen", "Die Brille tragen", "Hände waschen", "Pausen einhalten"]],
-      ["Was darfst du NICHT tun, wenn die Brandmeldeanlage läutet?", ["Weitersuchen nach dem Brand", "Die Treppe nutzen", "Ruhig bleiben", "Sammeln"]],
-    ];
-    const [text, opts] = pick(r, q);
-    const ans = opts[0];
-    return mk("praktisch", "alltagswissen", "forbidden", d, text, shuffle(opts, r), ans,
-      "Richtig: " + ans, "Regeln kennen und beachten.", 17, 3, "Erlaubtes gewählt.", "choice", "identify-forbidden",
-      { opSequence: "identify-prohibition", stepCount: 1, constraintCount: 0, distractorKind: "allowed-picked", workingMemoryLoad: 1, inputModality: "choice", answerCardinality: 1 });
-  }
-  const q: [string, string[]][] = [
-    ["Wen informierst du zuerst bei einem Datenleck?", ["IT-Sicherheit", "einen Kollegen", "den Kunden direkt", "niemanden"]],
-    ["Wohin meldest du einen Arbeitsunfall?", ["an Vorgesetzte/SUVA", "an den Kunden", "gar nicht", "an die Reinigung"]],
-  ];
-  const [text, opts] = pick(r, q);
-  const ans = opts[0];
-  return mk("praktisch", "alltagswissen", "reporting", d, text, shuffle(opts, r), ans,
-    "Richtig: " + ans, "Zuständige Stelle melden.", 17, 4, "Falsche Meldekette.", "choice", "reporting-chain",
-    { opSequence: "identify-report-target", stepCount: 1, constraintCount: 0, distractorKind: "wrong-recipient", workingMemoryLoad: 1, inputModality: "choice", answerCardinality: 1 });
 }
-
 // ===== HELD-OUT POOL (>=20% of structural space, unreachable from training) =====
 function genMentalHeldOut(r: () => number, d: number): Question { return genMental(r, d, true); }
 function genPctHeldOut(r: () => number, d: number): Question {
@@ -903,7 +1322,7 @@ const GENERATORS: Record<string, ((r: () => number, d: number) => Question)[]> =
   wortgruppen: [genWortgruppen, genWortgruppen, genWortgruppen, genWortgruppen],
   bilder_zaehlen: [genBilderZaehlenVariant],
   symbole_entdecken: [genSymbole],
-  schilder_erinnern: [genSchilder, genSchilderCount, genSchilderCategory, genSchilderCompare],
+  schilder_erinnern: [genSchilder, genSchilder, genSchilder, genSchilder, genSchilderCount, genSchilderCategory, genSchilderCompare],
   sortierverfahren: [genSort, genSort, genSort, genSort],
   alltagswissen: [genAlltag, genAlltag, genAlltag, genAlltag],
 };
@@ -927,7 +1346,7 @@ export function generateHeldOut(subskillId: string, difficulty: number, seed = D
   const gs = HELDOUT[subskillId];
   if (!gs || !gs.length) return null;
   const r = rng(seed);
-  const g = gs[Math.floor(r() * gs.length)];
+  const g = gs[seedIndex(seed, gs.length)];
   const q = g(r, Math.max(12, Math.min(95, difficulty)));
   q.heldOut = true;
   return q;
@@ -937,11 +1356,19 @@ export function heldOutExists(subskillId: string): boolean {
   return !!HELDOUT[subskillId] && HELDOUT[subskillId].length > 0;
 }
 
+// Decorrelated generator selection: consecutive seeds (seed+i) must not all land on the
+// same generator — the LCG's first draws are correlated. Hash the seed for the index.
+function seedIndex(seed: number, len: number): number {
+  let h = (seed ^ 0x9e3779b9) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 2246822507) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 3266489909) >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) % len;
+}
 export function generate(subskillId: string, difficulty: number, seed = Date.now()): Question | null {
   const gs = GENERATORS[subskillId];
   if (!gs || !gs.length) return null;
   const r = rng(seed);
-  const g = gs[Math.floor(r() * gs.length)];
+  const g = gs[seedIndex(seed, gs.length)];
   // difficulty is a continuous 0..100 target (coach ability). Generators use it continuously.
   const q = g(r, Math.max(12, Math.min(95, difficulty)));
   if (!hasUniqueOptions(q)) {
