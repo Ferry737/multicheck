@@ -64,8 +64,8 @@ export function markLessonDone(m: CoachModel, concept: string): CoachModel {
 export function afterAnswer(m: CoachModel, q: Question, correct: boolean, ms: number, streak: number, speedFlag: boolean) {
   const dec = midSessionDecision(m, q.subskill, correct, ms, streak, speedFlag);
   // Build the next question(s) for this subskill at the updated ability.
-  const next = composeSubskillQuestions(m, q.subskill, 1, speedFlag ? "speed" : "adaptive");
-  return { decision: dec, next };
+  const nxt = composeSubskillQuestions(m, q.subskill, 1, speedFlag ? "speed" : "adaptive");
+  return { decision: dec, next: nxt.questions, model: nxt.model };
 }
 
 // AI augmentation boundary: the orchestrator only lets AI produce TEXT, never logic.

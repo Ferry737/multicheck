@@ -19,12 +19,14 @@ for (const profile of PROFILES) {
   for (let d = 0; d < DAYS; d++) {
     const dec = buildNextSession(m, { minutes: 22 });
     const qs = [];
-    for (const b of dec.plan.blocks) qs.push(...composeSubskillQuestions(m, b.subskill, b.count, b.mode));
+    for (const b of dec.plan.blocks) { const r = composeSubskillQuestions(m, b.subskill, b.count, b.mode); m = r.model; qs.push(...r.questions); }
     const attempts = qs.slice(0, perDay).map((q, i) => simulateAttempt(m, q, profile, i + d * 100));
     m = updateModel(m, attempts, "day-" + d, "adaptive");
     // once a week, a mini-simulation
     if (d % 7 === 6) {
-      const simQs = composeSubskillQuestions(m, "textaufgaben", 5, "adaptive").concat(composeSubskillQuestions(m, "satzbau", 3, "adaptive"));
+      const r1 = composeSubskillQuestions(m, "textaufgaben", 5, "adaptive"); m = r1.model;
+      const r2 = composeSubskillQuestions(m, "satzbau", 3, "adaptive"); m = r2.model;
+      const simQs = r1.questions.concat(r2.questions);
       const simRes = simQs.map((q, i) => { const a = simulateAttempt(m, q, profile, i + 5000); return { subskill: a.subskill, correct: a.correct, ms: a.ms }; });
       m = recordSimulation(m, simRes, "mini-sim");
     }

@@ -104,9 +104,9 @@ console.log("[10] V3 ability estimate responds to correctness");
 // ---- Phase 7: anti-repetition / exposure ----
 console.log("[7] exposure tracking reduces template repeats");
 {
-  const m = emptyCoach();
+  let m = emptyCoach();
   m.subs.textaufgaben.difficulty = 50;
-  const qs = composeSubskillQuestions(m, "textaufgaben", 12, "adaptive");
+  const qsR = composeSubskillQuestions(m, "textaufgaben", 12, "adaptive"); m = qsR.model; const qs = qsR.questions;
   const keys = qs.map(q=>q.templateKey).filter(Boolean);
   const unique = new Set(keys).size;
   ok(unique >= Math.min(12, keys.length) - 1, `unique templates ${unique}/${keys.length}`);

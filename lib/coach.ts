@@ -324,8 +324,21 @@ function promptHash(q: Question): string {
   return "p:" + crypto.createHash("sha1").update(JSON.stringify([q.prompt.trim(), opts])).digest("hex");
 }
 export function composeSubskillQuestions(
-  m: CoachModel, id: string, count: number, mode: SessionMode
-): Question[] {
+  m: CoachModel, id: string, count: number, mode: SessionMode, rngSeed?: number
+): { questions: Question[]; model: CoachModel } {
+  // Deterministic seeding (Invariant D5): an explicit rngSeed makes the whole
+  // composition reproducible; omit it for live behavior.
+  // Seed the internal RNG. To keep Invariant D5 (fixed rngSeed => reproducible) yet
+  // avoid the same rngSeed producing an identical item sequence on EVERY call
+  // (which collapses the cooldown and forces the fallback to serve duplicates),
+  // mix in how many items this subskill has already served (persisted ring length)
+  // so successive calls with the same rngSeed still diverge.
+  const servedSoFar = ((m.exposure[id] ?? []) as string[]).length;
+  let seedState = ((rngSeed ?? Math.floor(Math.random() * 1e9)) ^ Math.imul(servedSoFar + 1, 2654435761)) >>> 0;
+  const nextSeed = () => {
+    seedState = (Math.imul(seedState ^ (seedState >>> 15), 2246822507) + 0x9e3779b9) >>> 0;
+    return seedState;
+  };
   const st = m.subs[id];
   const ability = st?.difficulty ?? 35;
   const targetDiff = mode === "speed" ? Math.max(15, ability - 8) : ability;
@@ -343,11 +356,14 @@ export function composeSubskillQuestions(
   for (let i = 0; i < count; i++) {
     let q: Question | null = null;
     let tries = 0;
+    // Cooldown sets are seeded from the persisted rings AND updated as we serve
+    // items WITHIN this same call — otherwise a single high-count call can serve
+    // duplicate structs/prompts to itself (silent dup loop inside one batch).
     const structSet = new Set(structRing);
     const promptSet = new Set(promptRing);
     while (tries < 80) {
       tries++;
-      const seed = Math.floor(Math.random() * 1e9);
+      const seed = nextSeed();
       const cand = generate(id, targetDiff, seed);
       if (!cand) break;
       if (cand.heldOut) continue;            // G7: held-out UNREACHABLE from training
@@ -355,16 +371,30 @@ export function composeSubskillQuestions(
       const ph = promptHash(cand);
       if (structSet.has(sh)) continue;      // structural cooldown
       if (promptSet.has(ph)) continue;      // exact-prompt cooldown (Gate G1)
+      structSet.add(sh); promptSet.add(ph);  // mark served for the rest of THIS batch
       q = cand;
       break;
     }
     if (!q) {
-      // Adversarial test 6: ALL structures/prompts on cooldown -> serve least-recently-used,
-      // log capacity warning, never return empty, never throw.
+      // Adversarial test 6: ALL structures/prompts on cooldown -> graceful degradation.
       capacityWarning = true;
-      const cand = generate(id, targetDiff, Math.floor(Math.random() * 1e9) + i * 7919);
-      if (cand && !cand.heldOut) q = cand;
-      else q = generate(id, targetDiff, Math.floor(Math.random() * 1e9) + i * 131);
+      const promptAllSet = new Set(((m.exposure[id + ":pa"] ?? []) as string[]));
+      // Widen the search sweep (400 seeds) so we almost never give up and serve a dup;
+      // :pa guard ensures we never repeat an exact prompt already in persisted history.
+      let f = 0;
+      while (f < 400 && !q) {
+        f++;
+        const cand = generate(id, targetDiff, nextSeed());
+        if (!cand || cand.heldOut) continue;
+        if (promptAllSet.has(promptHash(cand))) continue;
+        q = cand;
+      }
+      if (!q) {
+        // True template exhaustion: serve the least-recently-used struct (legitimate only
+        // if the cooldown window has effectively expired). Never return empty.
+        const cand = generate(id, targetDiff, nextSeed() + 1);
+        q = cand && !cand.heldOut ? cand : generate(id, targetDiff, nextSeed() + 2);
+      }
     }
     if (!q) continue;
     const sh = q.structHash ?? q.templateKey ?? "";
@@ -373,9 +403,12 @@ export function composeSubskillQuestions(
     promptRing.push(ph); if (promptRing.length > PROMPT_CD) promptRing.shift();
     m.exposure[id] = structRing.slice();
     m.exposure[id + ":p"] = promptRing.slice();
+    // full-history prompt ring (bounded) for the G1 fallback guard
+    const paAll = ((m.exposure[id + ":pa"] ?? []) as string[]); paAll.push(ph);
+    m.exposure[id + ":pa"] = paAll.slice(-4000);
     out.push({ ...q, meta: { capacityWarning: capacityWarning && i === 0 } } as Question);
   }
-  return out;
+  return { questions: out, model: m };
 }
 
 

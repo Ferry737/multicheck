@@ -548,6 +548,8 @@ function genSatzbau(r: () => number, d: number): Question {
 }
 // genTextverst defined above (4 text types).
 // ===== TEXTVERSTÄNDNIS: 14 distinct rule-level reading operations =====
+// ===== TEXTVERSTÄNDNIS: 14 reading-operation paths, each with RICH parameterized
+// content pools so the distinct-prompt count far exceeds the items served in 56 days =====
 function genTextverst(r: () => number, d: number): Question {
   const tv = (opSeq: string, text: string, q: string, opts: string[], expl: string, steps: number, cons: number, wml: number, dk: string) => {
     const ans = opts[0];
@@ -562,76 +564,165 @@ function genTextverst(r: () => number, d: number): Question {
   };
   const path = ri(r, 0, 13);
   switch (path) {
-    case 0: return tv("read-locate-fact",
-      pick(r, ["Achtung: Die Lieferung erfolgt nur nach Voranmeldung.", "Zutritt nur mit gültigem Ausweis.", "Rückgabe nur mit Originalbeleg."]),
-      pick(r, ["Was ist nötig?", "Welche Bedingung gilt?"]),
-      [pick(r, ["eine Voranmeldung", "ein gültiger Ausweis", "der Originalbeleg"]), "eine Zahlung", "keine Angabe"],
-      "Im Text steht die Bedingung direkt.", 1, 0, 2, "plausible-but-unstated");
-    case 1: return tv("read-locate-time-range",
-      "Die Sprechstunde ist von 9 bis 12 Uhr. Bitte pünktlich erscheinen.",
-      "Wann ist die Sprechstunde?",
-      ["9 bis 12 Uhr", "ganztags", "nur nachmittags"],
-      "Zeitangabe direkt im Text.", 1, 0, 2, "nearby-time");
-    case 2: return tv("read-deadline-cutoff",
-      pick(r, ["Bestellungen bis 18 Uhr werden am selben Tag versandt.", "Anmeldungen bis Freitag werden berücksichtigt."]),
-      pick(r, ["Bis wann gilt die Regel?", "Wann ist die Frist?"]),
-      [pick(r, ["bis 18 Uhr", "bis Freitag"]), "bis Mittag", "am Wochenende"],
-      "Die Frist steht im Satz.", 1, 1, 2, "adjacent-time");
-    case 3: return tv("read-infer-expectation",
-      "Wir bitten um kurze Mitteilung bei Verzögerung.",
-      "Was wird bei Verzögerung erwartet?",
-      ["eine Mitteilung", "eine Entschuldigung", "gar nichts"],
-      "Höflichkeitsform → Erwartung ableiten.", 1, 1, 3, "over/under-action");
-    case 4: return tv("negate-exception-scan",
-      "Der Eintritt ist frei. Ausnahme: Für Gruppen ab 10 Personen wird eine Gebühr erhoben.",
-      "Wann kostet der Eintritt etwas?",
-      ["für Gruppen ab 10 Personen", "für alle Besucher", "nie"],
-      "Ausnahme erkennen („Ausnahme:“).", 2, 1, 3, "main-rule-only");
-    case 5: return tv("compare-two-offers",
-      "Angebot A: CHF 50 pro Monat, Mindestlaufzeit 6 Monate. Angebot B: CHF 60 pro Monat, keine Bindung.",
-      "Welches Angebot ist nach 8 Monaten günstiger?",
-      ["Angebot A (CHF 400)", "Angebot B (CHF 480)", "beide gleich teuer"],
-      "Beide Angebote rechnen: 8 × 50 = 400 < 8 × 60 = 480.", 3, 1, 4, "monthly-rate-only");
-    case 6: return tv("apply-stated-rule-to-case",
-      "Regel: Wer mehr als 10 kg Gepäck hat, zahlt CHF 5 extra. Nina hat 13 kg.",
-      "Was gilt für Nina?",
-      ["sie zahlt CHF 5 extra", "sie zahlt nichts", "ihr Gepäck wird abgewiesen"],
-      "Fall unter Regel subsumieren: 13 > 10.", 2, 1, 3, "rule-ignored");
-    case 7: return tv("locate-opening-hours-day",
-      "Öffnungszeiten: Mo–Fr 8–18 Uhr, Sa 9–12 Uhr. Sonntag geschlossen.",
-      "Wann hat das Geschäft am SAMSTAG offen?",
-      ["9–12 Uhr", "8–18 Uhr", "geschlossen"],
-      "Richtige Zeile der Tabelle zuordnen.", 2, 1, 3, "wrong-row");
-    case 8: return tv("sequence-events-in-text",
-      "Zuerst wird der Vertrag geprüft, danach unterschrieben; anschliessend erhältst du eine Kopie.",
-      "Was passiert NACH dem Unterschreiben?",
-      ["man erhält eine Kopie", "der Vertrag wird geprüft", "nichts"],
-      "Sequenzmarken (danach/anschliessend) folgen.", 2, 0, 3, "step-skipped");
-    case 9: return tv("identify-author-purpose",
-      "WARNUNG: Das Betreten der Baustelle ist lebensgefährlich!",
-      "Warum wurde dieser Text geschrieben?",
-      ["um vor einer Gefahr zu warnen", "um ein Produkt zu verkaufen", "um einzuladen"],
-      "Textsorte/Signalwort (WARNUNG) deuten.", 1, 0, 2, "literal-content-only");
-    case 10: return tv("resolve-pronoun-reference",
-      "Als Herr Meier den Chef traf, übergab ihm seinen Bericht.",
-      "Wem gab Herr Meier den Bericht?",
-      ["dem Chef", "sich selbst", "einem Kollegen"],
-      "Pronomen „ihm“ auf den richtigen Bezug beziehen.", 2, 1, 3, "wrong-referent");
-    case 11: return tv("quantifier-comprehension",
-      "Die meisten Mitarbeiter nutzen den neuen Drucker; einige wechseln noch.",
-      "Wie viele Mitarbeiter nutzen den Drucker bereits?",
-      ["die meisten", "alle", "kaum jemand"],
-      "Quantor genau lesen.", 1, 1, 2, "absolute-reading");
-    case 12: return tv("notice-vs-prohibition",
-      "Hinweis: Die Tiefgarage wird am Montag gesperrt. Bitte den Parkplatz neben dem Bahnhof nutzen.",
-      "Was sollen Autofahrer am Montag tun?",
-      ["am Bahnhof parkieren", "in der Tiefgarage parkieren", "zu Hause bleiben"],
-      "Hinweis + Handlungsanweisung kombinieren.", 2, 1, 3, "notice-ignored");
-    default: return tv("price-table-extraction",
-      "Tarife: Einzelkarte CHF 3.20, Tageskarte CHF 9.-, Kinder CHF 1.60.",
-      "Was kostet eine Tageskarte?",
-      ["CHF 9.–", "CHF 3.20", "CHF 1.60"],
-      "Richtigen Tabellenwert ablesen.", 1, 0, 2, "wrong-column");
+    case 0: { // read-locate-fact: many notice texts + conditions
+      const facts = [
+        ["Achtung: Die Lieferung erfolgt nur nach Voranmeldung.", "eine Voranmeldung"],
+        ["Zutritt nur mit gültigem Ausweis.", "ein gültiger Ausweis"],
+        ["Rückgabe nur mit Originalbeleg.", "der Originalbeleg"],
+        ["Der Aufzug ist wegen Wartung ausser Betrieb.", "eine Wartung"],
+        ["Hunde müssen an der Leine geführt werden.", "eine Leine"],
+        ["Bezahlung ausschliesslich bar oder mit Karte.", "bar oder mit Karte"],
+        ["Umkleiden vor Betreten der Halle Pflicht.", "ein Umkleiden"],
+        ["Rauchen ist auf dem ganzen Gelände verboten.", "überall verboten"],
+      ];
+      const f = pick(r, facts);
+      return tv("read-locate-fact", f[0],
+        pick(r, ["Was ist nötig?", "Welche Bedingung gilt hier?", "Was wird verlangt?"]),
+        [f[1], "eine Zahlung", "keine Angabe", "eine schriftliche Erlaubnis"],
+        "Im Text steht die Bedingung direkt.", 1, 0, 2, "plausible-but-unstated");
+    }
+    case 1: { // read-locate-time-range: many opening-time texts
+      const t = pick(r, [
+        ["Die Sprechstunde ist von 9 bis 12 Uhr.", "9 bis 12 Uhr"],
+        ["Der Tresen ist von 7 bis 19 Uhr besetzt.", "7 bis 19 Uhr"],
+        ["Beratung nur von 14 bis 16 Uhr.", "14 bis 16 Uhr"],
+        ["Die Bibliothek hat von 10 bis 18 Uhr offen.", "10 bis 18 Uhr"],
+        ["Anlieferung nur zwischen 6 und 10 Uhr.", "6 bis 10 Uhr"],
+      ]);
+      return tv("read-locate-time-range", t[0],
+        pick(r, ["Wann ist die Sprechstunde/Öffnung?", "In welchem Zeitfenster ist es möglich?"]),
+        [t[1], "ganztags", "nur nachmittags", "rund um die Uhr"],
+        "Zeitangabe direkt im Text.", 1, 0, 2, "nearby-time");
+    }
+    case 2: { // read-deadline-cutoff
+      const c = pick(r, [
+        ["Bestellungen bis 18 Uhr werden am selben Tag versandt.", "bis 18 Uhr"],
+        ["Anmeldungen bis Freitag werden berücksichtigt.", "bis Freitag"],
+        ["Reklamationen bis 30 Tage nach Kauf sind möglich.", "bis 30 Tage nach Kauf"],
+        ["Bewerbungen bis zum 15. März sind gültig.", "bis zum 15. März"],
+        ["Ummeldungen bis Monatsende bleiben gebührenfrei.", "bis Monatsende"],
+      ]);
+      return tv("read-deadline-cutoff", c[0],
+        pick(r, ["Bis wann gilt die Regel?", "Wann ist die Frist?", "Welche Grenze gilt?"]),
+        [c[1], "bis Mittag", "am Wochenende", "ohne Ende"],
+        "Die Frist steht im Satz.", 1, 1, 2, "adjacent-time");
+    }
+    case 3: { // read-infer-expectation
+      const e = pick(r, [
+        ["Wir bitten um kurze Mitteilung bei Verzögerung.", "eine Mitteilung"],
+        ["Bitte melden Sie sich, wenn etwas fehlt.", "sich melden"],
+        ["Bei Fragen wenden Sie sich an den Empfang.", "den Empfang kontaktieren"],
+        ["Kommt es zu Störungen, informieren Sie bitte die Leitstelle.", "die Leitstelle informieren"],
+      ]);
+      return tv("read-infer-expectation", e[0],
+        pick(r, ["Was wird erwartet?", "Wie soll man reagieren?"]),
+        [e[1], "eine Entschuldigung", "gar nichts", "einen Bericht schreiben"],
+        "Höflichkeitsform → Erwartung ableiten.", 1, 1, 3, "over/under-action");
+    }
+    case 4: { // negate-exception-scan
+      const x = pick(r, [
+        ["Der Eintritt ist frei. Ausnahme: Für Gruppen ab 10 Personen wird eine Gebühr erhoben.", "für Gruppen ab 10 Personen"],
+        ["Das Parken ist kostenlos. Ausnahme: Lastwagen zahlen Gebühr.", "für Lastwagen"],
+        ["Alle Getränke inklusive. Ausnahme: Cocktails werden berechnet.", "für Cocktails"],
+        ["Zutritt erlaubt. Ausnahme: Ohne Maske kein Eintritt.", "ohne Maske"],
+      ]);
+      return tv("negate-exception-scan", x[0],
+        pick(r, ["Wann gilt die Ausnahme?", "Wann kostet/ändert es sich?"]),
+        [x[1], "für alle Besucher", "nie", "immer"],
+        "Ausnahme erkennen („Ausnahme:“).", 2, 1, 3, "main-rule-only");
+    }
+    case 5: { // compare-two-offers (computed)
+      const a = ri(r, 35, 70), b = ri(r, 55, 90), m = ri(r, 4, 10);
+      const A = a * m, B = b * m;
+      const cheaper = A <= B ? `Angebot A (CHF ${A})` : `Angebot B (CHF ${B})`;
+      return tv("compare-two-offers",
+        `Angebot A: CHF ${a} pro Monat, Mindestlaufzeit ${m} Monate. Angebot B: CHF ${b} pro Monat, keine Bindung.`,
+        `Welches Angebot ist nach ${m} Monaten günstiger?`,
+        [cheaper, cheaper === `Angebot A (CHF ${A})` ? `Angebot B (CHF ${B})` : `Angebot A (CHF ${A})`, "beide gleich teuer"],
+        `${m} × ${a} = ${A} vs ${m} × ${b} = ${B}.`, 3, 1, 4, "monthly-rate-only");
+    }
+    case 6: { // apply-stated-rule-to-case
+      const lim = ri(r, 5, 20), got = lim + ri(r, 2, 12), fee = ri(r, 3, 12);
+      return tv("apply-stated-rule-to-case",
+        `Regel: Wer mehr als ${lim} kg Gepäck hat, zahlt CHF ${fee} extra. ${pick(r, ["Nina", "Tom", "Sara", "Ali"])} hat ${got} kg.`,
+        `Was gilt für ${pick(r, ["Nina", "Tom", "Sara", "Ali"])}?`,
+        [`${pick(r, ["sie", "er"])} zahlt CHF ${fee} extra`, "sie/er zahlt nichts", "das Gepäck wird abgewiesen"],
+        `Fall unter Regel subsumieren: ${got} > ${lim}.`, 2, 1, 3, "rule-ignored");
+    }
+    case 7: { // locate-opening-hours-day
+      const h = pick(r, [
+        ["Mo–Fr 8–18 Uhr, Sa 9–12 Uhr. Sonntag geschlossen.", "9–12 Uhr", "SAMSTAG"],
+        ["Mo–Mi 9–17, Do–Fr 9–20, Sa 10–14.", "10–14 Uhr", "SAMSTAG"],
+        ["Werktags 7–19, Samstag 8–12, Sonntag geschlossen.", "8–12 Uhr", "SAMSTAG"],
+      ]);
+      return tv("locate-opening-hours-day", h[0],
+        `Wann hat das Geschäft am ${h[2]} offen?`,
+        [h[1], "8–18 Uhr", "geschlossen", "rund um die Uhr"],
+        "Richtige Zeile der Tabelle zuordnen.", 2, 1, 3, "wrong-row");
+    }
+    case 8: { // sequence-events-in-text
+      const s = pick(r, [
+        ["Zuerst wird der Vertrag geprüft, danach unterschrieben; anschliessend erhältst du eine Kopie.", "man erhält eine Kopie", "nach dem Unterschreiben"],
+        ["Zuerst anmelden, dann beraten lassen, zuletzt bestellen.", "man bestellt", "zuletzt"],
+        ["Erst messen, dann zuschneiden, danach kleben.", "man klebt", "danach"],
+      ]);
+      return tv("sequence-events-in-text", s[0],
+        `Was passiert ${s[2]}?`,
+        [s[1], "der Vertrag wird geprüft", "nichts", "man beginnt von vorne"],
+        "Sequenzmarken (danach/anschliessend) folgen.", 2, 0, 3, "step-skipped");
+    }
+    case 9: { // identify-author-purpose
+      const p = pick(r, [
+        ["WARNUNG: Das Betreten der Baustelle ist lebensgefährlich!", "um vor einer Gefahr zu warnen"],
+        ["WICHTIG: Termin bitte 24h vorher absagen.", "um auf eine Pflicht hinzuweisen"],
+        ["GRATIS Probeabo für 4 Wochen – jetzt anmelden!", "um zu werben/anwerben"],
+        ["ACHTUNG: Glatteis auf dem Pausenhof.", "um vor einer Gefahr zu warnen"],
+      ]);
+      return tv("identify-author-purpose", p[0],
+        "Warum wurde dieser Text geschrieben?",
+        [p[1], "um ein Produkt zu verkaufen", "um einzuladen", "zur Unterhaltung"],
+        "Textsorte/Signalwort deuten.", 1, 0, 2, "literal-content-only");
+    }
+    case 10: { // resolve-pronoun-reference
+      const who = pick(r, [["Herr Meier", "der Chef"], ["die Lehrerin", "die Schülerin"], ["der Arzt", "die Patientin"], ["der Vater", "der Sohn"]]);
+      const obj = pick(r, ["Bericht", "Schlüssel", "Mappe", "Rezept"]);
+      return tv("resolve-pronoun-reference",
+        `Als ${who[0]} ${who[1]} traf, übergab ${who[0].split(" ")[1] === "Meier" ? "ihm" : "ihr"} ${who[0].split(" ")[1] === "Meier" ? "seinen" : "ihren"} ${obj}.`,
+        `Wem gab ${who[0]} den ${obj}?`,
+        [who[1], "sich selbst", "einem Kollegen", "dem Empfang"],
+        "Pronomen auf den richtigen Bezug beziehen.", 2, 1, 3, "wrong-referent");
+    }
+    case 11: { // quantifier-comprehension
+      const q = pick(r, [
+        ["Die meisten Mitarbeiter nutzen den neuen Drucker; einige wechseln noch.", "die meisten"],
+        ["Alle Teilnehmer haben die Einverständniserklärung unterschrieben.", "alle"],
+        ["Kaum jemand hat die alte Nummer gewählt.", "kaum jemand"],
+        ["Einige Kunden warten noch auf ihre Rechnung.", "einige"],
+      ]);
+      return tv("quantifier-comprehension", q[0],
+        "Wie viele sind es (laut Text)?",
+        [q[1], "keiner", "genau die Hälfte", "etwa ein Drittel"],
+        "Quantor genau lesen.", 1, 1, 2, "absolute-reading");
+    }
+    case 12: { // notice-vs-prohibition
+      const n = pick(r, [
+        ["Hinweis: Die Tiefgarage wird am Montag gesperrt. Bitte den Parkplatz neben dem Bahnhof nutzen.", "am Bahnhof parkieren"],
+        ["Achtung: Brücke gesperrt. Bitte Umleitung über die Hauptstrasse nehmen.", "über die Hauptstrasse fahren"],
+        ["Info: Schalter 3 geschlossen. Bitte Schalter 1 verwenden.", "Schalter 1 verwenden"],
+      ]);
+      return tv("notice-vs-prohibition", n[0],
+        "Was sollen Betroffene tun?",
+        [n[1], "an der gesperrten Stelle bleiben", "zu Hause bleiben", "nichts tun"],
+        "Hinweis + Handlungsanweisung kombinieren.", 2, 1, 3, "notice-ignored");
+    }
+    default: { // price-table-extraction
+      const a = (ri(r, 2, 6) + 0.2).toFixed(2).replace(".", "."), b = ri(r, 8, 15), c = (ri(r, 1, 4) + 0.6).toFixed(2);
+      return tv("price-table-extraction",
+        `Tarife: Einzelkarte CHF ${a}, Tageskarte CHF ${b}.-, Kinder CHF ${c}.`,
+        "Was kostet eine Tageskarte?",
+        [`CHF ${b}.–`, `CHF ${a}`, `CHF ${c}`],
+        "Richtigen Tabellenwert ablesen.", 1, 0, 2, "wrong-column");
+    }
   }
 }
 // ===== PROZESSLOGIK: 22 distinct rule-level paths =====
@@ -946,7 +1037,7 @@ function genVisualCount(r: () => number, d: number, sub: string, concept: string
   const distractors = d < 60 ? [count + 1, Math.max(0, count - 1)] : [count + 1, Math.max(0, count - 1), count + 2, Math.max(0, count - 2)];
   return {
     id: "kon-" + sub + "-" + ri(r, 1000, 9999), area: "konzentration", subskill: sub, type: "count", kind: "visual",
-    difficulty: d < 45 ? 1 : d < 75 ? 2 : 3, prompt: verb + " " + symName + " (●▲■★) im Raster.", stimulus: svg, options: dedupeOptions(shuffle([String(count), ...distractors.map(String)], r)),
+    difficulty: d < 45 ? 1 : d < 75 ? 2 : 3, prompt: verb + " " + symName + " (●▲■★) im Raster (" + n + "×" + n + ").", stimulus: svg, options: dedupeOptions(shuffle([String(count), ...distractors.map(String)], r)),
     answer: String(count), explanation: "Es sind " + count + " " + symName + ".", hint: "Systematisch zeilenweise zählen.", estimatedTime: 25, examRelevance: 3, commonErrors: "Übersehen/Zu viel zählen.",
     difficultyScore: 35, concept, templateKey: "konzentration-" + sub + "-count-" + concept, structSig: { opSequence: "count-target-symbol", stepCount: 1, constraintCount: 0, distractorKind: "off-by-one", workingMemoryLoad: 1, inputModality: "visual", answerCardinality: 1 }, structHash: structHashOf({ opSequence: "count-target-symbol", stepCount: 1, constraintCount: 0, distractorKind: "off-by-one", workingMemoryLoad: 1, inputModality: "visual", answerCardinality: 1 }),
   };
@@ -1002,7 +1093,7 @@ function genVisualRow(r: () => number, d: number, sub: string): Question {
   const opts = dedupeOptions(shuffle([String(count), String(count + 1), String(Math.max(0, count - 1)), String(count + 2)], r));
   return {
     id: "kon-" + sub + "-row-" + ri(r, 1000, 9999), area: "konzentration", subskill: sub, type: "count", kind: "visual",
-    difficulty: d < 45 ? 1 : d < 75 ? 2 : 3, prompt: "Zähle die " + symName + " NUR in der ERSTEN Reihe des Rasters.", stimulus: svg, options: opts,
+    difficulty: d < 45 ? 1 : d < 75 ? 2 : 3, prompt: "Zähle die " + symName + " NUR in der ERSTEN Reihe des Rasters (" + n + " Spalten).", stimulus: svg, options: opts,
     answer: String(count), explanation: "In der ersten Reihe: " + count + " " + symName + ".", hint: "Nur die oberste Zeile zählen.", estimatedTime: 25, examRelevance: 3, commonErrors: "Ganze Raster gezählt.",
     difficultyScore: 44, concept: "count-row", templateKey: "konzentration-" + sub + "-row", structSig: { opSequence: "count-row-constraint", stepCount: 1, constraintCount: 1, distractorKind: "counted-all", workingMemoryLoad: 2, inputModality: "visual", answerCardinality: 1 }, structHash: structHashOf({ opSequence: "count-row-constraint", stepCount: 1, constraintCount: 1, distractorKind: "counted-all", workingMemoryLoad: 2, inputModality: "visual", answerCardinality: 1 }),
   };
@@ -1041,7 +1132,9 @@ function genSchilder(r: () => number, d: number): Question {
     : { opSequence: "recall-absent", stepCount: 1, constraintCount: 0, distractorKind: "false-positive", workingMemoryLoad: 1, inputModality: "recall", answerCardinality: 1 };
   return {
     id: "merk-" + ri(r, 1000, 9999), area: "merkfaehigkeit", subskill: "schilder_erinnern", type: "recall", kind: "visual",
-    difficulty: d, prompt: "Erinnere dich: War das Schild " + ask + " unter den gezeigten Schildern?", stimulus: svg,
+    difficulty: d,
+    prompt: `Erinnere dich (Reihe mit ${k} Schildern: ${chosen.join(", ")}): War das Schild ${ask} dabei?`,
+    stimulus: svg,
     options: ["Ja", "Nein"], answer, explanation: present ? "Das Schild war zu sehen." : "Dieses Schild war NICHT dabei.", hint: "Konzentriere dich kurz auf die Menge.", estimatedTime: 15, examRelevance: 2, commonErrors: "Nach Aufmerksamkeit vergessen.",
     difficultyScore: 60, concept: "recall", memorizeMs: 4000, templateKey: "merkfaehigkeit-schilder_erinnern-recall-" + (present ? "present" : "absent"), structSig: sig, structHash: structHashOf(sig),
   };
@@ -1054,7 +1147,7 @@ function genSchilderCount(r: () => number, d: number): Question {
   const opts = dedupeOptions(shuffle([String(ans), String(ans + 1), String(Math.max(0, ans - 1)), "weiß nicht"], r));
   return {
     id: "merk-count-" + ri(r, 1000, 9999), area: "merkfaehigkeit", subskill: "schilder_erinnern", type: "recall", kind: "visual",
-    difficulty: d, prompt: "Wie viele Schilder wurden gezeigt?", stimulus: svg, options: opts,
+    difficulty: d, prompt: `Wie viele Schilder wurden gezeigt (Reihe: ${chosen.join(", ")})?`, stimulus: svg, options: opts,
     answer: String(ans), explanation: "Es waren " + ans + " Schilder.", hint: "Zähle die gezeigten Schilder.", estimatedTime: 16, examRelevance: 2, commonErrors: "Anzahl falsch erinnert.",
     difficultyScore: 62, concept: "recall-count", memorizeMs: 4000, templateKey: "merkfaehigkeit-schilder_erinnern-count", structSig: { opSequence: "recall-count", stepCount: 1, constraintCount: 0, distractorKind: "off-by-one", workingMemoryLoad: 1, inputModality: "recall", answerCardinality: 1 }, structHash: structHashOf({ opSequence: "recall-count", stepCount: 1, constraintCount: 0, distractorKind: "off-by-one", workingMemoryLoad: 1, inputModality: "recall", answerCardinality: 1 }),
   };
@@ -1069,7 +1162,7 @@ function genSchilderCategory(r: () => number, d: number): Question {
   const opts = dedupeOptions(shuffle([ans, ...shuffle(SIGN_NAMES.filter((n) => n !== ans), r).slice(0, 3)], r));
   return {
     id: "merk-cat-" + ri(r, 1000, 9999), area: "merkfaehigkeit", subskill: "schilder_erinnern", type: "recall", kind: "visual",
-    difficulty: d, prompt: `Welche Kategorie hat das ${pos + 1}. Schild (von links)?`, stimulus: svg, options: opts,
+    difficulty: d, prompt: `Welche Kategorie hat das Symbol an Position ${pos + 1} der Reihe [${chosen.map((s, ix) => ix === pos ? "»" + s + "«" : s).join(", ")}]?`, stimulus: svg, options: opts,
     answer: ans, explanation: `Das ${pos + 1}. Schild ist: ${ans}.`, hint: "Achte auf die Reihenfolge und Symbolart.", estimatedTime: 17, examRelevance: 2, commonErrors: "Kategorie verwechselt.",
     difficultyScore: 64, concept: "recall-classify", memorizeMs: 4000, templateKey: "merkfaehigkeit-schilder_erinnern-category", structSig: { opSequence: "recall-classify", stepCount: 1, constraintCount: 1, distractorKind: "wrong-category", workingMemoryLoad: 2, inputModality: "recall", answerCardinality: 1 }, structHash: structHashOf({ opSequence: "recall-classify", stepCount: 1, constraintCount: 1, distractorKind: "wrong-category", workingMemoryLoad: 2, inputModality: "recall", answerCardinality: 1 }),
   };
@@ -1084,7 +1177,7 @@ function genSchilderCompare(r: () => number, d: number): Question {
   const opts = dedupeOptions(shuffle([ans, a === b ? "Keines" : `Mehr ${b}`, a === b ? "Nur eines" : `Mehr ${a}`, "Weiß nicht"], r));
   return {
     id: "merk-cmp-" + ri(r, 1000, 9999), area: "merkfaehigkeit", subskill: "schilder_erinnern", type: "recall", kind: "visual",
-    difficulty: d, prompt: `Kamen von ${a} und ${b} gleich viele oder mehr von einer Sorte?`, stimulus: svg, options: opts,
+    difficulty: d, prompt: `Reihe [${chosen.join(", ")}]: Kamen von ${a} und ${b} gleich viele oder mehr von einer Sorte?`, stimulus: svg, options: opts,
     answer: ans, explanation: `Bewertung: ${ans}.`, hint: "Zähle beide Sorten getrennt.", estimatedTime: 18, examRelevance: 2, commonErrors: "Relation falsch.",
     difficultyScore: 66, concept: "recall-compare", memorizeMs: 4000, templateKey: "merkfaehigkeit-schilder_erinnern-compare", structSig: { opSequence: "recall-compare", stepCount: 2, constraintCount: 0, distractorKind: "reversed-relation", workingMemoryLoad: 2, inputModality: "recall", answerCardinality: 1 }, structHash: structHashOf({ opSequence: "recall-compare", stepCount: 2, constraintCount: 0, distractorKind: "reversed-relation", workingMemoryLoad: 2, inputModality: "recall", answerCardinality: 1 }),
   };
@@ -1152,6 +1245,7 @@ function genSort(r: () => number, d: number): Question {
   }
 }
 // ===== ALLTAGSWISSEN: 16 distinct rule-level paths (situational judgment) =====
+// ===== ALLTAGSWISSEN: 16 situational-judgment paths, each with rich pools =====
 function genAlltag(r: () => number, d: number): Question {
   const ph = (arr: string[]) => pick(r, arr);
   const aw = (opSeq: string, prompt: string, optsIn: string[], expl: string, steps: number, cons: number, wml: number, dk: string) => {
@@ -1162,74 +1256,167 @@ function genAlltag(r: () => number, d: number): Question {
   };
   const path = ri(r, 0, 15);
   switch (path) {
-    case 0: return aw("priority-sequence-emergency", ph([
-        "Ein Kollege ist bewusstlos und atmet nicht. Was ZUERST?",
-        "Jemand kollabiert im Lager. Richtige Reihenfolge?",
-      ]),
-      ["Erst Hilfe rufen (144), dann Erste Hilfe beginnen", "Weiterarbeiten und abwarten", "Ihn allein hochziehen"],
-      "Notruf vor Selbsthilfe.", 2, 1, 3, "wrong-priority");
-    case 1: return aw("immediate-danger-action",
-      pick(r, ["Du siehst Rauch im Lager. Was tust du ZUERST?", "Es riecht nach Gas. Was ist richtig?"]),
-      ["Alarm auslösen und Bereich verlassen", "weiterarbeiten", "Fenster öffnen und warten"],
-      "Gefahr → Alarm + Abstand.", 1, 1, 2, "delay-action");
-    case 2: return aw("identify-prohibition",
-      pick(r, ["Was ist am Arbeitsplatz verboten?", "Was darfst du NICHT tun, wenn die Brandmeldeanlage läutet?"]),
-      [pick(r, ["Mit unbekanntem USB-Stick den PC nutzen", "Weitersuchen nach dem Brand"]), "Die Brille tragen", "Pausen einhalten"],
-      "Verbotsregeln kennen.", 1, 0, 2, "allowed-picked");
-    case 3: return aw("reporting-chain",
-      pick(r, ["Wen informierst du zuerst bei einem Datenleck?", "Wohin meldest du einen Arbeitsunfall?"]),
-      [pick(r, ["IT-Sicherheit", "Vorgesetzte/SUVA"]), "einen Kollegen", "niemanden"],
-      "Zuständige Stelle zuerst.", 1, 0, 2, "wrong-recipient");
-    case 4: return aw("personal-protective-equipment",
-      "Du betrittst die Werkstatt. Was gehört MANDATORILY dazu?",
-      ["Sicherheitsschuhe und Schutzbrille", "Kopfhörer", "kurze Ärmel für Bewegungsfreiheit"],
-      "Schutzausrüstung nach Vorschrift.", 1, 0, 2, "comfort-first");
-    case 5: return aw("hygiene-food-handling",
-      "In der Küche fällt rohes Hühnfleisch auf den Boden. Richtig ist:",
-      ["entsorgen bzw. gründlich trennen — nicht weiterverarbeiten", "abwaschen und trotzdem verwenden", "für später in den Kühlschrank legen"],
-      "Kontaminationsgefahr kennen.", 2, 1, 2, "risk-denial");
-    case 6: return aw("public-transport-etiquette",
-      "In einem vollen Zug steht eine schwangere Frau. Was ist angemessen?",
-      ["Platz anbieten", "wegschauen", "laut telefonieren"],
-      "Rücksichtnahme im ÖV.", 1, 0, 2, "avoidance");
-    case 7: return aw("mail-formal-writing",
-      "Du schreibst zum ersten Mal an einen offiziellen Behördenkontakt. Wie beginnst du?",
-      ["Sehr geehrte Damen und Herren", "Hey!", "Na, wie geht's?"],
-      "Formelle Anrede wählen.", 1, 0, 2, "informal-register");
-    case 8: return aw("money-change-counting",
-      "Ein Artikel kostet CHF 12.50, du zahlst mit CHF 20.–. Wie viel Rückgeld erhältst du?",
-      ["CHF 7.50", "CHF 8.50", "CHF 7.–"],
-      "20 − 12.50 = 7.50.", 2, 0, 2, "subtraction-slip");
-    case 9: return aw("appointment-rescheduling",
-      "Du kannst deinen Termin nicht wahrnehmen. Was macht man ZUERST?",
-      ["frühzeitig absagen und neuen Termin vereinbaren", "einfach nicht erscheinen", "erst am Tag danach Bescheid geben"],
-      "Verlässlichkeit + frühe Kommunikation.", 1, 1, 2, "no-show");
-    case 10: return aw("waste-separation",
-      "Wohin gehört eine leere PET-Flasche?",
-      ["in die PET-Sammelstelle", "in den Kehricht", "in das Aluglas-Recycling"],
-      "Abfalltrennung korrekt zuordnen.", 1, 0, 2, "wrong-stream");
-    case 11: return aw("fire-evacuation-route",
-      "Der Feueralarm ertönt. Welcher Weg ist richtig?",
-      ["markierter Fluchtweg, Lift NICHT benutzen", "schnell mit dem Lift nach unten", "im Büro warten"],
-      "Fluchtwegregeln: Treppe statt Lift.", 1, 1, 2, "lift-used");
-    case 12: return aw("first-aid-minor-cut",
-      "Du schneidest dir leicht in den Finger. Was machst du zuerst?",
-      ["Wunde reinigen und verbinden", "weiterarbeiten ohne Verbindung", "Hand in heisses Wasser halten"],
-      "Standard-Erste-Hilfe bei Schnittwunden.", 1, 0, 2, "neglect");
-    case 13: return aw("stranger-at-door",
-      "Eine unbekannte Person bittet um Einlass ins Lager „nur kurz schauen“. Richtig:",
-      ["höflich ablehnen und Vorgesetzte informieren", "mitnehmen, ist ja nur kurz", "allein durch das Lager laufen lassen"],
-      "Zutrittskontrolle beachten.", 1, 1, 2, "compliance-pressure");
-    case 14: return aw("computer-password-hygiene",
-      "Wie gehst du mit deinem Arbeitspasswort um?",
-      ["niemandem verraten, auch nicht Kollegen", "auf dem Bildschirm notieren", "mit anderen teilen"],
-      "Grundlegende Passworthygiene.", 1, 1, 2, "sharing-ok");
-    default: return aw("weather-appropriate-clothing",
-      "Bei −5 °C und Schneefall arbeitest du draussen. Was ziehst du an?",
-      ["gefütterte, wasserdichte Winterkleidung", "leichte Sommerhose", "normale Turnschuhe"],
-      "An Wetter angepasste Kleidung.", 1, 0, 2, "underdressed");
+    case 0: { // emergency priority: many scenarios
+      const s = pick(r, [
+        ["Ein Kollege ist bewusstlos und atmet nicht.", "Erst Hilfe rufen (144), dann Erste Hilfe beginnen"],
+        ["Jemand liegt mit Kopfverletzung am Boden.", "Erst Hilfe rufen, dann Stillhalten"],
+        ["Eine Person verschluckt sich und wird blau.", "Sofort Heimlich-Griff, parallel Hilfe rufen"],
+        ["Im Büro bricht jemand mit Brustschmerz zusammen.", "Notruf 144, ruhig lassen, nicht allein lassen"],
+      ]);
+      return aw("priority-sequence-emergency", s[0] + " Was ZUERST?",
+        [s[1], "Weiterarbeiten und abwarten", "Die Person allein hochziehen", "Erst einen Kaffee holen"],
+        "Notruf vor Selbsthilfe.", 2, 1, 3, "wrong-priority");
+    }
+    case 1: { // immediate danger
+      const s = pick(r, [
+        ["Du siehst Rauch im Lager.", "Alarm auslösen und Bereich verlassen"],
+        ["Es riecht nach Gas.", "Lüften, keine Zündquellen, melden"],
+        ["Du hörst lautes Zischen an einer Druckleitung.", "Abstand halten und melden"],
+      ]);
+      return aw("immediate-danger-action", s[0] + " Was tust du ZUERST?",
+        [s[1], "weiterarbeiten", "Fenster schliessen und warten", "erst die Arbeit beenden"],
+        "Gefahr → Alarm + Abstand.", 1, 1, 2, "delay-action");
+    }
+    case 2: { // prohibition
+      const s = pick(r, [
+        ["Was ist am Arbeitsplatz verboten?", "Mit unbekanntem USB-Stick den PC nutzen"],
+        ["Was darfst du NICHT tun, wenn die Brandmeldeanlage läutet?", "Den Aufzug benutzen"],
+        ["Was ist im Labor verboten?", "Essen und Trinken"],
+        ["Was gilt im Lager als verboten?", "Rauchen bei Lagergut"],
+      ]);
+      return aw("identify-prohibition", s[0],
+        [s[1], "Die Brille tragen", "Pausen einhalten", "Hände waschen"],
+        "Verbotsregeln kennen.", 1, 0, 2, "allowed-picked");
+    }
+    case 3: { // reporting chain
+      const s = pick(r, [
+        ["Wen informierst du zuerst bei einem Datenleck?", "IT-Sicherheit"],
+        ["Wohin meldest du einen Arbeitsunfall?", "Vorgesetzte/SUVA"],
+        ["Wen rufst du bei Verdacht auf Unterschlagung?", "Vorgesetzte/Management"],
+      ]);
+      return aw("reporting-chain", s[0],
+        [s[1], "einen Kollegen", "niemanden", "erst die Familie"],
+        "Zuständige Stelle zuerst.", 1, 0, 2, "wrong-recipient");
+    }
+    case 4: { // PPE
+      const s = pick(r, [
+        ["Du betrittst die Werkstatt.", "Sicherheitsschuhe und Schutzbrille"],
+        ["Du arbeitest mit Chemikalien.", "Handschuhe und Schutzbrille"],
+        ["Du fährst Gabelstapler.", "Gurt anlegen und Schutzschuhe"],
+      ]);
+      return aw("personal-protective-equipment", s[0] + " Was gehört MANDATORILY dazu?",
+        [s[1], "Kopfhörer", "kurze Ärmel für Bewegungsfreiheit", "eine Uhr"],
+        "Schutzausrüstung nach Vorschrift.", 1, 0, 2, "comfort-first");
+    }
+    case 5: { // food hygiene
+      const s = pick(r, [
+        ["In der Küche fällt rohes Hühnfleisch auf den Boden.", "entsorgen — nicht weiterverarbeiten"],
+        ["Rohmilch riecht sauer.", "nicht verwenden, wegkippen"],
+        ["Brot liegt seit gestern offen herum.", "prüfen, bei Zweifel wegwerfen"],
+      ]);
+      return aw("hygiene-food-handling", s[0] + " Richtig ist:",
+        [s[1], "abwaschen und trotzdem verwenden", "für später in den Kühlschrank legen", "kurz anbraten"],
+        "Kontaminationsgefahr kennen.", 2, 1, 2, "risk-denial");
+    }
+    case 6: { // public transport etiquette
+      const s = pick(r, [
+        ["In einem vollen Zug steht eine schwangere Frau.", "Platz anbieten"],
+        ["Im Bus sitzt ein gebrechlicher Senior.", "Platz anbieten"],
+        ["Jemand mit Krücken steht im Waggon.", "Platz machen"],
+      ]);
+      return aw("public-transport-etiquette", s[0] + " Was ist angemessen?",
+        [s[1], "wegschauen", "laut telefonieren", "sich weiter in die Ecke drücken"],
+        "Rücksichtnahme im ÖV.", 1, 0, 2, "avoidance");
+    }
+    case 7: { // formal writing
+      const s = pick(r, [
+        ["Du schreibst zum ersten Mal an einen offiziellen Behördenkontakt.", "Sehr geehrte Damen und Herren"],
+        ["Du mailst eine Rechnung an einen Kunden.", "Guten Tag / Sehr geehrte Damen und Herren"],
+        ["Du schreibst deinem Chef.", "Guten Morgen / Hallo"],
+      ]);
+      return aw("mail-formal-writing", s[0] + " Wie beginnst du?",
+        [s[1], "Hey!", "Na, wie geht's?", "Was geht?"],
+        "Formelle Anrede wählen.", 1, 0, 2, "informal-register");
+    }
+    case 8: { // change counting (computed)
+      const price = (ri(r, 5, 48) + 0.5).toFixed(2); const paid = ri(r, 1, 4) * 10;
+      const back = (paid - parseFloat(price)).toFixed(2);
+      return aw("money-change-counting",
+        `Ein Artikel kostet CHF ${price}, du zahlst mit CHF ${paid}.–. Wie viel Rückgeld?`,
+        [`CHF ${back}`, `CHF ${(paid - parseFloat(price) + 1).toFixed(2)}`, `CHF ${(parseFloat(price) - paid).toFixed(2)}`],
+        `${paid} − ${price} = ${back}.`, 2, 0, 2, "subtraction-slip");
+    }
+    case 9: { // rescheduling
+      const s = pick(r, [
+        ["Du kannst deinen Termin nicht wahrnehmen.", "frühzeitig absagen und neuen Termin vereinbaren"],
+        ["Du bist krank zur Prüfung angemeldet.", "rechtzeitig abmelden und verschieben"],
+      ]);
+      return aw("appointment-rescheduling", s[0] + " Was macht man ZUERST?",
+        [s[1], "einfach nicht erscheinen", "erst am Tag danach Bescheid geben", "jemand anders schicken"],
+        "Verlässlichkeit + frühe Kommunikation.", 1, 1, 2, "no-show");
+    }
+    case 10: { // waste separation
+      const s = pick(r, [
+        ["Wohin gehört eine leere PET-Flasche?", "in die PET-Sammelstelle"],
+        ["Wohin gehört eine Glasflasche?", "in den Glascontainer"],
+        ["Wohin gehört eine alte Zeitung?", "ins Altpapier"],
+        ["Wohin gehört ein Altbatterie?", "zur Sammelstelle/Batteriebox"],
+      ]);
+      return aw("waste-separation", s[0],
+        [s[1], "in den Kehricht", "in das Aluglas-Recycling", "in die Biotonne"],
+        "Abfalltrennung korrekt zuordnen.", 1, 0, 2, "wrong-stream");
+    }
+    case 11: { // evacuation
+      const s = pick(r, [
+        ["Der Feueralarm ertönt.", "markierter Fluchtweg, Lift NICHT benutzen"],
+        ["Es gibt Brandgeruch im Stockwerk.", "über Treppe evacuieren"],
+      ]);
+      return aw("fire-evacuation-route", s[0] + " Welcher Weg ist richtig?",
+        [s[1], "schnell mit dem Lift nach unten", "im Büro warten", "zum Fenster hinaus"],
+        "Fluchtwegregeln: Treppe statt Lift.", 1, 1, 2, "lift-used");
+    }
+    case 12: { // first aid
+      const s = pick(r, [
+        ["Du schneidest dir leicht in den Finger.", "Wunde reinigen und verbinden"],
+        ["Du verbrennst dich an heissem Wasser.", "kühlen und abdecken"],
+        ["Du stolperst und knickst um.", "kühlen und hochlagern"],
+      ]);
+      return aw("first-aid-minor-cut", s[0] + " Was machst du zuerst?",
+        [s[1], "weiterarbeiten ohne Verbindung", "Hand in heisses Wasser halten", "draufhauen"],
+        "Standard-Erste-Hilfe.", 1, 0, 2, "neglect");
+    }
+    case 13: { // stranger at door
+      const s = pick(r, [
+        ["Eine unbekannte Person bittet um Einlass ins Lager „nur kurz schauen“.", "höflich ablehnen und Vorgesetzte informieren"],
+        ["Jemand gibt sich am Telefon als IT-Support aus und will Passwort.", "ablehnen, echte IT selbst anrufen"],
+      ]);
+      return aw("stranger-at-door", s[0] + " Richtig:",
+        [s[1], "mitnehmen, ist ja nur kurz", "allein durch das Lager laufen lassen", "das Passwort geben"],
+        "Zutrittskontrolle beachten.", 1, 1, 2, "compliance-pressure");
+    }
+    case 14: { // password hygiene
+      const s = pick(r, [
+        ["Wie gehst du mit deinem Arbeitspasswort um?", "niemandem verraten, auch nicht Kollegen"],
+        ["Wie verwahrst du ein generiertes Passwort?", "in einem Passwort-Manager"],
+        ["Was tust du nach Verdacht auf Leak?", "Passwort sofort ändern"],
+      ]);
+      return aw("computer-password-hygiene", s[0],
+        [s[1], "auf dem Bildschirm notieren", "mit anderen teilen", "immer dasselbe nehmen"],
+        "Grundlegende Passworthygiene.", 1, 1, 2, "sharing-ok");
+    }
+    default: { // weather-appropriate clothing
+      const s = pick(r, [
+        ["Bei −5 °C und Schneefall arbeitest du draussen.", "gefütterte, wasserdichte Winterkleidung"],
+        ["Bei 32 °C im Sommer arbeitest du draussen.", "helle, luftige Kleidung und Hut"],
+        ["Bei Regen und Wind im Freien.", "wasserdichte Jacke und festes Schuhwerk"],
+      ]);
+      return aw("weather-appropriate-clothing", s[0] + " Was ziehst du an?",
+        [s[1], "leichte Sommerhose", "normale Turnschuhe", "ein T-Shirt"],
+        "An Wetter angepasste Kleidung.", 1, 0, 2, "underdressed");
+    }
   }
 }
+
 // ===== HELD-OUT POOL (>=20% of structural space, unreachable from training) =====
 function genMentalHeldOut(r: () => number, d: number): Question { return genMental(r, d, true); }
 function genPctHeldOut(r: () => number, d: number): Question {

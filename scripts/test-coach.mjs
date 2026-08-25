@@ -20,7 +20,7 @@ function runProfile(profile, label) {
   for (let s = 0; s < 6; s++) {
     const batch = [];
     for (const sk of ALL_SUBSKILLS) {
-      const qs = composeSubskillQuestions(m, sk.id, 3, "adaptive");
+      const qsR = composeSubskillQuestions(m, sk.id, 3, "adaptive"); m = qsR.model; const qs = qsR.questions;
       for (const q of qs) batch.push(simulateAttempt(m, q, profile, batch.length));
     }
     m = updateModel(m, batch, "sess-" + s, "adaptive");
@@ -42,7 +42,7 @@ ok(slow.subs["kopfrechnen"].speed < strong.subs["kopfrechnen"].speed, "slow stud
 {
   const m = emptyCoach();
   m.subs["kopfrechnen"].difficulty = 80;
-  const qs = composeSubskillQuestions(m, "kopfrechnen", 4, "adaptive");
+  const qsR = composeSubskillQuestions(m, "kopfrechnen", 4, "adaptive"); const qs = qsR.questions;
   ok(qs.every(q => q.difficulty >= 2), "high-difficulty subskill yields harder questions (level>=2)");
 }
 
@@ -69,9 +69,9 @@ ok(slow.subs["kopfrechnen"].speed < strong.subs["kopfrechnen"].speed, "slow stud
 
 // 6) Anti-memorization: repeated compose avoids recent templateKeys
 {
-  const m = emptyCoach();
-  const a = composeSubskillQuestions(m, "satzbau", 5, "adaptive");
-  const b = composeSubskillQuestions(m, "satzbau", 5, "adaptive");
+  let m = emptyCoach();
+  let aR = composeSubskillQuestions(m, "satzbau", 5, "adaptive"); m = aR.model; const a = aR.questions;
+  let bR = composeSubskillQuestions(m, "satzbau", 5, "adaptive"); m = bR.model; const b = bR.questions;
   const overlap = a.filter(x => b.some(y => y.templateKey && x.templateKey && y.templateKey === x.templateKey)).length;
   ok(overlap < a.length, "anti-memorization reduces template reuse");
 }

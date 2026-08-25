@@ -79,15 +79,17 @@ function simulate(profileName, bias, seed) {
     const plan = composeSession(m, 22);
     const toServe = [];
     for (const b of plan.blocks) {
-      const qs = composeSubskillQuestions(m, b.subskill, b.count, b.mode);
-      for (const q of qs) toServe.push({ q, sub: b.subskill });
+      const res = composeSubskillQuestions(m, b.subskill, b.count, b.mode, seed * 100000 + day * 100 + nameHash(b.subskill) % 97);
+      m = res.model;  // persist cooldown rings across the whole run
+      for (const q of res.questions) toServe.push({ q, sub: b.subskill });
     }
     // top up to ~ITEMS_PER_DAY by pulling weakest subskills
     let over = ITEMS_PER_DAY - toServe.length;
     while (over-- > 0) {
       const weakest = ALL_SUBSKILLS.slice().sort((a, b) => (m.subs[a.id].mastery ?? 0) - (m.subs[b.id].mastery ?? 0))[0];
-      const qs = composeSubskillQuestions(m, weakest.id, 1, "adaptive");
-      if (qs[0]) toServe.push({ q: qs[0], sub: weakest.id });
+      const res = composeSubskillQuestions(m, weakest.id, 1, "adaptive", seed * 100000 + day * 100 + 91);
+      m = res.model;
+      if (res.questions[0]) toServe.push({ q: res.questions[0], sub: weakest.id });
     }
     const attempts = [];
     for (const { q, sub } of toServe) {
@@ -103,6 +105,10 @@ function simulate(profileName, bias, seed) {
     }
     m = updateModel(m, attempts, "day-" + day, "adaptive");
   }
+  // DEBUG: direct schilder exact-dup count for this simulate
+  let sd = 0, st2 = 0; const sm = new Map();
+  for (const x of served["schilder_erinnern"]) { st2++; if (sm.has(x.exact)) sd++; sm.set(x.exact, 1); }
+  if (st2 > 0) console.error(`DEBUG ${profileName}|${seed}: schilder exactDup=${sd}/${st2}=${(sd/st2).toFixed(3)}`);
   return served;
 }
 
@@ -176,25 +182,30 @@ function calcDupRateWindow(hashes, win) {
 }
 
 // === Run ===
+// Metrics are computed PER SEED (one simulated learner's full 56-day history) and then
+// AVERAGED across seeds. Concatenating different learners into one list would count
+// learner A's item as a "duplicate" of learner B's identical item — not memorization.
 const allResults = {};
 for (const pname of Object.keys(PROFILES)) {
-  const perSeed = [];
+  const perSeedReports = [];
   for (const seed of SEEDS) {
     const served = simulate(pname, PROFILES[pname], seed);
-    const merged = {};
-    for (const s of ALL_SUBSKILLS) merged[s.id] = served[s.id];
-    allResults[pname + "|" + seed] = merged;
+    const rep = {};
+    for (const s of ALL_SUBSKILLS) rep[s.id] = metricsFor(s, served[s.id]);
+    perSeedReports.push(rep);
   }
-  // aggregate across seeds for this profile (union of items by appending)
-  const merged = {};
-  for (const s of ALL_SUBSKILLS) merged[s.id] = [];
-  for (const seed of SEEDS) {
-    const k = pname + "|" + seed;
-    for (const s of ALL_SUBSKILLS) merged[s.id].push(...allResults[k][s.id]);
+  // average numeric fields across seeds
+  const agg = {};
+  for (const s of ALL_SUBSKILLS) {
+    const rows = perSeedReports.map((r) => r[s.id]);
+    const avg = {};
+    for (const k of Object.keys(rows[0])) {
+      const vals = rows.map((r) => r[k]).filter((v) => typeof v === "number" && isFinite(v));
+      avg[k] = vals.length ? +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(4) : rows[0][k];
+    }
+    agg[s.id] = avg;
   }
-  const report = {};
-  for (const s of ALL_SUBSKILLS) report[s.id] = metricsFor(s, merged[s.id]);
-  allResults["AGG|" + pname] = report;
+  allResults["AGG|" + pname] = agg;
 }
 
 // write raw per-profile JSON

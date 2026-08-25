@@ -27,7 +27,8 @@ export default function AutoTraining() {
   }
 
   // interleave by round so related skills mix (Phase 11)
-  const interleaved = interleave(plan.blocks.map((b) => composeSubskillQuestions(model, b.subskill, b.count, b.mode)));
+  const composed = plan.blocks.map((b) => composeSubskillQuestions(model, b.subskill, b.count, b.mode));
+  const interleaved = interleave(composed.map((r) => r.questions));
 
   return (
     <Trainer

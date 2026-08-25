@@ -29,7 +29,7 @@ function runSession(m, profile, n) {
   const batch = [];
   for (const sk of ALL_SUBSKILLS) {
     if (sk.id === "textschreiben") continue;
-    const qs = composeSubskillQuestions(m, sk.id, 3, "adaptive");
+    const qsR = composeSubskillQuestions(m, sk.id, 3, "adaptive"); m = qsR.model; const qs = qsR.questions;
     for (const q of qs) {
       const rr = profile(q);
       const a = { subskill: q.subskill, area: q.area, ts: Date.now() + n * 1000, correct: rr.correct, ms: rr.ms, difficulty: q.difficultyScore ?? q.difficulty, mode: "adaptive", templateKey: q.templateKey, prompt: q.prompt, studentAnswer: rr.correct ? q.answer : "x", correctAnswer: q.answer };
@@ -40,7 +40,7 @@ function runSession(m, profile, n) {
   if (n % 6 === 5) {
     for (const sk of ALL_SUBSKILLS.slice(0, 4)) {
       if (sk.id === "textschreiben") continue;
-      const qs = composeSubskillQuestions(m, sk.id, 2, "mini-sim");
+      const qsR2 = composeSubskillQuestions(m, sk.id, 2, "mini-sim"); m = qsR2.model; const qs = qsR2.questions;
       for (const q of qs) { const rr = profile({ ...q, mode: "mini-sim" }); batch.push({ subskill: q.subskill, area: q.area, ts: Date.now() + n * 1000, correct: rr.correct, ms: rr.ms, difficulty: q.difficultyScore ?? q.difficulty, mode: "mini-sim", templateKey: q.templateKey }); }
     }
   }
