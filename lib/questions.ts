@@ -334,7 +334,7 @@ function genSatzbau(r: () => number, d: number): Question {
   const sb = (opSeq: string, prompt: string, ans: string, expl: string, steps: number, cons: number, wml: number, dk: string) =>
     mk("deutsch", "satzbau", opSeq, d, prompt, undefined, ans, expl, "Achte auf die Satzbaumuster.", 20, 4, dk, "sort", opSeq,
       { opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "sequence", answerCardinality: 1 }, false);
-  const path = ri(r, 0, 31);
+  const path = ri(r, 0, 49);
   switch (path) {
     case 0: { // verb-second statement order
       const parts = pick(r, SENTENCES);
@@ -557,6 +557,79 @@ function genSatzbau(r: () => number, d: number): Question {
       void b;
       return sb("um-zu-vs-damit", `„Ich spare Geld, ___ ein Auto zu kaufen.“ (Zwecksatz mit gleichem Subjekt)`, "um",
         "gleiches Subjekt: um…zu; verschiedenes: damit.", 1, 1, 3, "damit-for-same-subject");
+    }
+    // --- additional rule-level grammar paths (32..49) to exceed 50 distinct structs ---
+    case 32: { // article der/die/das by gender
+      const w = pick(r, [["der", "Mann"], ["die", "Frau"], ["das", "Kind"], ["der", "Tisch"], ["die", "Tür"], ["das", "Haus"]]);
+      return sb("article-gender", `Wähle den Artikel: „___ ${w[1]}“`, w[0], "Artikel nach Geschlecht.", 1, 0, 2, "wrong-gender-article");
+    }
+    case 33: { // plural formation
+      const w = pick(r, [["der Hund", "die Hunde"], ["die Katze", "die Katzen"], ["das Buch", "die Bücher"], ["der Baum", "die Bäume"]]);
+      return sb("plural-form", `Plural von „${w[0]}“?`, w[1], "Pluralendung -e/-n/-er.", 1, 0, 2, "singular-returned");
+    }
+    case 34: { // comparative
+      const w = pick(r, [["schnell", "schneller"], ["groß", "größer"], ["billig", "billiger"], ["teuer", "teurer"]]);
+      return sb("comparative", `Steigerung von „${w[0]}“?`, w[1], "Komparativ mit -er.", 1, 0, 2, "no-comparison");
+    }
+    case 35: { // superlative
+      const w = pick(r, [["schnell", "am schnellsten"], ["gut", "am besten"], ["hoch", "am höchsten"]]);
+      return sb("superlative", `Höchststufe von „${w[0]}“?`, w[1], "Superlativ mit am -sten.", 1, 0, 2, "comparative-returned");
+    }
+    case 36: { // question word selection
+      const q = pick(r, [["Wer", "eine Person"], ["Was", "eine Sache"], ["Wo", "ein Ort"], ["Wann", "eine Zeit"]]);
+      return sb("question-word", `Fragewort für ${q[1]}?`, q[0], "Fragewort nach Bedeutung.", 1, 0, 2, "wrong-question-word");
+    }
+    case 37: { // negation nicht vs kein
+      const s = pick(r, [["Ich habe ___ Zeit.", "keine"], ["Er kommt ___ morgen.", "nicht"], ["Wir sehen ___ Film.", "keinen"]]);
+      return sb("negation-kein-nicht", `Ergänze: „${s[0]}“`, s[1], "kein bei Nomen ohne Artikel, nicht bei Verben.", 1, 0, 2, "nicht-for-kein");
+    }
+    case 38: { // possessive pronoun
+      const s = pick(r, [["Ich", "mein"], ["du", "dein"], ["er", "sein"], ["sie", "ihr"], ["wir", "unser"]]);
+      return sb("possessive", `Zugehörigkeit von „${s[0]}“?`, s[1], "Possessivpronomen nach Person.", 1, 0, 2, "wrong-possessive");
+    }
+    case 39: { // separable verb prefix
+      const s = pick(r, [["auf|stehen", "Ich stehe um 7 Uhr ___ .", "auf"], ["ein|kaufen", "Wir kaufen Brot ___ .", "ein"], ["an|rufen", "Er ruft mich ___ .", "an"]]);
+      return sb("separable-verb", `Trennbares Verb: „${s[0]}“ → ${s[1]}`, s[2], "Präfix ans Ende bei Konjugation.", 1, 1, 2, "prefix-dropped");
+    }
+    case 40: { // imperative du/ihr/Sie
+      const s = pick(r, [["du", "Komm!"], ["ihr", "Kommt!"], ["Sie", "Kommen Sie!"]]);
+      return sb("imperative", `Imperativ für „${s[0]}“ von „kommen“?`, s[1], "Imperativform nach Person.", 1, 0, 2, "infinitive-returned");
+    }
+    case 41: { // two-way preposition (Wechselpräposition) case
+      const s = pick(r, [["Die Katze liegt ___ dem Tisch (ruht auf der Fläche).", "auf"], ["Das Bild hängt ___ der Wand.", "an"], ["Das Buch liegt ___ dem Tisch.", "unter"]]);
+      return sb("two-way-preposition", `Wechselpräposition: „${s[0]}“`, s[1], "Lage → Dativ.", 1, 1, 2, "accusative-chosen");
+    }
+    case 42: { // conjunction und/oder/aber/sondern
+      const s = pick(r, [["Ich komme, ___ ich habe Zeit.", "weil"], ["Er ist müde, ___ er arbeitet.", "aber"], ["Nicht rot, ___ blau.", "sondern"]]);
+      return sb("conjunction-meaning", `Passende Konjunktion: „${s[0]}“`, s[1], "Satzsinn bestimmt Konjunktion.", 1, 1, 2, "wrong-conjunction");
+    }
+    case 43: { // word order: verb-second in main clause
+      const s = pick(r, [["Heute", "komme", "ich"], ["Morgen", "gehe", "wir"], ["Gestern", "kam", "er"]]);
+      return sb("verb-second", `Satzbau: „${s[0]} ... ${s[2]} ${s[1]} ...“ — Verb an Position 2?`, s[1], "In Hauptsatz steht das Verb an Position 2.", 1, 1, 3, "verb-first");
+    }
+    case 44: { // dative vs accusative personal pronoun
+      const s = pick(r, [["Ich helfe ___ .", "ihm", "ihn"], ["Sie sieht ___ .", "ihn", "ihm"]]);
+      return sb("pronoun-case", `Ergänze: „${s[0]}“`, s[1], "helfen → Dativ (ihm); sehen → Akkusativ (ihn).", 1, 1, 2, "wrong-case-pronoun");
+    }
+    case 45: { // adjective declension after der/die/das
+      const s = pick(r, [["der", "gute", "Mann"], ["die", "gute", "Frau"], ["das", "gute", "Kind"]]);
+      return sb("adj-declension", `Artikel + Adjektiv: „___ ${s[1]}e ${s[2]}“`, s[0], "Adjektivendung -e nach bestimmtem Artikel.", 1, 1, 2, "strong-ending");
+    }
+    case 46: { // modal verb position
+      const s = pick(r, [["Ich", "kann", "das Buch lesen"], ["Er", "muss", "jetzt gehen"], ["Wir", "wollen", "helfen"]]);
+      return sb("modal-verb", `Satzbau mit Modalverb: „${s[0]} ${s[1]} ___ (Infinitiv am Ende).“`, s[2], "Modalverb + Infinitiv am Satzende.", 1, 1, 3, "double-conjugated");
+    }
+    case 47: { // past participle of strong verb
+      const s = pick(r, [["schreiben", "geschrieben"], ["lesen", "gelesen"], ["fahren", "gefahren"], ["sehen", "gesehen"]]);
+      return sb("participle-strong", `Partizip Perfekt von „${s[0]}“?`, s[1], "Starkes Verb: ge-…-en/-t.", 1, 1, 2, "weak-participle");
+    }
+    case 48: { // comparative of adjectives with umlaut
+      const s = pick(r, [["alt", "älter"], ["jung", "jünger"], ["kalt", "kälter"], ["warm", "wärmer"]]);
+      return sb("comparative-umlaut", `Steigerung von „${s[0]}“?`, s[1], "Umlaut im Komparativ.", 1, 0, 2, "no-umlaut");
+    }
+    case 49: { // sentence type: statement vs question (word order)
+      const s = pick(r, [["Du kommst morgen.", "Aussagesatz"], ["Kommst du morgen?", "Frage"], ["Wann kommst du?", "W-Frage"]]);
+      return sb("sentence-type", `Welche Satzart: „${s[0]}“?`, s[1], "Wortstellung bestimmt Satzart.", 1, 0, 2, "wrong-sentence-type");
     }
   }
 }
