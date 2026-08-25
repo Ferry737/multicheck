@@ -47,6 +47,12 @@ export type AIErrorCode =
   | "BAD_RESPONSE"
   | "UNKNOWN";
 
+// Cost-control guardrails (Phase 29): hard caps so a misbehaving client
+// or provider cannot run up unbounded spend.
+export const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 20000);
+export const AI_MAX_TOKENS = Number(process.env.AI_MAX_TOKENS || 600);
+export const AI_MAX_PROMPT_CHARS = 2000; // reject oversized prompts before any API call
+
 const DEFAULTS: Record<AIProviderId, { baseUrl: string; model: string }> = {
   nous: { baseUrl: "https://inference-api.nousresearch.com/v1", model: "z-ai/glm-5.3" },
   openrouter: { baseUrl: "https://openrouter.ai/api/v1", model: "z-ai/glm-5.3" },
@@ -64,7 +70,7 @@ function getConfig(provider: AIProviderId) {
   const baseUrl = process.env.AI_BASE_URL || def.baseUrl;
   const model = process.env.AI_MODEL || def.model;
   const apiKey = process.env.AI_API_KEY || "";
-  const timeoutMs = Number(process.env.AI_TIMEOUT_MS || 20000);
+  const timeoutMs = AI_TIMEOUT_MS;
   const tags = (process.env.AI_TAGS || "hermes-agent")
     .split(",")
     .map((s) => s.trim())
@@ -102,6 +108,11 @@ export async function callAI(req: AIRequest): Promise<AIResult> {
   const cfg = getConfig(provider);
   const started = Date.now();
 
+  // Cost-control: reject oversized prompts before any network call (Phase 29).
+  if (req.prompt.length > AI_MAX_PROMPT_CHARS) {
+    return { ok: false, text: "", provider, model: cfg.model, latencyMs: 0, errorCode: "BAD_RESPONSE" };
+  }
+
   if (!cfg.apiKey && provider !== "nous") {
     return { ok: false, text: "", provider, model: cfg.model, latencyMs: 0, errorCode: "AUTH_REQUIRED" };
   }
@@ -118,7 +129,7 @@ export async function callAI(req: AIRequest): Promise<AIResult> {
     model: cfg.model,
     messages,
     temperature: req.temperature ?? 0.4,
-    max_tokens: req.maxTokens ?? 600,
+    max_tokens: req.maxTokens ?? AI_MAX_TOKENS,
   };
   if (req.json) body.response_format = { type: "json_object" };
   // Nous Portal requires portal tags on the request body.

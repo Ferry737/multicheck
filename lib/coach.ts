@@ -606,6 +606,35 @@ export function recordUnseen(m: CoachModel, results: { subskill: string; correct
   return { ...model, subs };
 }
 
+// ---- 56-day (8-week) program (Phase 17): phased plan from exam date ----
+export interface ProgramPhase {
+  week: number;            // 1..8
+  label: string;
+  focus: string;           // what this week builds
+  minutesPerDay: number;
+}
+export function twoMonthProgram(m: CoachModel, totalDays = 56): ProgramPhase[] {
+  const daysLeft = Math.max(7, Math.ceil((new Date(m.examDate).getTime() - Date.now()) / 86400000));
+  const weeks = Math.min(8, Math.max(2, Math.ceil(daysLeft / 7)));
+  // Phase emphasis shifts as the exam nears (deterministic, evidence-based cadence).
+  const plan: ProgramPhase[] = [];
+  for (let w = 1; w <= weeks; w++) {
+    const remaining = weeks - w + 1;
+    let label: string, focus: string, min: number;
+    if (w <= Math.floor(weeks / 3)) {
+      label = "Grundlagen"; focus = "Schwache Bereiche systematisch aufbauen, Konzepte festigen."; min = 20;
+    } else if (remaining <= 2) {
+      label = "Prüfungssimulation"; focus = "Mini-Simulationen, Tempo, Transfer auf unbekannte Aufgaben."; min = 25;
+    } else if (remaining <= 4) {
+      label = "Transfer & Tempo"; focus = "Schwierigere Varianten, Speed-Drills, Fehler-Muster abstellen."; min = 22;
+    } else {
+      label = "Ausbau"; focus = "Breite abdecken, Wiederholung fälliger Bereiche, erste Simulationen."; min = 22;
+    }
+    plan.push({ week: w, label, focus, minutesPerDay: min });
+  }
+  return plan;
+}
+
 // ---- Readiness clamp (Phase 16): never claim readiness on insufficient evidence ----
 // A subskill with < MIN_ATTEMPTS or < MIN_DAYS cannot exceed the clamp ceiling.
 export const READINESS_CLAMP = { minAttempts: 8, minDays: 3, ceilingBelow: 0.7 };
