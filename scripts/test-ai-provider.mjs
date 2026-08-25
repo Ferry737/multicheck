@@ -2,7 +2,7 @@ import { callAI, currentAIConfig } from "/opt/data/projects/multicheck/lib/ai/pr
 
 const TOKEN = process.env.AI_API_KEY || "";
 console.log("config:", JSON.stringify(currentAIConfig()));
-console.log("key len:", TOKEN.length);
+console.log("has key:", TOKEN.length > 0);
 
 const res = await callAI({
   system: "Antworte knapp auf Deutsch.",
