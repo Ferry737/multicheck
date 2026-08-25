@@ -10,6 +10,16 @@ export type QType =
 
 export type QKind = "choice" | "input" | "visual" | "writing" | "sort";
 
+export interface StructSig {
+  opSequence: string;        // e.g. "pct-apply", "conv-then-apply", "odd-one-out", "order-constraint"
+  stepCount: number;         // number of solution steps
+  constraintCount: number;   // number of binding constraints (e.g. voucher after discount)
+  distractorKind: string;     // which misconception the distractors encode
+  workingMemoryLoad: number; // 1..3
+  inputModality: string;     // "numeric" | "text" | "visual" | "sequence" | "recall"
+  answerCardinality: number; // how many distinct valid answers exist (usually 1)
+}
+
 export interface Question {
   id: string;
   area: string;
@@ -20,6 +30,9 @@ export interface Question {
   difficultyScore: number; // continuous 0..100 calibration
   concept: string; // which concept/method this item exercises
   templateKey?: string; // anti-memorization fingerprint
+  structHash?: string; // sha1 of the StructSig (emitted by generator, used by planner for cooldown/held-out)
+  structSig?: StructSig; // the emitted structural signature
+  heldOut?: boolean;    // reserved transfer-gap variant, unreachable from training planner
   prompt: string;
   stimulus?: string; // SVG markup or text shown before answer
   options?: string[];
@@ -58,6 +71,18 @@ const shuffle = <T,>(arr: T[], r: () => number): T[] => {
   return a;
 };
 const round1 = (n: number) => Math.round(n * 10) / 10;
+
+// ---- structural fingerprint (Phase 0 Loop: emitted by generator, not inferred) ----
+// Node crypto is available at runtime (Next server + tsx). For safety in any env,
+// we use a small synchronous sha1 if available, else a stable string hash.
+import crypto from "crypto";
+function sha1(s: string): string {
+  try { return crypto.createHash("sha1").update(s, "utf8").digest("hex"); }
+  catch { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16); }
+}
+export function structHashOf(sig: StructSig): string {
+  return sha1(JSON.stringify(sig));
+}
 
 // Reject duplicate option strings (P0 learning bug: ambiguous/duplicate choices).
 export function dedupeOptions(opts: string[]): string[] {
@@ -180,18 +205,19 @@ function genSatzbau(r: () => number, d: number): Question {
     "Richtig: " + correct, "Subjekt zuerst, dann Verb.", 20, 3, "Wortstellung (Verbposition).", "sort");
 }
 function genTextverst(r: () => number, d: number): Question {
-  const texts: [string, string, string[]][] = [
-    ["Achtung: Die Lieferung erfolgt nur nach Voranmeldung.", "Was ist nötig vor der Lieferung?", ["eine Voranmeldung", "eine Zahlung", "ein Ausweis"]],
-    ["Die Sprechstunde ist von 9 bis 12 Uhr. Bitte pünktlich erscheinen.", "Wann ist die Sprechstunde geöffnet?", ["9 bis 12 Uhr", "ganztags", "nachmittags"]],
-    ["Bestellungen bis 18 Uhr werden am selben Tag versandt.", "Wann wird noch am selben Tag versandt?", ["bis 18 Uhr", "vor 12 Uhr", "nach 20 Uhr"]],
+  const texts: [string, string, string[], StructSig][] = [
+    ["Achtung: Die Lieferung erfolgt nur nach Voranmeldung.", "Was ist nötig vor der Lieferung?", ["eine Voranmeldung", "eine Zahlung", "ein Ausweis"], { opSequence: "read-locate-fact", stepCount: 1, constraintCount: 0, distractorKind: "plausible-but-unstated", workingMemoryLoad: 1, inputModality: "choice", answerCardinality: 1 }],
+    ["Die Sprechstunde ist von 9 bis 12 Uhr. Bitte pünktlich erscheinen.", "Wann ist die Sprechstunde geöffnet?", ["9 bis 12 Uhr", "ganztags", "nachmittags"], { opSequence: "read-locate-time", stepCount: 1, constraintCount: 0, distractorKind: "nearby-time", workingMemoryLoad: 1, inputModality: "choice", answerCardinality: 1 }],
+    ["Bestellungen bis 18 Uhr werden am selben Tag versandt.", "Wann wird noch am selben Tag versandt?", ["bis 18 Uhr", "vor 12 Uhr", "nach 20 Uhr"], { opSequence: "read-deadline", stepCount: 1, constraintCount: 0, distractorKind: "adjacent-time", workingMemoryLoad: 1, inputModality: "choice", answerCardinality: 1 }],
+    ["Wir bitten um kurze Mitteilung bei Verzögerung.", "Was wird bei Verzögerung erwartet?", ["eine Mitteilung", "eine Entschuldigung", "gar nichts"], { opSequence: "read-infer-expectation", stepCount: 1, constraintCount: 0, distractorKind: "over/under-action", workingMemoryLoad: 1, inputModality: "choice", answerCardinality: 1 }],
   ];
-  const [text, q, opts] = pick(r, texts);
+  const [text, q, opts, sig] = pick(r, texts);
   const ans = opts[0];
   return {
     id: "de-tv-" + ri(r, 1000, 9999), area: "deutsch", subskill: "textverstaendnis", type: "reading", kind: "choice",
     difficulty: d, prompt: q, stimulus: "Text: " + text, options: shuffle(opts, r),
     answer: ans, explanation: "Im Text steht: die richtige Info ist „" + ans + "“.", hint: "Lies genau die gesuchte Angabe.", estimatedTime: 30, examRelevance: 5, commonErrors: "Oberflächlich lesen.",
-    difficultyScore: 50, concept: "reading",
+    difficultyScore: 50, concept: "reading", templateKey: "deutsch-textverstaendnis-reading-" + sig.opSequence, structSig: sig, structHash: structHashOf(sig),
   };
 }
 
@@ -330,7 +356,7 @@ function genAlltag(r: () => number, d: number): Question {
 }
 
 // ===== HELPERS / DISPATCH =====
-function mk(area: string, sub: string, type: string, d: number, prompt: string, options: string[] | undefined, answer: string, explanation: string, hint: string, et: number, er: number, ce: string, kind?: QKind, concept?: string): Question {
+function mk(area: string, sub: string, type: string, d: number, prompt: string, options: string[] | undefined, answer: string, explanation: string, hint: string, et: number, er: number, ce: string, kind?: QKind, concept?: string, structSig?: StructSig, heldOut?: boolean): Question {
   const base = TYPE_BASE[type] ?? 40;
   // Continuous difficulty band (Phase 6): map 0..100 ability to a calibration score
   // that varies smoothly rather than 3 discrete steps, so harder really is harder.
@@ -338,11 +364,13 @@ function mk(area: string, sub: string, type: string, d: number, prompt: string, 
   const difficultyScore = Math.max(8, Math.min(98, Math.round(base + bandStep * 22)));
   const discrete = d <= 40 ? 1 : d <= 70 ? 2 : 3; // for backward-compatible tagging only
   const tmpl = `${sub}-${type}-${prompt.replace(/\W+/g, "").slice(0, 24)}`;
+  const shash = structSig ? structHashOf(structSig) : undefined;
   return {
     id: `${area}-${sub}-${type}-${ri(rng(Date.now()), 1000, 9999)}`, area, subskill: sub, type: type as QType,
     kind: kind ?? (options ? "choice" : "input"), difficulty: discrete, difficultyScore,
     concept: concept ?? type, prompt, options: options ? dedupeOptions(options) : undefined, answer, explanation, hint,
     estimatedTime: et, examRelevance: er, commonErrors: ce, templateKey: tmpl,
+    structSig, structHash: shash, heldOut: false as any,
   };
 }
 
