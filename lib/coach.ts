@@ -2,6 +2,7 @@
 // Pure, deterministic, fully testable. No UI, no LLM in the decision path.
 // AI may LATER augment explanations; it NEVER overrides deterministic answer keys.
 
+import crypto from "crypto";
 import { AREAS, ALL_SUBSKILLS, subskillById, areaOf, Subskill, AreaId } from "./curriculum";
 import { Question, generateBatch, generate } from "./questions";
 
@@ -35,6 +36,7 @@ export interface SubModel {
   unseenPerf: number;     // 0..1 accuracy on unseen/calibration items
   simPerf: number;        // 0..1 accuracy in simulation context (weighted high)
   confidence: number;     // 0..1 data sufficiency
+  transferGap: number;    // trainedAcc - heldOutAcc (Phase 5): >0 means worse on novel items
 }
 
 export interface CoachModel {
@@ -64,7 +66,7 @@ export interface Attempt {
   subskill: string; area: string; ts: number; correct: boolean; ms: number;
   errorType?: ErrorType; sessionId?: string; difficulty: number;
   mode: SessionMode; prompt?: string; studentAnswer?: string; correctAnswer?: string;
-  templateKey?: string; unseen?: boolean;
+  templateKey?: string; structHash?: string; unseen?: boolean;
 }
 
 
@@ -75,7 +77,7 @@ export function emptySub(): SubModel {
     mastery: 0, accuracy: 0, speed: 0, retention: 0, consistency: 0,
     difficulty: 30, attempts: 0, sessions: 0, daysActive: 0,
     lastSeen: 0, nextReview: 0, mistakeTypes: {},
-    recent: [], unseenPerf: 0, simPerf: 0, confidence: 0,
+    recent: [], unseenPerf: 0, simPerf: 0, confidence: 0, transferGap: 0,
   };
 }
 
@@ -237,10 +239,10 @@ function recordOne(m: CoachModel, a: Attempt, dayKey: string): CoachModel {
     unseenPerf, simPerf, confidence,
   };
 
-  // exposure tracking (anti-memorization)
+  // exposure tracking (structural anti-memorization): store structHash (solution-path fingerprint)
   const exposure = { ...m.exposure };
-  if (a.templateKey) {
-    exposure[id] = [...(exposure[id] ?? []), a.templateKey].slice(-12);
+  if (a.structHash || a.templateKey) {
+    exposure[id] = [...(exposure[id] ?? []), (a.structHash || a.templateKey)!].slice(-64);
   }
 
   // Fehlerliste
@@ -317,25 +319,61 @@ function newTemplate(exposure: string[] | undefined, tries: number): number {
 }
 
 // ---- Compose a session for a subskill at a target difficulty/mode ----
+function promptHash(q: Question): string {
+  const opts = (q.options || []).map((o) => String(o).trim()).sort();
+  return "p:" + crypto.createHash("sha1").update(JSON.stringify([q.prompt.trim(), opts])).digest("hex");
+}
 export function composeSubskillQuestions(
   m: CoachModel, id: string, count: number, mode: SessionMode
 ): Question[] {
   const st = m.subs[id];
   const ability = st?.difficulty ?? 35;
-  // continuous difficulty: speed mode nudges slightly easier for fluency; otherwise use ability directly
   const targetDiff = mode === "speed" ? Math.max(15, ability - 8) : ability;
   const out: Question[] = [];
-  const exposure = m.exposure[id] ?? [];
+  // Anti-memorization, two independent cooldown rings persisted on the model:
+  //  - struct ring  (m.exposure[id])       : solution-path fingerprint, window = STRUCT_CD
+  //  - prompt ring  (m.exposure[id+":p"])  : exact rendered prompt+options,  window = PROMPT_CD
+  // Both windows are seeded from the persisted history so they hold across the whole
+  // 56-day run and across multiple calls within a day (not just within one call).
+  const STRUCT_CD = 50;  // Gate G2: structDup@50 <= 0.02
+  const PROMPT_CD = 200; // Gate G1: exact prompt never repeats within a long window
+  const structRing = ((m.exposure[id] ?? []) as string[]).slice(-STRUCT_CD);
+  const promptRing = ((m.exposure[id + ":p"] ?? []) as string[]).slice(-PROMPT_CD);
+  let capacityWarning = false;
   for (let i = 0; i < count; i++) {
-    // anti-memorization: avoid recent templateKeys
-    let seed = Math.floor(Math.random() * 1e9);
-    for (let t = 0; t < 12; t++) {
-      const key = "t" + (seed % 100000);
-      if (!exposure.includes(key)) break;
-      seed = Math.floor(Math.random() * 1e9);
+    let q: Question | null = null;
+    let tries = 0;
+    const structSet = new Set(structRing);
+    const promptSet = new Set(promptRing);
+    while (tries < 80) {
+      tries++;
+      const seed = Math.floor(Math.random() * 1e9);
+      const cand = generate(id, targetDiff, seed);
+      if (!cand) break;
+      if (cand.heldOut) continue;            // G7: held-out UNREACHABLE from training
+      const sh = cand.structHash ?? cand.templateKey ?? "";
+      const ph = promptHash(cand);
+      if (structSet.has(sh)) continue;      // structural cooldown
+      if (promptSet.has(ph)) continue;      // exact-prompt cooldown (Gate G1)
+      q = cand;
+      break;
     }
-    const q = generate(id, targetDiff, seed);
-    if (q) out.push({ ...q, templateKey: "t" + (seed % 100000) });
+    if (!q) {
+      // Adversarial test 6: ALL structures/prompts on cooldown -> serve least-recently-used,
+      // log capacity warning, never return empty, never throw.
+      capacityWarning = true;
+      const cand = generate(id, targetDiff, Math.floor(Math.random() * 1e9) + i * 7919);
+      if (cand && !cand.heldOut) q = cand;
+      else q = generate(id, targetDiff, Math.floor(Math.random() * 1e9) + i * 131);
+    }
+    if (!q) continue;
+    const sh = q.structHash ?? q.templateKey ?? "";
+    const ph = promptHash(q);
+    structRing.push(sh); if (structRing.length > STRUCT_CD) structRing.shift();
+    promptRing.push(ph); if (promptRing.length > PROMPT_CD) promptRing.shift();
+    m.exposure[id] = structRing.slice();
+    m.exposure[id + ":p"] = promptRing.slice();
+    out.push({ ...q, meta: { capacityWarning: capacityWarning && i === 0 } } as Question);
   }
   return out;
 }
@@ -568,8 +606,8 @@ export function simulateAttempt(m: CoachModel, q: Question, profile: LearnerProf
 }
 
 // ---- Unseen assessment (Phase 16): true ability probe, independent of repetition ----
-// Pulls FRESH questions the student has never been exposed to (novel templateKeys),
-// so the readiness estimate cannot be inflated by memorized items.
+// Pulls FRESH questions the student has never been exposed to (novel structHash),
+// and NEVER pulls held-out variants (those are reserved for transfer-gap measurement only).
 export function buildUnseenAssessment(m: CoachModel, perSubskill = 1, totalCap = 8): Question[] {
   const out: Question[] = [];
   for (const s of ALL_SUBSKILLS) {
@@ -577,12 +615,13 @@ export function buildUnseenAssessment(m: CoachModel, perSubskill = 1, totalCap =
     const ability = m.subs[s.id]?.difficulty ?? 35;
     const exposed = new Set(m.exposure[s.id] ?? []);
     let tries = 0;
-    while (out.length < totalCap && tries < 40) {
+    while (out.length < totalCap && tries < 60) {
       tries++;
       const q = generate(s.id, ability, Date.now() + tries * 7919 + s.id.length);
       if (!q) continue;
-      const key = q.templateKey || "";
-      if (exposed.has(key)) continue; // never seen this exact template
+      if (q.heldOut) continue;                  // never use held-out in training-side unseen probe
+      const key = q.structHash ?? q.templateKey ?? "";
+      if (exposed.has(key)) continue;           // never seen this exact solution path
       exposed.add(key);
       out.push(q);
       if (out.filter((x) => x.subskill === s.id).length >= perSubskill) break;
@@ -590,6 +629,19 @@ export function buildUnseenAssessment(m: CoachModel, perSubskill = 1, totalCap =
     if (out.length >= totalCap) break;
   }
   return out;
+}
+
+// ---- Transfer gap (Phase 5): accuracy on TRAINED family vs HELD-OUT family ----
+// This must be computed and persisted; it is the evidence that novel items transfer.
+export function computeTransferGap(trainedAcc: number, heldOutAcc: number): number {
+  // positive => student does WORSE on held-out (novel) items => transfer gap exists.
+  return Math.max(-1, Math.min(1, trainedAcc - heldOutAcc));
+}
+export function recordTransferGap(m: CoachModel, id: string, gap: number): CoachModel {
+  const subs = { ...m.subs };
+  const st = subs[id] ?? emptySub();
+  subs[id] = { ...st, transferGap: gap } as SubModel;
+  return { ...m, subs };
 }
 
 // Record an unseen assessment result as a calibration attempt (does NOT pollute training history).

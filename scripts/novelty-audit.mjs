@@ -13,7 +13,7 @@
 //                 "Each generator must EMIT this signature as metadata."
 
 import crypto from "crypto";
-import { generate, hasUniqueOptions } from "/opt/data/projects/multicheck/lib/questions.ts";
+import { generate } from "/opt/data/projects/multicheck/lib/questions.ts";
 import { emptyCoach, updateModel, composeSession, composeSubskillQuestions } from "/opt/data/projects/multicheck/lib/coach.ts";
 import { ALL_SUBSKILLS } from "/opt/data/projects/multicheck/lib/curriculum.ts";
 
@@ -97,7 +97,7 @@ function simulate(profileName, bias, seed) {
       if (bias?.mathBias && isMath) pCorrect = Math.max(0.05, Math.min(0.95, pCorrect + bias.mathBias / 100));
       const correct = rnd() < pCorrect;
       const ms = (bias?.fast ? 1.5 : bias?.slow ? 30 : 6) * 1000 * (0.6 + rnd());
-      attempts.push({ subskill: q.subskill, area: q.area, ts: Date.now() + day * 1000 + rnd(), correct, ms, difficulty: q.difficultyScore ?? 30, mode: "adaptive", templateKey: q.templateKey });
+      attempts.push({ subskill: q.subskill, area: q.area, ts: Date.now() + day * 1000 + rnd(), correct, ms, difficulty: q.difficultyScore ?? 30, mode: "adaptive", templateKey: q.templateKey, structHash: q.structHash });
       const ex = normExact(q), su = normSurface(q), st = emittedStructHash(q);
       served[sub].push({ exact: ex, surface: su, struct: st, review: false });
     }
@@ -158,20 +158,21 @@ function metricsFor(sub, list) {
 
 function calcDupRate(hashes) {
   const seen = new Set(); let dups = 0;
-  for (const h of hashes) { if (seen.has(h)) dups++; else seen.add(h); }
-  return hashes.length ? +(dups / hashes.length).toFixed(4) : 0;
+  for (const h of hashes) { if (h == null) continue; if (seen.has(h)) dups++; else seen.add(h); }
+  const tot = hashes.filter(h => h != null).length;
+  return tot ? +(dups / tot).toFixed(4) : 0;
 }
 function calcDupRateWindow(hashes, win) {
-  // fraction of items within the last `win` items that repeat an earlier struct
-  let dups = 0; const recent = [];
+  // fraction of items whose struct already appeared within the previous `win` items
+  let dups = 0; const tot = hashes.filter(h => h != null).length;
+  const recent = [];
   for (const h of hashes) {
     if (h == null) continue;
-    const idx = recent.indexOf(h);
-    if (idx !== -1) dups++;
+    if (recent.includes(h)) dups++;   // repeat within the sliding window
     recent.push(h);
     if (recent.length > win) recent.shift();
   }
-  return recent.length ? +(dups / recent.length).toFixed(4) : 0;
+  return tot ? +(dups / tot).toFixed(4) : 0;
 }
 
 // === Run ===
