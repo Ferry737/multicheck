@@ -21,10 +21,66 @@ const UNIT = "ml|cm|km|min|kg|g|t|m|h|s|l";
 // Independently evaluate one kopfrechnen item from its rendered prompt.
 // Throws on unknown family so a new generator path can NEVER silently skip validation.
 function evalMental(q) {
+  let m;
   const pr = String(q.prompt || "");
   const sig = q.structSig ? q.structSig.opSequence : "";
-  let m;
-  if (sig.startsWith("convert-fwd") || sig.startsWith("convert-bwd")) {
+  // --- Loop expansion: newly-added kopfrechnen rule paths (independent recomputation) ---
+  if (sig === "mult-table" || sig === "mult-multiples-of-5") {
+    const mm = pr.match(/(\d+) × (\d+) = \?/);
+    if (mm) return +mm[1] * +mm[2];
+    throw new Error("VALIDATOR GAP mult: " + pr);
+  }
+  if (sig === "estimate-sum") {
+    const mm = pr.match(/Schätze ungefähr: (\d+) \+ (\d+) ≈ \?/);
+    if (mm) return Math.round((+mm[1] + +mm[2]) / 10) * 10;
+    throw new Error("VALIDATOR GAP estimate: " + pr);
+  }
+  if (sig === "pct-of-round") {
+    const mm = pr.match(/(\d+)% von (\d+) = \?/);
+    if (mm) return Math.round(+mm[2] * +mm[1] / 100);
+    throw new Error("VALIDATOR GAP pct-of-round: " + pr);
+  }
+  if (sig === "add-3digit-small") {
+    const mm = pr.match(/(\d+) \+ (\d+) = \?/);
+    if (mm) return +mm[1] + +mm[2];
+    throw new Error("VALIDATOR GAP add3: " + pr);
+  }
+  if (sig === "sub-multiples-of-10") {
+    const mm = pr.match(/(\d+) − (\d+) = \?/);
+    if (mm) return +mm[1] - +mm[2];
+    throw new Error("VALIDATOR GAP sub10: " + pr);
+  }
+  if (sig === "triple-number") {
+    const mm = pr.match(/Das Dreifache von (\d+) = \?/);
+    if (mm) return +mm[1] * 3;
+    throw new Error("VALIDATOR GAP triple: " + pr);
+  }
+  if (sig === "lcm-small") {
+    const mm = pr.match(/Kleinstes Gemeinsames von (\d+) und (\d+)\?/);
+    if (mm) { const g=(x,y)=>y?g(y,x%y):x; const a=+mm[1],b=+mm[2]; return a*b/g(a,b); }
+    throw new Error("VALIDATOR GAP lcm: " + pr);
+  }
+  if (sig === "tenth-of") {
+    const mm = pr.match(/Ein Zehntel von (\d+)0 = \?/);
+    if (mm) return +mm[1];
+    throw new Error("VALIDATOR GAP tenth: " + pr);
+  }
+  if (sig === "power-2") {
+    const mm = pr.match(/(\d+)² \+ (\d+) = \?/);
+    if (mm) return +mm[1] * +mm[1] + +mm[2];
+    throw new Error("VALIDATOR GAP power2: " + pr);
+  }
+  if (sig === "remainder-share") {
+    const mm = pr.match(/(\d+) Äpfel, (\d+) sind rot\. Wie viele grün\?/);
+    if (mm) return +mm[1] - +mm[2];
+    throw new Error("VALIDATOR GAP remainder: " + pr);
+  }
+  if (sig === "rate-units") {
+    const mm = pr.match(/(\d+) Stück kosten (\d+) Franken\. 1 Stück kostet\?/);
+    if (mm) return +mm[2] / +mm[1];
+    throw new Error("VALIDATOR GAP rate: " + pr);
+  }
+    if (sig.startsWith("convert-fwd") || sig.startsWith("convert-bwd")) {
     if ((m = pr.match(new RegExp(`(\\d+(?:\\.\\d+)?) (${UNIT}) = \\? (${UNIT})`))) ||
         (m = pr.match(new RegExp(`(${UNIT})`.replace(/\((.*)\)/, "") + "")) /* placeholder never matches */)) {
       const x = +m[1], from = m[2], to = m[3];

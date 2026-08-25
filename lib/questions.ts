@@ -184,6 +184,7 @@ function genFrac(r: () => number, d: number): Question {
 // which rule is retrieved, which direction, carry/borrow, strategy) + 10 HELD-OUT
 // paths (exactly 20% of the 50-path space, unreachable from training dispatch).
 // Each path has a unique opSequence; surface phrasing varies 2-3x per path.
+const lcm = (a: number, b: number): number => { const g = (x: number, y: number): number => y ? g(y, x % y) : x; return a * b / g(a, b); };
 function genMental(r: () => number, d: number, heldOutFlag = false): Question {
   const ph = (arr: string[]) => pick(r, arr);
   const inp = (opSeq: string, prompt: string, ans: number | string, expl: string, steps: number, cons: number, wml: number, dk: string) =>
@@ -284,6 +285,19 @@ function genMental(r: () => number, d: number, heldOutFlag = false): Question {
     (): Question => { const n = ri(r, 4, 32); return inp("square-number", ph([`${n} × ${n} = ?`, `Berechne die Quadratzahl von ${n}.`, `${n} zum Quadrat?`]), n * n, `${n}² = ${n * n}.`, 1, 0, 1, "table-off"); },
     (): Question => { const b = pick(r, [4, 5, 6, 8]), a = b * ri(r, 3, 29) + ri(r, 1, b - 1); return inp("next-multiple", `Die nächstgrößere Zahl teilbar durch ${b}, ab ${a}?`, a + (b - (a % b)), `${a} → aufrunden auf Vielfaches von ${b}.`, 1, 1, 2, "rounded-down"); },
     (): Question => { const a = ri(r, 40, 99), b = ri(r, 11, 30), c = ri(r, 5, 20); return inp("diff-chain", `Nacheinander abziehen: ${a} − ${b} − ${c} = ?`, a - b - c, `${a} − ${b} = ${a - b}; − ${c} = ${a - b - c}.`, 2, 0, 3, "partial-diff"); },
+    // --- additional rule-level paths to exceed 50 distinct structs ---
+    (): Question => { const a = ri(r, 2, 9), q = ri(r, 3, 9); return inp("mult-table", `${a} × ${q} = ?`, a * q, `${a} mal ${q}.`, 1, 0, 2, "table-error"); },
+    (): Question => { const a = pick(r, [11, 12, 15, 20, 25]); const q = ri(r, 2, 8); return inp("mult-multiples-of-5", `${a} × ${q} = ?`, a * q, `Vielfaches nutzen.`, 1, 0, 2, "table-error"); },
+    (): Question => { const n = ri(r, 50, 150), m = ri(r, 40, 120); return inp("estimate-sum", `Schätze ungefähr: ${n} + ${m} ≈ ? (nächste Zehner)`, Math.round((n + m) / 10) * 10, `Zuerst runden, dann addieren.`, 1, 1, 3, "added-before-rounding"); },
+    (): Question => { const p = pick(r, [10, 20, 50]); const base = ri(r, 30, 200); return inp("pct-of-round", `${p}% von ${base} = ?`, Math.round(base * p / 100), `${p}% = ${p / 100}.`, 1, 1, 2, "pct-as-fraction"); },
+    (): Question => { const a = ri(r, 2, 9), b = ri(r, 2, 9), c = ri(r, 1, 9); return inp("add-3digit-small", `${a * 100 + c} + ${b} = ?`, a * 100 + c + b, `Stellenwert beachten.`, 1, 0, 2, "place-value"); },
+    (): Question => { const a = ri(r, 1, 9) * 100, b = ri(r, 1, 9) * 10; return inp("sub-multiples-of-10", `${a + b} − ${b} = ?`, a, `Nur Zehner abziehen.`, 1, 0, 2, "borrow-unneeded"); },
+    (): Question => { const n = ri(r, 6, 20); return inp("triple-number", `Das Dreifache von ${n} = ?`, n * 3, `${n} × 3.`, 1, 0, 2, "double-not-triple"); },
+    (): Question => { const a = ri(r, 3, 12), b = ri(r, 2, 9); return inp("lcm-small", `Kleinstes Gemeinsames von ${a} und ${b}?`, lcm(a, b), `Vielfache vergleichen.`, 2, 1, 3, "product-instead"); },
+    (): Question => { const x = ri(r, 10, 90); return inp("tenth-of", `Ein Zehntel von ${x}0 = ?`, x, `${x}0 / 10 = ${x}.`, 1, 0, 2, "tenth-as-percent"); },
+    (): Question => { const a = ri(r, 2, 6), b = ri(r, 2, 6); return inp("power-2", `${a}² + ${b} = ?`, a * a + b, `Quadrat zuerst.`, 1, 1, 2, "added-before-square"); },
+    (): Question => { const total = ri(r, 8, 30), part = ri(r, 2, total - 1); return inp("remainder-share", `${total} Äpfel, ${part} sind rot. Wie viele grün?`, total - part, `Rest bestimmen.`, 1, 0, 2, "counted-all"); },
+    (): Question => { const a = ri(r, 3, 15), b = ri(r, 2, 10); return inp("rate-units", `${a} Stück kosten ${a * b} Franken. 1 Stück kostet?`, b, `Preis durch Menge.`, 1, 1, 2, "total-as-unit"); },
   ];
   const heldOutPaths: (() => Question)[] = [
     (): Question => { const u = pick(r, U1000); const x = ri(r, 2, 9), y = ri(r, 2, 9); const conv = x * u[2]; return inp("convert-then-multiply", `Erst umrechnen, dann multiplizieren: ${x} ${u[0]} → ${u[1]}, dann × ${y}.`, conv * y, `${x} ${u[0]} = ${conv}; × ${y} = ${conv * y}.`, 2, 0, 2, "wrong-order"); },
@@ -1015,6 +1029,7 @@ function genWortgruppen(r: () => number, d: number): Question {
     }
   }
 }
+
 // ===== KONZENTRATION (visual SVG) =====
 function grid(n: number, r: () => number) {
   const cell = 44, pad = 6, sz = n * (cell + pad);
