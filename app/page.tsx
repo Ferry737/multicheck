@@ -38,7 +38,7 @@ export default function Heuten() {
 
       {/* ONE dominant AI action */}
       <Card className="mt-6 p-6 bg-brand-soft/50 border-brand/20">
-        <p className="text-2xs uppercase tracking-wide text-brand font-medium">KI empfiehlt</p>
+        <p className="text-2xs uppercase tracking-wide text-brand font-medium">Dein täglicher Plan</p>
         <div className="flex items-start justify-between gap-4 mt-1">
           <div>
             <h2 className="text-xl font-semibold">{plan.minutes} Minuten Training</h2>

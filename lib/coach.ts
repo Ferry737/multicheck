@@ -51,6 +51,7 @@ export interface CoachModel {
   calibrationPool: Record<string, Question[]>; // reserved unseen items per subskill
   version: number;
   simMode?: number;
+  lessonsSeen: string[]; // concepts the student has completed a micro-lesson for (no repeat)
 }
 
 export interface Fehler {
@@ -85,6 +86,7 @@ export function emptyCoach(examDate = "2026-10-15"): CoachModel {
     createdAt: Date.now(), examDate, diagnosticDone: false,
     totalStudyMs: 0, streakDays: 0, lastActive: "",
     subs, fehler: [], history: [], exposure: {}, calibrationPool: {}, version: 3,
+    lessonsSeen: [],
   };
 }
 

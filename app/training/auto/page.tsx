@@ -1,27 +1,31 @@
 "use client";
 import { useState } from "react";
 import { useLearner } from "@/lib/useLearner";
-import { composeSession, needsLesson } from "@/lib/coach";
+import { buildNextSession, markLessonDone } from "@/lib/orchestrator";
 import { composeSubskillQuestions } from "@/lib/coach";
 import { Question } from "@/lib/questions";
 import { Trainer } from "@/components/Trainer";
 import { MicroLesson } from "@/components/MicroLesson";
 
 export default function AutoTraining() {
-  const { model, ready } = useLearner();
+  const { model, ready, save } = useLearner();
   const [lessonDone, setLessonDone] = useState(false);
   if (!ready || !model) return <div className="text-sm text-ink-faint">Lade…</div>;
 
+  // One-button autonomy: the orchestrator composes the session deterministically.
+  // AI (if available) only personalizes the rationale text — never scores/keys/timers.
+  const decision = buildNextSession(model);
+  const plan = decision.plan;
+
   // Teach-before-drill: if a concept needs a lesson, show it first
-  const plan = composeSession(model);
-  const needed = plan.blocks.map((b) => ({ block: b, need: needsLesson(model, b.subskill) }))
-    .find((x) => x.need.lesson);
+  const needed = plan.blocks
+    .map((b) => ({ block: b, need: decision.interventions.find((x) => x.subskill === b.subskill && x.kind === "lesson") }))
+    .find((x) => x.need);
   if (needed && !lessonDone) {
-    return <MicroLesson concept={needed.need.concept} onDone={() => setLessonDone(true)} />;
+    const concept = needed.need!.concept!;
+    return <MicroLesson concept={concept} onDone={(success) => { if (success) save(markLessonDone(model, concept)); setLessonDone(true); }} />;
   }
 
-  const qs: Question[] = [];
-  for (const b of plan.blocks) qs.push(...composeSubskillQuestions(model, b.subskill, b.count, b.mode));
   // interleave by round so related skills mix (Phase 11)
   const interleaved = interleave(plan.blocks.map((b) => composeSubskillQuestions(model, b.subskill, b.count, b.mode)));
 

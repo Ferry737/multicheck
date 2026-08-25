@@ -30,13 +30,17 @@ export function buildNextSession(m: CoachModel, opts?: { minutes?: number; aiRat
   const rationale = plan.why || "Ausgleichende Wiederholung basierend auf deinem Profil.";
 
   // Pre-compute likely interventions from current weak/slow subskills.
+  // Skip lessons the student has ALREADY completed (Phase 15: lesson memory).
   const interventions: CoachDecision["interventions"] = [];
   for (const id of Object.keys(m.subs)) {
     const st = m.subs[id];
     if (!st) continue;
     const nl = needsLesson(m, id);
-    if (nl.lesson) interventions.push({ subskill: id, kind: "lesson", concept: nl.concept });
-    else if (st.speed < 0.5 && st.attempts >= 3) interventions.push({ subskill: id, kind: "speed" });
+    if (nl.lesson && nl.concept && !m.lessonsSeen.includes(nl.concept)) {
+      interventions.push({ subskill: id, kind: "lesson", concept: nl.concept });
+    } else if (st.speed < 0.5 && st.attempts >= 3) {
+      interventions.push({ subskill: id, kind: "speed" });
+    }
   }
 
   return {
@@ -46,6 +50,13 @@ export function buildNextSession(m: CoachModel, opts?: { minutes?: number; aiRat
     interventions,
     aiAvailable: Boolean(opts?.aiRationale),
   };
+}
+
+// Record that the student completed a micro-lesson for a concept (Phase 15).
+// Returns a NEW model (immutable) so callers persist via useLearner.
+export function markLessonDone(m: CoachModel, concept: string): CoachModel {
+  if (m.lessonsSeen.includes(concept)) return m;
+  return { ...m, lessonsSeen: [...m.lessonsSeen, concept] };
 }
 
 // Called AFTER every answer (mid-session autopilot, Phase 13).

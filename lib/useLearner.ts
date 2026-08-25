@@ -35,6 +35,7 @@ export function useLearner() {
           m.history = Array.isArray(m.history) ? m.history : [];
           m.exposure = m.exposure || {};
           m.calibrationPool = m.calibrationPool || {};
+          m.lessonsSeen = Array.isArray(m.lessonsSeen) ? m.lessonsSeen : [];
           if (typeof m.examDate !== "string") m.examDate = base.examDate;
           if (m.version !== SCHEMA) m.version = SCHEMA;
         }
@@ -83,5 +84,5 @@ export function useLearner() {
     });
   }, []);
 
-  return { model, record, reset, retry, applySim, ready: status === "ready", status, errorMsg };
+  return { model, record, save, reset, retry, applySim, ready: status === "ready", status, errorMsg };
 }
