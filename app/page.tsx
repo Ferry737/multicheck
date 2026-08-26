@@ -99,7 +99,7 @@ export default function Heuten() {
       )}
 
       {weakSkills.length > 0 && (
-        <section className="mt-6">
+        <section className="mt-6" aria-label="schwache-bereiche-evidenzgate-v1">
           <h2 className="text-sm font-semibold text-ink-soft mb-2">Schwache Bereiche</h2>
           <div className="grid sm:grid-cols-3 gap-3">
             {weakSkills.map((s) => {
