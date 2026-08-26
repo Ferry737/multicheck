@@ -632,11 +632,10 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       ]);
       return sb("separable-prefix-end", `Trennbares Verb erkennen: „${b[0]}“ → Infinitiv?`, b[1], "Präfix abtrennen und zusammensetzen.", 1, 0, 2, "wrong-prefix");
     }
-    case 12: { // plural formation
-      const b = pick(r, [
-        ["der Artikel", "die Artikel"], ["die Mail", "die Mails"], ["das Paket", "die Pakete"], ["der Kunde", "die Kunden"], ["das Lager", "die Lager"],
-      ]);
-      return sb("plural-formation", `Plural: „${b[0]}“`, b[1], "Pluralform lernen.", 1, 0, 2, "wrong-plural");
+    case 12: { // plural formation: NOMINATIVE plural from the noun's own table
+      const n = pick(r, NOUNS);
+      return sb("plural-formation", `Plural bilden: „${n.nom}“ → ?`, n.nomPl,
+        `Pluralform von ${n.lemma}: ${n.plural} (Nominativ Plural: ${n.nomPl}).`, 2, 1, 2, "wrong-plural");
     }
     case 13: { // comparative used in a COMPARISON clause with "als"
       const a = pick(r, SB_ADJ.filter((x) => x.dim === "size" || x.dim === "quality"));
@@ -849,9 +848,11 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       return sb("article-gender-genitiv", `Setze den Artikel (Genitiv): „___ ${n.lemma}“`, `${art} ${n.lemma}`,
         "Genitiv: maskulin/sächlich → des; feminin → der.", 1, 0, 2, "wrong-gender-article-genitiv");
     }
-    case 33: { // plural formation
-      const w = pick(r, [["der Hund", "die Hunde"], ["die Katze", "die Katzen"], ["das Buch", "die Bücher"], ["der Baum", "die Bäume"]]);
-      return sb("plural-form", `Plural von „${w[0]}“?`, w[1], "Pluralendung -e/-n/-er.", 1, 0, 2, "singular-returned");
+    case 33: { // DATIVE plural: every plural noun adds -n after a preposition
+      const n = pick(r, NOUNS);
+      const prep = pick(r, ["mit", "bei", "von", "nach", "zu", "aus"]);
+      return sb("plural-form", `Dativ Plural nach „${prep}“: „${prep} ___“ (${n.nomPl})`, `${prep} ${n.datPl}`,
+        `Im Dativ Plural endet das Nomen auf -n: ${n.nomPl} → ${n.datPl}.`, 2, 2, 3, "singular-returned");
     }
     case 34: { // comparative in ATTRIBUTIVE position (declined before a noun)
       const a = pick(r, SB_ADJ.filter((x) => x.dim === "size" || x.dim === "quality"));
@@ -946,13 +947,20 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       const s = pick(r, [["der", "gute", "Mann"], ["die", "gute", "Frau"], ["das", "gute", "Kind"]]);
       return sb("adj-declension", `Artikel + Adjektiv: „___ ${s[1]}e ${s[2]}“`, s[0], "Adjektivendung -e nach bestimmtem Artikel.", 1, 1, 2, "strong-ending");
     }
-    case 46: { // modal verb position
-      const s = pick(r, [["Ich", "kann", "das Buch lesen"], ["Er", "muss", "jetzt gehen"], ["Wir", "wollen", "helfen"]]);
-      return sb("modal-verb", `Satzbau mit Modalverb: „${s[0]} ${s[1]} ___ (Infinitiv am Ende).“`, s[2], "Modalverb + Infinitiv am Satzende.", 1, 1, 3, "double-conjugated");
+    case 46: { // modal verb: conjugated modal at position 2, infinitive at the end
+      const modal = pick(r, LEX.SB_MODAL_VERBS as any[]);
+      const lp = licensedPair();
+      const p = pick(r, ["ich", "du", "er", "wir", "sie"]);
+      const mp = modal.pres[p];
+      return sb("modal-verb", `Modalverb-Satzbau: „${cw(p)} ${mp} ${lp.n.ack} ___“ (Verb: ${lp.v.inf})`,
+        `${cw(p)} ${mp} ${lp.n.ack} ${lp.v.inf}.`,
+        `Modalverb „${modal.inf}“ steht an Position 2, der Infinitiv am Satzende.`, 3, 2, 3, "double-conjugated");
     }
-    case 47: { // past participle of strong verb
-      const s = pick(r, [["schreiben", "geschrieben"], ["lesen", "gelesen"], ["fahren", "gefahren"], ["sehen", "gesehen"]]);
-      return sb("participle-strong", `Partizip Perfekt von „${s[0]}“?`, s[1], "Starkes Verb: ge-…-en/-t.", 1, 1, 2, "weak-participle");
+    case 47: { // Partizip II from the lexicon's own participle field
+      const v = pick(r, VERBS.filter((x: any) => !x.separable));
+      const aux = v.aux === "sein" ? "ist" : "hat";
+      return sb("participle-strong", `Partizip II von „${v.inf}“ (Perfekt mit „${v.aux}“): „Er ${aux} … ___“`,
+        v.participle, `${v.inf} → ${v.participle} (Hilfsverb: ${v.aux}).`, 2, 1, 2, "weak-participle");
     }
     case 48: { // comparative of adjectives that take an UMLAUT
       // Only umlaut-marked adjectives, so the tested rule is actually present.
