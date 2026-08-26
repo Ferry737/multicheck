@@ -22,12 +22,14 @@ ok(dupCount === 0, `found ${dupCount}/${total} questions with duplicate options`
 
 // ---- Phase 5-E: memory task balanced Ja/Nein ----
 console.log("[5-E] memory Ja/Nein balance");
+// Recall-family balance: struct slot 0 is the seeded-coin present/absent recall struct.
+// The balance invariant applies to the recall family (slot 0), not to numeric structs.
 let ja = 0, nein = 0;
 for (let i = 0; i < 400; i++) {
-  const q = generate("schilder_erinnern", 30, 5000 + i * 7);
-  if (q.answer === "Ja") ja++; else if (q.answer === "Nein") nein++;
+  const q = generate("schilder_erinnern", 30, 5000 + i * 7, 0); // pin recall-coin struct
+  if (q.answer === "Ja") ja++; else nein++;
 }
-ok(ja > 100 && nein > 100, `Ja=${ja} Nein=${nein} (need both substantial)`);
+ok(ja > 150 && nein > 150, `Ja=${ja} Nein=${nein} (recall coin must be near-even)`);
 
 // ---- Phase 5-D: Wortgruppen prompt matches actual group ----
 console.log("[5-D] Wortgruppen prompt matches generated group");

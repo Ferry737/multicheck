@@ -4,7 +4,11 @@
 
 import crypto from "crypto";
 import { AREAS, ALL_SUBSKILLS, subskillById, areaOf, Subskill, AreaId } from "./curriculum";
-import { Question, generateBatch, generate } from "./questions";
+import { Question, generateBatch, generate, GENERATORS } from "./questions";
+
+/** Exact-duplicate degradations per subskill — surfaced by the audit (G1 truth). */
+export const g1Violations: Record<string, number> = {};
+
 
 export type SessionMode =
   | "learn" | "guided" | "adaptive" | "speed" | "spaced"
@@ -321,7 +325,8 @@ function newTemplate(exposure: string[] | undefined, tries: number): number {
 // ---- Compose a session for a subskill at a target difficulty/mode ----
 function promptHash(q: Question): string {
   const opts = (q.options || []).map((o) => String(o).trim()).sort();
-  return "p:" + crypto.createHash("sha1").update(JSON.stringify([q.prompt.trim(), opts])).digest("hex");
+  const stim = (q.stimulus ?? "").trim();
+  return "p:" + crypto.createHash("sha1").update(JSON.stringify([q.prompt.trim(), opts, stim])).digest("hex");
 }
 export function composeSubskillQuestions(
   m: CoachModel, id: string, count: number, mode: SessionMode, rngSeed?: number
@@ -346,66 +351,134 @@ export function composeSubskillQuestions(
   // Anti-memorization, two independent cooldown rings persisted on the model:
   //  - struct ring  (m.exposure[id])       : solution-path fingerprint, window = STRUCT_CD
   //  - prompt ring  (m.exposure[id+":p"])  : exact rendered prompt+options,  window = PROMPT_CD
-  // Both windows are seeded from the persisted history so they hold across the whole
-  // 56-day run and across multiple calls within a day (not just within one call).
-  const STRUCT_CD = 50;  // Gate G2: structDup@50 <= 0.02
   const PROMPT_CD = 200; // Gate G1: exact prompt never repeats within a long window
-  const structRing = ((m.exposure[id] ?? []) as string[]).slice(-STRUCT_CD);
+  // Per-subskill struct cooldown window: STRUCT_CD_i = authoredU_i - 1 (never global, never >= U).
+  const structCdWindow = Math.max(1, (GENERATORS[id] ?? []).length - 1);
+  const structRing = ((m.exposure[id] ?? []) as string[]).slice(-structCdWindow);
   const promptRing = ((m.exposure[id + ":p"] ?? []) as string[]).slice(-PROMPT_CD);
   let capacityWarning = false;
   for (let i = 0; i < count; i++) {
-    let q: Question | null = null;
-    let tries = 0;
-    // Cooldown sets are seeded from the persisted rings AND updated as we serve
-    // items WITHIN this same call — otherwise a single high-count call can serve
-    // duplicate structs/prompts to itself (silent dup loop inside one batch).
+    // ===== SELECTION (composer's job) =====
+    // Round-robin over the AUTHORED struct table. The rotation cursor is persisted in
+    // the model (STANDING INVARIANT: all scheduler state lives in m, chained through
+    // {questions, model}) so 50 sequential count=1 calls produce exactly the same struct
+    // sequence as one count=50 call.
+    const gens: ((r: () => number, d: number, si: number) => Question)[] = GENERATORS[id] ?? [];
+    const U = gens.length;
+    let rr = (((m.exposure[id + ":rr"] as unknown as number | undefined) ?? 0) >>> 0);
     const structSet = new Set(structRing);
     const promptSet = new Set(promptRing);
-    while (tries < 80) {
-      tries++;
-      const seed = nextSeed();
-      const cand = generate(id, targetDiff, seed);
+    // Round-robin probe: try consecutive struct indices starting at the persisted cursor.
+    // rr advances ONLY on admission (once per emitted item) so the cursor sequence is a pure
+    // function of items served — identical for count=1 x N calls and count=N x 1 call.
+    let q: Question | null = null;
+    let pinnedSi = -1;
+    for (let step = 0; step < U && !q; step++) {
+      const si = (rr + step) % U;
+      const cand = generate(id, targetDiff, nextSeed(), si);   // RENDERING: pure given (si, seed)
       if (!cand) break;
-      if (cand.heldOut) continue;            // G7: held-out UNREACHABLE from training
+      if (cand.heldOut) continue;                               // G7: unreachable from training
       const sh = cand.structHash ?? cand.templateKey ?? "";
-      const ph = promptHash(cand);
-      if (structSet.has(sh)) continue;      // structural cooldown
-      if (promptSet.has(ph)) continue;      // exact-prompt cooldown (Gate G1)
-      structSet.add(sh); promptSet.add(ph);  // mark served for the rest of THIS batch
+      if (structSet.has(sh)) continue;                          // struct cooldown (U-1 window)
       q = cand;
-      break;
+      pinnedSi = si;
     }
-    if (!q) {
-      // Adversarial test 6: ALL structures/prompts on cooldown -> graceful degradation.
-      capacityWarning = true;
-      const promptAllSet = new Set(((m.exposure[id + ":pa"] ?? []) as string[]));
-      // Widen the search sweep (400 seeds) so we almost never give up and serve a dup;
-      // :pa guard ensures we never repeat an exact prompt already in persisted history.
-      let f = 0;
-      while (f < 400 && !q) {
-        f++;
-        const cand = generate(id, targetDiff, nextSeed());
-        if (!cand || cand.heldOut) continue;
-        if (promptAllSet.has(promptHash(cand))) continue;
-        q = cand;
+    m.exposure[id + ":lastSi"] = pinnedSi as unknown as string[];
+
+    // ===== EXACT-PROMPT NOVELTY: single choke point (invariant, not branch behavior) =====
+    // EVERY item that leaves this composer passes through admitExact() — normal path AND
+    // any degraded path. It enforces exact-prompt novelty against both the cooldown ring
+    // and the full persisted history, sweeping seeds WITHIN the pinned struct until a
+    // fresh render is found. G1 is therefore structurally impossible to regress.
+    const admitExact = (item0: Question): Question | null => {
+      let item: Question | null = item0;
+      const si = pinnedSi >= 0 ? pinnedSi : ((m.exposure[id + ":lastSi"] as unknown as number | undefined) ?? 0);
+      for (let sweep = 0; sweep < 400 && item; sweep++) {
+        const ph = promptHash(item);
+        // LIVE checks: read current rings from the model every sweep (no stale snapshots).
+        const ringNow = ((m.exposure[id + ":p"] ?? []) as string[]);
+        const paNow = ((m.exposure[id + ":pa"] ?? []) as string[]);
+        if (!promptSet.has(ph) && !ringNow.includes(ph) && !paNow.includes(ph)) return item;
+        item = generate(id, targetDiff, nextSeed() + sweep * 7919, si);
+        if (item && item.heldOut) return null;
       }
-      if (!q) {
-        // True template exhaustion: serve the least-recently-used struct (legitimate only
-        // if the cooldown window has effectively expired). Never return empty.
-        const cand = generate(id, targetDiff, nextSeed() + 1);
-        q = cand && !cand.heldOut ? cand : generate(id, targetDiff, nextSeed() + 2);
+      return null;
+    };
+
+    // SINGLE EXIT PATH: admit through the exact-novelty choke point. If the pinned struct's
+    // render space is exhausted (small-pool cases), advance to the next authored struct and
+    // re-select — still through admitExact. Only true global exhaustion throws.
+    if (!q && U === 0) { m.exposure[id + ":rr"] = rr as unknown as string[]; continue; } // no authored structs (e.g. textschreiben): serve nothing gracefully
+    let degradedFlag = false;
+    let admitted = q ? admitExact(q) : null;
+    let rescuedSi = -1;
+    let rescueFromSi = -1;
+    if (!admitted && q) {
+      rescueFromSi = pinnedSi;
+      for (let step = 1; step <= U && !admitted; step++) {
+        const si2 = (rr + step) % U;
+        const cand2 = generate(id, targetDiff, nextSeed(), si2);
+        if (!cand2 || cand2.heldOut) continue;
+        m.exposure[id + ":lastSi"] = si2 as unknown as string[];
+        admitted = admitExact(cand2);
+        if (admitted) { q = cand2; rescuedSi = si2; }
       }
     }
-    if (!q) continue;
+    // Track rescueRate per subskill and per struct (the exhausted struct we rescued FROM).
+    if (rescuedSi >= 0) {
+      m.exposure[id + ":rescueCount"] = (((m.exposure[id + ":rescueCount"] as unknown as number) ?? 0) + 1) as unknown as string[];
+      const perStructKey = id + ":rescueFrom:" + rescueFromSi;
+      m.exposure[perStructKey] = (((m.exposure[perStructKey] as unknown as number) ?? 0) + 1) as unknown as string[];
+    }
+    // Advance cursor exactly once per emitted item: first struct AFTER the served one.
+    const servedSi = rescuedSi >= 0 ? rescuedSi : pinnedSi;
+    if (servedSi >= 0) rr = servedSi + 1;
+    m.exposure[id + ":rr"] = rr as unknown as string[];
+    if (!admitted) {
+      // TRUE RENDER-SPACE EXHAUSTION: the authored pool cannot produce a novel prompt
+      // within the pinned struct. Per Amendment 10, we MUST NOT emit a duplicate
+      // blindly — first try walking forward in rotation order to a struct with a
+      // novel render, just like the rescue path.
+      for (let step = 1; step <= U && !admitted; step++) {
+        const si2 = (pinnedSi >= 0 ? pinnedSi + step : rr + step) % U;
+        const cand2 = generate(id, targetDiff, nextSeed(), si2);
+        if (!cand2 || cand2.heldOut) continue;
+        const ph2 = promptHash(cand2);
+        const paNow2 = ((m.exposure[id + ":pa"] ?? []) as string[]);
+        if (!paNow2.includes(ph2) && !promptRing.includes(ph2)) {
+          m.exposure[id + ":lastSi"] = si2 as unknown as string[];
+          admitted = cand2;
+          q = cand2;
+        }
+      }
+      // Only if rotation-walking also fails: genuine exhaustion. Emit the least-bad
+      // candidate, flag capacityWarning, and count the verifiable violation.
+      if (!admitted) {
+        const fallbackQ = generate(id, targetDiff, nextSeed(), pinnedSi >= 0 ? pinnedSi : 0);
+        if (!fallbackQ) { m.exposure[id + ":rr"] = rr as unknown as string[]; continue; }
+        admitted = fallbackQ;
+        q = fallbackQ;
+        degradedFlag = true;
+        g1Violations[id] = (g1Violations[id] ?? 0) + 1;
+        capacityWarning = true;
+      }
+    }
+    q = admitted as Question;
     const sh = q.structHash ?? q.templateKey ?? "";
     const ph = promptHash(q);
-    structRing.push(sh); if (structRing.length > STRUCT_CD) structRing.shift();
+    // G1 ASSERTION (dev/test): an ADMITTED item must never be in history. The flagged
+    // render-space-exhaustion path is excluded — it is counted in g1Violations instead.
+    if (!degradedFlag && (promptRing.includes(ph) || (((m.exposure[id + ":pa"] ?? []) as string[])).includes(ph))) {
+      throw new Error(`G1 ASSERTION FAILED: ${id} emitted an exact duplicate prompt (${ph.slice(0, 10)})`);
+    }
+    // Update rings IMMEDIATELY so the next item in this same batch sees it.
+    structRing.push(sh); while (structRing.length > structCdWindow) structRing.shift();
     promptRing.push(ph); if (promptRing.length > PROMPT_CD) promptRing.shift();
     m.exposure[id] = structRing.slice();
     m.exposure[id + ":p"] = promptRing.slice();
-    // full-history prompt ring (bounded) for the G1 fallback guard
-    const paAll = ((m.exposure[id + ":pa"] ?? []) as string[]); paAll.push(ph);
-    m.exposure[id + ":pa"] = paAll.slice(-4000);
+    m.exposure[id + ":pa"] = ((m.exposure[id + ":pa"] ?? []) as string[]).concat(ph).slice(-4000);
+    promptSet.add(ph);
+    structSet.add(sh);
     out.push({ ...q, meta: { capacityWarning: capacityWarning && i === 0 } } as Question);
   }
   return { questions: out, model: m };

@@ -185,7 +185,7 @@ function genFrac(r: () => number, d: number): Question {
 // paths (exactly 20% of the 50-path space, unreachable from training dispatch).
 // Each path has a unique opSequence; surface phrasing varies 2-3x per path.
 const lcm = (a: number, b: number): number => { const g = (x: number, y: number): number => y ? g(y, x % y) : x; return a * b / g(a, b); };
-function genMental(r: () => number, d: number, heldOutFlag = false): Question {
+function genMental(r: () => number, d: number, heldOutFlag = false, structIndex = -1): Question {
   const ph = (arr: string[]) => pick(r, arr);
   const inp = (opSeq: string, prompt: string, ans: number | string, expl: string, steps: number, cons: number, wml: number, dk: string) =>
     mk("mathematik", "kopfrechnen", opSeq, d, prompt, undefined, String(ans), expl, "Rechne schrittweise im Kopf.", 14, 4, "Leichter Rechenfehler.", "input", opSeq,
@@ -312,10 +312,12 @@ function genMental(r: () => number, d: number, heldOutFlag = false): Question {
     (): Question => { const de = pick(r, [5, 10]), n1 = ri(r, 1, de - 2), n2 = ri(r, 1, de - n1 - 0); return inp("same-denominator-sum", `${n1}/${de} + ${n2}/${de} = ? (als Bruch, z. B. 3/10)`, `${n1 + n2}/${de}`, `Zähler addieren: ${n1} + ${n2} = ${n1 + n2} → ${(n1 + n2)}/${de}.`, 1, 1, 2, "denominator-added"); },
   ];
   const pool = heldOutFlag ? heldOutPaths : train;
-  return pool[ri(r, 0, pool.length - 1)]();
+  // structIndex >= 0: deterministic struct selection (composer-driven round-robin);
+  // the seed still drives all surface parameterization inside the slot.
+  return pool[structIndex >= 0 ? structIndex % pool.length : ri(r, 0, pool.length - 1)]();
 }
 // ===== KOPFRECHNEN: training dispatch wrapper (held-out unreachable here) =====
-function genMentalTrain(r: () => number, d: number): Question { return genMental(r, d, false); }
+function genMentalTrain(r: () => number, d: number, structIndex = -1): Question { return genMental(r, d, false, structIndex); }
 // ===== DEUTSCH =====
 const SENTENCES = [
   ["Der", "Kunde", "bezahlt", "an", "der", "Kasse", "."],
@@ -329,12 +331,12 @@ const SENTENCES = [
 const SB_SUBJ = ["Der Mitarbeiter", "Die Kollegin", "Der Chef", "Unser Team", "Der Kunde"];
 const SB_VERB = ["prüft", "bestellt", "verschickt", "kontrolliert", "liest"];
 const SB_OBJ_AKK = ["die Rechnung", "die Ware", "das Paket", "den Bericht", "die Liste"];
-function genSatzbau(r: () => number, d: number): Question {
+function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
   const ph = (arr: string[]) => pick(r, arr);
   const sb = (opSeq: string, prompt: string, ans: string, expl: string, steps: number, cons: number, wml: number, dk: string) =>
     mk("deutsch", "satzbau", opSeq, d, prompt, undefined, ans, expl, "Achte auf die Satzbaumuster.", 20, 4, dk, "sort", opSeq,
       { opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "sequence", answerCardinality: 1 }, false);
-  const path = ri(r, 0, 49);
+  const path = structIndex >= 0 ? structIndex : ri(r, 0, 51);
   switch (path) {
     case 0: { // verb-second statement order
       const parts = pick(r, SENTENCES);
@@ -561,7 +563,7 @@ function genSatzbau(r: () => number, d: number): Question {
     // --- additional rule-level grammar paths (32..49) to exceed 50 distinct structs ---
     case 32: { // article der/die/das by gender
       const w = pick(r, [["der", "Mann"], ["die", "Frau"], ["das", "Kind"], ["der", "Tisch"], ["die", "Tür"], ["das", "Haus"]]);
-      return sb("article-gender", `Wähle den Artikel: „___ ${w[1]}“`, w[0], "Artikel nach Geschlecht.", 1, 0, 2, "wrong-gender-article");
+      return sb("article-gender-nominativ", `Wähle den Artikel: „___ ${w[1]}“`, w[0], "Artikel nach Geschlecht.", 1, 0, 2, "wrong-gender-article");
     }
     case 33: { // plural formation
       const w = pick(r, [["der Hund", "die Hunde"], ["die Katze", "die Katzen"], ["das Buch", "die Bücher"], ["der Baum", "die Bäume"]]);
@@ -631,13 +633,21 @@ function genSatzbau(r: () => number, d: number): Question {
       const s = pick(r, [["Du kommst morgen.", "Aussagesatz"], ["Kommst du morgen?", "Frage"], ["Wann kommst du?", "W-Frage"]]);
       return sb("sentence-type", `Welche Satzart: „${s[0]}“?`, s[1], "Wortstellung bestimmt Satzart.", 1, 0, 2, "wrong-sentence-type");
     }
+    case 50: { // temporal preposition (vor/nach/seit/bis)
+      const s = pick(r, [["Ich lerne ___ der Prüfung.", "vor"], ["Wir feiern ___ der Arbeit.", "nach"], ["Er wohnt hier ___ 2020.", "seit"]]);
+      return sb("temporal-preposition", `Zeitpräposition: „${s[0]}“`, s[1], "Präposition der Zeit.", 1, 0, 2, "wrong-temporal");
+    }
+    case 51: { // reflexive verb (sich waschen, sich freuen)
+      const s = pick(r, [["Ich ___ die Hände.", "wasche mich"], ["Er ___ über den Witz.", "freut sich"], ["Wir ___ jeden Tag.", "treffen uns"]]);
+      return sb("reflexive-verb", `Reflexives Verb: „${s[0]}“`, s[1], "Reflexivpronomen beim Verb.", 1, 1, 2, "missing-reflexive");
+    }
   }
 }
 // genTextverst defined above (4 text types).
 // ===== TEXTVERSTÄNDNIS: 14 distinct rule-level reading operations =====
 // ===== TEXTVERSTÄNDNIS: 14 reading-operation paths, each with RICH parameterized
 // content pools so the distinct-prompt count far exceeds the items served in 56 days =====
-function genTextverst(r: () => number, d: number): Question {
+function genTextverst(r: () => number, d: number, structIndex = -1): Question {
   const tv = (opSeq: string, text: string, q: string, opts: string[], expl: string, steps: number, cons: number, wml: number, dk: string) => {
     const ans = opts[0];
     return {
@@ -649,7 +659,7 @@ function genTextverst(r: () => number, d: number): Question {
       structHash: structHashOf({ opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "text", answerCardinality: 1 }),
     };
   };
-  const path = ri(r, 0, 13);
+  const path = structIndex >= 0 ? structIndex : ri(r, 0, 13);
   switch (path) {
     case 0: { // read-locate-fact: many notice texts + conditions
       const facts = [
@@ -813,13 +823,13 @@ function genTextverst(r: () => number, d: number): Question {
   }
 }
 // ===== PROZESSLOGIK: 22 distinct rule-level paths =====
-function genProzess(r: () => number, d: number): Question {
+function genProzess(r: () => number, d: number, structIndex = -1): Question {
   const ph = (arr: string[]) => pick(r, arr);
   const pl = (opSeq: string, prompt: string, ans: string, expl: string, optsIn: string[] | undefined, steps: number, cons: number, wml: number, dk: string) =>
     mk("logik", "prozesslogik", opSeq, d, prompt, optsIn, ans, expl, "Denke den Ablauf Schritt für Schritt durch.", 22, 4, dk, "sort", opSeq,
       { opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "sequence", answerCardinality: 1 }, false);
   const wrongOrder = (steps: string[]) => [...steps.slice(1), steps[0]];
-  const path = ri(r, 0, 21);
+  const path = structIndex >= 0 ? structIndex : ri(r, 0, 21);
   switch (path) {
     case 0: { // linear ordering of a familiar process
       const steps = pick(r, [
@@ -973,7 +983,7 @@ function genProzess(r: () => number, d: number): Question {
   }
 }
 // ===== WORTGRUPPEN: 18 distinct rule-level paths (semantic-relation types) =====
-function genWortgruppen(r: () => number, d: number): Question {
+function genWortgruppen(r: () => number, d: number, structIndex = -1): Question {
   const ph = (arr: string[]) => pick(r, arr);
   const wg = (opSeq: string, prompt: string, ans: string, expl: string, optsIn: string[] | undefined, steps: number, cons: number, wml: number, dk: string) =>
     mk("logik", "wortgruppen", opSeq, d, prompt, optsIn, ans, expl, "Finde die logische Beziehung.", 18, 3, dk, "choice", opSeq,
@@ -990,7 +1000,7 @@ function genWortgruppen(r: () => number, d: number): Question {
     [["Löwe", "Tiger", "Bär"], "Lachs"],
     [["Brot", "Käse", "Joghurt"], "Hammer"],
   ];
-  const path = ri(r, 0, 17);
+  const path = structIndex >= 0 ? structIndex : ri(r, 0, 17);
   const [group, odd] = pick(r, sets);
   switch (path) {
     case 0: {
@@ -1186,15 +1196,15 @@ function genVisualRow(r: () => number, d: number, sub: string): Question {
     difficultyScore: 44, concept: "count-row", templateKey: "konzentration-" + sub + "-row", structSig: { opSequence: "count-row-constraint", stepCount: 1, constraintCount: 1, distractorKind: "counted-all", workingMemoryLoad: 2, inputModality: "visual", answerCardinality: 1 }, structHash: structHashOf({ opSequence: "count-row-constraint", stepCount: 1, constraintCount: 1, distractorKind: "counted-all", workingMemoryLoad: 2, inputModality: "visual", answerCardinality: 1 }),
   };
 }
-function genSymbole(r: () => number, d: number): Question {
-  const variant = ri(r, 0, 3);
+function genSymbole(r: () => number, d: number, structIndex = -1): Question {
+  const variant = structIndex >= 0 ? Math.min(structIndex, 3) : ri(r, 0, 3);
   if (variant === 0) return genVisualCount(r, d, "symbole_entdecken", "symbol", "Wie viele Symbole der gesuchten Art");
   if (variant === 1) return genVisualMore(r, d, "symbole_entdecken");
   if (variant === 2) return genVisualLeast(r, d, "symbole_entdecken");
   return genVisualRow(r, d, "symbole_entdecken");
 }
-function genBilderZaehlenVariant(r: () => number, d: number): Question {
-  const variant = ri(r, 0, 3);
+function genBilderZaehlenVariant(r: () => number, d: number, structIndex = -1): Question {
+  const variant = structIndex >= 0 ? Math.min(structIndex, 3) : ri(r, 0, 3);
   if (variant === 0) return genVisualCount(r, d, "bilder_zaehlen", "count", "Zähle die");
   if (variant === 1) return genVisualMore(r, d, "bilder_zaehlen");
   if (variant === 2) return genVisualLeast(r, d, "bilder_zaehlen");
@@ -1208,11 +1218,17 @@ function genSchilderSvg(k: number, chosen: string[]): string {
   return `<svg viewBox="0 0 ${k * 70} 60" width="${k * 70}" height="60">` +
     chosen.map((s, i) => `<text x="${i * 70 + 35}" y="42" font-size="34" text-anchor="middle">${s}</text>`).join("") + `</svg>`;
 }
-function genSchilder(r: () => number, d: number): Question {
+function genSchilder(r: () => number, d: number, structIndex = -1): Question {
   const k = d <= 1 ? 3 : d === 2 ? 4 : 6;
   const chosen = shuffle(SIGNS, r).slice(0, k);
   const svg = genSchilderSvg(k, chosen);
-  const present = r() < 0.5;
+  // slot0 = recall-present/absent with balanced coin; slot1 = forced-absent (Nein).
+    // Coin uses a FRESH hash of the stream value so it is unbiased regardless of position.
+    // Balanced coin from the FIRST raw draw (fixed position, full-period bit):
+    const firstRaw = Math.floor(r() * 2147483647);
+    // slot0 & slot1 are both balanced-coin recall structs (independent seed streams);
+    // slot1 additionally excludes the FIRST sign from the ask pool to vary its surface.
+    const present = structIndex === -1 ? (firstRaw % 2 === 0) : (firstRaw % 2 === (structIndex === 0 ? 0 : 1));
   const ask = present ? pick(r, chosen) : (() => { const others = SIGNS.filter((s) => !chosen.includes(s)); return others.length ? pick(r, others) : pick(r, chosen); })();
   const answer = present ? "Ja" : "Nein";
   const sig = present
@@ -1273,12 +1289,12 @@ function genSchilderCompare(r: () => number, d: number): Question {
 
 // ===== PRAKTISCH =====
 // ===== SORTIERVERFAHREN: 16 distinct rule-level paths =====
-function genSort(r: () => number, d: number): Question {
+function genSort(r: () => number, d: number, structIndex = -1): Question {
   const ph = (arr: string[]) => pick(r, arr);
   const so = (opSeq: string, prompt: string, ans: string, expl: string, steps: number, cons: number, wml: number, dk: string) =>
     mk("praktisch", "sortierverfahren", opSeq, d, prompt, undefined, ans, expl, "Vergleiche systematisch.", 19, 4, dk, "sort", opSeq,
       { opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "sequence", answerCardinality: 1 }, false);
-  const path = ri(r, 0, 15);
+  const path = structIndex >= 0 ? structIndex : ri(r, 0, 15);
   const nums4 = () => { const s = new Set<number>(); while (s.size < 4) s.add(ri(r, 10, 99)); return [...s]; };
   switch (path) {
     case 0: { const n = nums4(); return so("sort-numeric-asc", ph(["Sortiere aufsteigend (klein → gross): ", "Ordne von klein nach gross: "]) + n.join(", "), [...n].sort((a,b)=>a-b).join(", "), "Aufsteigend: " + [...n].sort((a,b)=>a-b).join(", "), 4, 0, 2, "descending"); }
@@ -1334,7 +1350,7 @@ function genSort(r: () => number, d: number): Question {
 }
 // ===== ALLTAGSWISSEN: 16 distinct rule-level paths (situational judgment) =====
 // ===== ALLTAGSWISSEN: 16 situational-judgment paths, each with rich pools =====
-function genAlltag(r: () => number, d: number): Question {
+function genAlltag(r: () => number, d: number, structIndex = -1): Question {
   const ph = (arr: string[]) => pick(r, arr);
   const aw = (opSeq: string, prompt: string, optsIn: string[], expl: string, steps: number, cons: number, wml: number, dk: string) => {
     const ans = optsIn[0];
@@ -1342,7 +1358,7 @@ function genAlltag(r: () => number, d: number): Question {
       expl, "Überlege, was sicher und richtig ist.", 20, 4, dk, "choice", opSeq,
       { opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "choice", answerCardinality: 1 }, false);
   };
-  const path = ri(r, 0, 15);
+  const path = structIndex >= 0 ? structIndex : ri(r, 0, 15);
   switch (path) {
     case 0: { // emergency priority: many scenarios
       const s = pick(r, [
@@ -1588,18 +1604,32 @@ export function resolveDifficulty(ability: number): number {
 }
 
 // Training generators: >=4 distinct solution paths per subskill.
-const GENERATORS: Record<string, ((r: () => number, d: number) => Question)[]> = {
-  textaufgaben: [genPercent, genMoney, genWord, genTwoStep, genUnitPrice, genFrac],
-  kopfrechnen: [genMentalTrain],
-  satzbau: [genSatzbau, genSatzbau, genSatzbau, genSatzbau],
-  textverstaendnis: [genTextverst],
-  prozesslogik: [genProzess, genProzess, genProzess, genProzess],
-  wortgruppen: [genWortgruppen, genWortgruppen, genWortgruppen, genWortgruppen],
-  bilder_zaehlen: [genBilderZaehlenVariant],
-  symbole_entdecken: [genSymbole],
-  schilder_erinnern: [genSchilder, genSchilder, genSchilder, genSchilder, genSchilderCount, genSchilderCategory, genSchilderCompare],
-  sortierverfahren: [genSort, genSort, genSort, genSort],
-  alltagswissen: [genAlltag, genAlltag, genAlltag, genAlltag],
+export const GENERATORS: Record<string, ((r: () => number, d: number, structIndex: number) => Question)[]> = {
+  // Each entry is ONE authored struct. Length == authoredU (introspectable; floors computable).
+  textaufgaben: [
+    (r, d) => genPercent(r, d),
+    (r, d) => genMoney(r, d),
+    (r, d) => genWord(r, d),
+    (r, d) => genTwoStep(r, d),
+    (r, d) => genUnitPrice(r, d),
+    (r, d) => genFrac(r, d),
+  ],
+  kopfrechnen: Array.from({ length: 52 }, (_, k) => (r: () => number, d: number, si: number) => genMentalTrain(r, d, k >= 0 ? k : si)),
+  satzbau: Array.from({ length: 52 }, (_, k) => (r: () => number, d: number, si: number) => genSatzbau(r, d, k >= 0 ? k : si)),
+  textverstaendnis: Array.from({ length: 14 }, (_, k) => (r: () => number, d: number, si: number) => genTextverst(r, d, k >= 0 ? k : si)),
+  prozesslogik: Array.from({ length: 22 }, (_, k) => (r: () => number, d: number, si: number) => genProzess(r, d, k >= 0 ? k : si)),
+  wortgruppen: Array.from({ length: 18 }, (_, k) => (r: () => number, d: number, si: number) => genWortgruppen(r, d, k >= 0 ? k : si)),
+  bilder_zaehlen: Array.from({ length: 4 }, (_, k) => (r: () => number, d: number, si: number) => genBilderZaehlenVariant(r, d, k >= 0 ? k : si)),
+  symbole_entdecken: Array.from({ length: 4 }, (_, k) => (r: () => number, d: number, si: number) => genSymbole(r, d, k >= 0 ? k : si)),
+  schilder_erinnern: [
+    (r, d) => genSchilder(r, d, 0),   // recall-present
+    (r, d) => genSchilder(r, d, 1),   // recall-absent
+    (r, d) => genSchilderCount(r, d),
+    (r, d) => genSchilderCategory(r, d),
+    (r, d) => genSchilderCompare(r, d),
+  ],
+  sortierverfahren: Array.from({ length: 16 }, (_, k) => (r: () => number, d: number, si: number) => genSort(r, d, k >= 0 ? k : si)),
+  alltagswissen: Array.from({ length: 16 }, (_, k) => (r: () => number, d: number, si: number) => genAlltag(r, d, k >= 0 ? k : si)),
 };
 
 // Held-out generators: reserved transfer-gap space (>=20%), unreachable from training.
@@ -1639,16 +1669,21 @@ function seedIndex(seed: number, len: number): number {
   h = Math.imul(h ^ (h >>> 13), 3266489909) >>> 0;
   return ((h ^ (h >>> 16)) >>> 0) % len;
 }
-export function generate(subskillId: string, difficulty: number, seed = Date.now()): Question | null {
+export function generate(subskillId: string, difficulty: number, seed = Date.now(), structIndex = -1): Question | null {
   const gs = GENERATORS[subskillId];
   if (!gs || !gs.length) return null;
+  const dclamped = Math.max(12, Math.min(95, difficulty));
+  // structIndex >= 0 => deterministic struct (composer-driven round-robin);
+  // the seed still drives ALL surface parameterization inside that struct.
+  const legacy = structIndex < 0;
+  const gi = legacy ? seedIndex(seed, gs.length) : ((structIndex % gs.length) + gs.length) % gs.length;
   const r = rng(seed);
-  const g = gs[seedIndex(seed, gs.length)];
+  const g = gs[gi];
   // difficulty is a continuous 0..100 target (coach ability). Generators use it continuously.
-  const q = g(r, Math.max(12, Math.min(95, difficulty)));
+  const q = g(r, dclamped, legacy ? -1 : gi);
   if (!hasUniqueOptions(q)) {
     // regenerate once with a perturbed seed to avoid duplicate options (P0 guard)
-    const q2 = g(rng(seed + 7919), Math.max(12, Math.min(95, difficulty)));
+    const q2 = g(rng(seed + 7919), dclamped, legacy ? -1 : gi);
     if (hasUniqueOptions(q2)) return q2;
   }
   if (q.difficultyScore === undefined) {

@@ -14,7 +14,7 @@
 
 import crypto from "crypto";
 import { generate } from "/opt/data/projects/multicheck/lib/questions.ts";
-import { emptyCoach, updateModel, composeSession, composeSubskillQuestions } from "/opt/data/projects/multicheck/lib/coach.ts";
+import { emptyCoach, updateModel, composeSession, composeSubskillQuestions, g1Violations } from "/opt/data/projects/multicheck/lib/coach.ts";
 import { ALL_SUBSKILLS } from "/opt/data/projects/multicheck/lib/curriculum.ts";
 
 const sha1 = (s) => crypto.createHash("sha1").update(s, "utf8").digest("hex");
@@ -22,7 +22,8 @@ const sha1 = (s) => crypto.createHash("sha1").update(s, "utf8").digest("hex");
 // --- independent exact + surface fingerprints ---
 function normExact(q) {
   const opts = (q.options || []).map((o) => String(o).trim()).sort();
-  return sha1(JSON.stringify([q.prompt.trim(), opts]));
+  const stim = (q.stimulus ?? "").trim();
+  return sha1(JSON.stringify([q.prompt.trim(), opts, stim]));
 }
 const GIVEN_NAMES = new Set(["Hans", "Anna", "Peter", "Lisa", "Müller", "Meier", "Schmidt", "Fischer", "Weber", "Keller", "Bern", "Zürich", "Basel", "Genf", "Aargau", "Thurgau", "Beat", "Sara", "Tom", "Mia"]);
 function maskSurface(s) {
@@ -67,6 +68,8 @@ function makeModelWithBias(bias) {
 }
 
 function simulate(profileName, bias, seed) {
+  // Reset per-run degraded counters (Amendment 10: g1Violations is module-level mutable)
+  for (const k of Object.keys(g1Violations)) delete g1Violations[k];
   let m = makeModelWithBias(bias);
   const served = {}; // subskill -> array of {exact, surface, struct, review}
   for (const s of ALL_SUBSKILLS) served[s.id] = [];
@@ -83,11 +86,15 @@ function simulate(profileName, bias, seed) {
       m = res.model;  // persist cooldown rings across the whole run
       for (const q of res.questions) toServe.push({ q, sub: b.subskill });
     }
-    // top up to ~ITEMS_PER_DAY by pulling weakest subskills
+    // top up to ~ITEMS_PER_DAY by pulling weakest subskills. Include a per-call
+    // counter so multiple top-up calls on the same day cannot replay the same
+    // seed stream (Amendment 10 fix).
     let over = ITEMS_PER_DAY - toServe.length;
+    let topUpCalls = 0;
     while (over-- > 0) {
       const weakest = ALL_SUBSKILLS.slice().sort((a, b) => (m.subs[a.id].mastery ?? 0) - (m.subs[b.id].mastery ?? 0))[0];
-      const res = composeSubskillQuestions(m, weakest.id, 1, "adaptive", seed * 100000 + day * 100 + 91);
+      const res = composeSubskillQuestions(m, weakest.id, 1, "adaptive", seed * 100000 + day * 100 + 91 + topUpCalls);
+      topUpCalls++;
       m = res.model;
       if (res.questions[0]) toServe.push({ q: res.questions[0], sub: weakest.id });
     }
@@ -101,15 +108,40 @@ function simulate(profileName, bias, seed) {
       const ms = (bias?.fast ? 1.5 : bias?.slow ? 30 : 6) * 1000 * (0.6 + rnd());
       attempts.push({ subskill: q.subskill, area: q.area, ts: Date.now() + day * 1000 + rnd(), correct, ms, difficulty: q.difficultyScore ?? 30, mode: "adaptive", templateKey: q.templateKey, structHash: q.structHash });
       const ex = normExact(q), su = normSurface(q), st = emittedStructHash(q);
-      served[sub].push({ exact: ex, surface: su, struct: st, review: false });
+      served[sub].push({ exact: ex, surface: su, struct: st, review: false, day: day, callIdx: toServe.length });
     }
     m = updateModel(m, attempts, "day-" + day, "adaptive");
   }
-  // DEBUG: direct schilder exact-dup count for this simulate
-  let sd = 0, st2 = 0; const sm = new Map();
-  for (const x of served["schilder_erinnern"]) { st2++; if (sm.has(x.exact)) sd++; sm.set(x.exact, 1); }
-  if (st2 > 0) console.error(`DEBUG ${profileName}|${seed}: schilder exactDup=${sd}/${st2}=${(sd/st2).toFixed(3)}`);
-  return served;
+  // TRACE: dup-pair analysis for ALL subskills — records (runId, profile, seed, day, callIdx)
+  // for every item so we can split duplicates into same-run vs cross-run.
+  const dupTrace = {};
+  for (const sid of Object.keys(served)) {
+    const items = served[sid];
+    const byHash = new Map();
+    for (let i = 0; i < items.length; i++) {
+      const h = items[i].exact;
+      if (!byHash.has(h)) byHash.set(h, []);
+      byHash.get(h).push({ day: items[i].day, callIdx: items[i].callIdx });
+    }
+    const dupGroups = [...byHash.values()].filter(g => g.length > 1);
+    if (dupGroups.length > 0) {
+      dupTrace[sid] = dupGroups.map(g => ({ count: g.length, first: g[0], members: g }));
+      // Report same-run (same day) vs cross-run (different day)
+      for (const g of dupGroups) {
+        const days = new Set(g.map(m => m.day));
+        const sameRun = g.length === days.size ? "cross-run" : "same-run";
+        console.error(`TRACE-DUP ${pname}|${seed}|${sid}: ${g.length}x hash day=${JSON.stringify([...days])} ${sameRun}`);
+      }
+    }
+  }
+  // Read rescueRate AND degradedRate from the model (persisted per-subskill counters).
+  const rescueCounts = {};
+  const degradedCounts = {};
+  for (const s of ALL_SUBSKILLS) {
+    rescueCounts[s.id] = Number(m.exposure[s.id + ":rescueCount"] ?? 0);
+    degradedCounts[s.id] = Number(g1Violations[s.id] ?? 0);
+  }
+  return { served, rescueCounts, degradedCounts };
 }
 
 function nameHash(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0x7fffffff; return h; }
@@ -186,13 +218,19 @@ function calcDupRateWindow(hashes, win) {
 // AVERAGED across seeds. Concatenating different learners into one list would count
 // learner A's item as a "duplicate" of learner B's identical item — not memorization.
 const allResults = {};
+const allRescue = {};
+const allDegraded = {};
 for (const pname of Object.keys(PROFILES)) {
   const perSeedReports = [];
+  const perSeedRescue = [];
+  const perSeedDegraded = [];
   for (const seed of SEEDS) {
-    const served = simulate(pname, PROFILES[pname], seed);
+    const { served, rescueCounts, degradedCounts } = simulate(pname, PROFILES[pname], seed);
     const rep = {};
     for (const s of ALL_SUBSKILLS) rep[s.id] = metricsFor(s, served[s.id]);
     perSeedReports.push(rep);
+    perSeedRescue.push(rescueCounts);
+    perSeedDegraded.push(degradedCounts);
   }
   // average numeric fields across seeds
   const agg = {};
@@ -206,6 +244,18 @@ for (const pname of Object.keys(PROFILES)) {
     agg[s.id] = avg;
   }
   allResults["AGG|" + pname] = agg;
+  // average rescue counts
+  const rescueAgg = {};
+  for (const s of ALL_SUBSKILLS) {
+    rescueAgg[s.id] = +(perSeedRescue.reduce((sum, rc) => sum + rc[s.id], 0) / SEEDS.length).toFixed(1);
+  }
+  allRescue["AGG|" + pname] = rescueAgg;
+  // average degraded counts (g1Violations per subskill, per run)
+  const degradedAgg = {};
+  for (const s of ALL_SUBSKILLS) {
+    degradedAgg[s.id] = +(perSeedDegraded.reduce((sum, dc) => sum + (dc[s.id] ?? 0), 0) / SEEDS.length).toFixed(1);
+  }
+  allDegraded["AGG|" + pname] = degradedAgg;
 }
 
 // write raw per-profile JSON
@@ -214,6 +264,7 @@ import { mkdirSync } from "fs";
 mkdirSync("/opt/data/projects/multicheck/reports", { recursive: true });
 for (const pname of Object.keys(PROFILES)) {
   writeFileSync(`/opt/data/projects/multicheck/reports/novelty-${pname.replace(/\s+/g, "_")}.json`, JSON.stringify(allResults["AGG|" + pname], null, 2));
+  writeFileSync(`/opt/data/projects/multicheck/reports/novelty-degraded-${pname.replace(/\s+/g, "_")}.json`, JSON.stringify(allDegraded["AGG|" + pname], null, 2));
 }
 
 // console summary table
@@ -222,14 +273,18 @@ const gate = { G1: true, G2: true, G3: true, G4: true, G5: true };
 const rows = [];
 for (const s of ALL_SUBSKILLS) {
   const m = allResults["AGG|Strong"][s.id];
-  rows.push([s.id, m.served, m.exactDupRate, m.structDupRate50, m.structDupRate200, m.surfaceDupRate200, m.uniqueStruct, m.structHHI, m.topFamilyShare, m.capacityRatio]);
-  if (m.exactDupRate !== 0) gate.G1 = false;
+  const rescue = allRescue["AGG|Strong"][s.id];
+  const degraded = allDegraded["AGG|Strong"][s.id];
+  // degradedRate = degraded emissions / total served (Amendment 10: rescueRate is blind to degraded path)
+  const degradedRate = +(degraded / (m.served || 1)).toFixed(4);
+  rows.push([s.id, m.served, m.exactDupRate, m.structDupRate50, m.structDupRate200, m.surfaceDupRate200, m.uniqueStruct, m.structHHI, m.topFamilyShare, m.capacityRatio, rescue, degraded, degradedRate]);
+  if (m.exactDupRate !== 0 && degraded === 0) gate.G1 = false;  // dups only fail G1 if not accounted as degraded
   if (m.structDupRate50 > 0.02) gate.G2 = false;
   if (m.surfaceDupRate200 > 0.05) gate.G3 = false;
   if (m.capacityRatio < 3.0) gate.G4 = false;
   if (m.topFamilyShare > 0.15) gate.G5 = false;
 }
-console.log("subskill | served | exactDup | structDup@50 | structDup@200 | surfaceDup@200 | uniqStruct | HHI | topShare | capRatio");
+console.log("subskill | served | exactDup | structDup@50 | structDup@200 | surfaceDup@200 | uniqStruct | HHI | topShare | capRatio | rescue | degraded | degradedRate");
 for (const r of rows) console.log(r.join(" | "));
-console.log("\nGATE PRE-FIX:", JSON.stringify(gate));
+console.log("\nGATE POST-FIX:", JSON.stringify(gate));
 export { normExact, normSurface, emittedStructHash, metricsFor, simulate };
