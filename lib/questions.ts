@@ -89,98 +89,20 @@ function rng(seed: number) {
  * typed lexicon. Every phrase below is authored, not assembled.
  */
 
-interface ProcessScenario {
-  domain: string;
-  /** Ordered steps: correct process order. 4-5 short phrases. */
-  steps: string[];
-  /** A step that plausibly belongs to a DIFFERENT domain (irrelevant-step task). */
-  intruder: string;
-}
+// ---- Content pools (data, not code) ----
+// Stored in lib/pools.json so questions.ts does not absorb four subskills worth
+// of authored content. JSON is loaded via resolveJsonModule for tsc/bundler and
+// resolves under plain node too (validate-all.mjs), which a ".ts" specifier
+// cannot do (TS5097).
+import POOLS from "./pools.json" with { type: "json" };
 
-/** Authored scenarios across four workplace domains. */
-const PROCESS_SCENARIOS: ProcessScenario[] = [
-  // ---- Werkstatt ----
-  { domain: "Werkstatt", steps: ["Material holen", "zuschneiden", "verleimen", "trocknen lassen"], intruder: "Rechnung buchen" },
-  { domain: "Werkstatt", steps: ["Auftrag lesen", "Werkzeug richten", "Teil fräsen", "Mass prüfen"], intruder: "Kaffee kochen" },
-  { domain: "Werkstatt", steps: ["Maschine sichern", "Werkstück spannen", "bohren", "entgraten"], intruder: "Post sortieren" },
-  { domain: "Werkstatt", steps: ["Schutzbrille anlegen", "Schleifpapier wählen", "schleifen", "Staub absaugen"], intruder: "Ware etikettieren" },
-  { domain: "Werkstatt", steps: ["Farbe rühren", "Fläche abkleben", "grundieren", "lackieren"], intruder: "Termin eintragen" },
-  { domain: "Werkstatt", steps: ["Defekt aufnehmen", "Ersatzteil bestellen", "Teil einbauen", "Funktion testen"], intruder: "Regal einräumen" },
+interface ProcessScenario { domain: string; steps: string[]; intruder: string; }
+interface ConstraintScenario { domain: string; steps: string[]; rule: string; }
 
-  // ---- Küche ----
-  { domain: "Küche", steps: ["Hände waschen", "Gemüse rüsten", "anbraten", "abschmecken"], intruder: "Lieferschein prüfen" },
-  { domain: "Küche", steps: ["Rezept lesen", "Zutaten abwägen", "Teig kneten", "backen"], intruder: "Werkbank reinigen" },
-  { domain: "Küche", steps: ["Wasser aufsetzen", "salzen", "Teigwaren kochen", "abgiessen"], intruder: "Formular ablegen" },
-  { domain: "Küche", steps: ["Kühlschrank prüfen", "Ware datieren", "einordnen", "Liste ergänzen"], intruder: "Reifen wechseln" },
-  { domain: "Küche", steps: ["Arbeitsfläche reinigen", "Brett bereitstellen", "Fleisch schneiden", "Brett desinfizieren"], intruder: "Angebot einholen" },
-  { domain: "Küche", steps: ["Bestellung annehmen", "Speise zubereiten", "anrichten", "servieren"], intruder: "Palette stapeln" },
-
-  // ---- Lager ----
-  { domain: "Lager", steps: ["Lieferung annehmen", "Ware prüfen", "einlagern", "Bestand buchen"], intruder: "Suppe abschmecken" },
-  { domain: "Lager", steps: ["Auftrag ausdrucken", "kommissionieren", "verpacken", "versenden"], intruder: "Fenster streichen" },
-  { domain: "Lager", steps: ["Palette wägen", "Etikett drucken", "Etikett anbringen", "Standort erfassen"], intruder: "Gemüse rüsten" },
-  { domain: "Lager", steps: ["Retoure öffnen", "Zustand prüfen", "Gutschrift auslösen", "Ware einordnen"], intruder: "Teig kneten" },
-  { domain: "Lager", steps: ["Bestand zählen", "Differenz notieren", "Ursache klären", "Korrektur buchen"], intruder: "Lack auftragen" },
-  { domain: "Lager", steps: ["Gefahrgut erkennen", "Schutzhandschuhe anlegen", "separat lagern", "Kennzeichnung prüfen"], intruder: "Tisch decken" },
-
-  // ---- Büro ----
-  { domain: "Büro", steps: ["Post öffnen", "Schreiben lesen", "Antwort verfassen", "absenden"], intruder: "Maschine ölen" },
-  { domain: "Büro", steps: ["Anmeldung öffnen", "Daten eingeben", "Eingaben prüfen", "Formular absenden"], intruder: "Ware kommissionieren" },
-  { domain: "Büro", steps: ["Dokument scannen", "Index setzen", "ablegen", "Original vernichten"], intruder: "Sauce binden" },
-  { domain: "Büro", steps: ["Rechnung prüfen", "Konto zuordnen", "Zahlung freigeben", "Belege archivieren"], intruder: "Werkstück spannen" },
-  { domain: "Büro", steps: ["Termin anfragen", "Raum reservieren", "Einladung senden", "Zusagen erfassen"], intruder: "Ware einlagern" },
-  { domain: "Büro", steps: ["Reklamation erfassen", "Sachverhalt prüfen", "Kunden informieren", "Fall abschliessen"], intruder: "Backblech einfetten" },
-];
-
-/** Constraint scenarios: an explicit rule the ordering must respect. */
-interface ConstraintScenario {
-  domain: string;
-  steps: string[];
-  /** Human-readable rule naming two steps whose order matters. */
-  rule: string;
-}
-
-const CONSTRAINT_SCENARIOS: ConstraintScenario[] = [
-  { domain: "Lager", steps: ["Bestellung prüfen", "Kreditlimit prüfen", "Freigabe einholen", "Versand buchen", "Rechnung senden"], rule: "Freigabe erst NACH Kreditlimitprüfung." },
-  { domain: "Werkstatt", steps: ["Auftrag lesen", "Maschine sichern", "Werkstück spannen", "fräsen", "Mass prüfen"], rule: "Spannen erst NACH dem Sichern der Maschine." },
-  { domain: "Küche", steps: ["Rezept lesen", "Hände waschen", "Zutaten rüsten", "kochen", "abschmecken"], rule: "Rüsten erst NACH dem Händewaschen." },
-  { domain: "Büro", steps: ["Antrag erfassen", "Unterlagen prüfen", "Vorgesetzte informieren", "Zahlung freigeben", "Beleg ablegen"], rule: "Freigabe erst NACH der Prüfung der Unterlagen." },
-  { domain: "Werkstatt", steps: ["Defekt aufnehmen", "Strom trennen", "Bauteil tauschen", "Strom zuschalten", "Funktion testen"], rule: "Bauteil tauschen erst NACH dem Trennen des Stroms." },
-  { domain: "Lager", steps: ["Gefahrgut erkennen", "Schutzausrüstung anlegen", "Ware umlagern", "Kennzeichnung prüfen", "Vorgang buchen"], rule: "Umlagern erst NACH dem Anlegen der Schutzausrüstung." },
-  { domain: "Küche", steps: ["Ware annehmen", "Temperatur messen", "Ware annehmen bestätigen", "einlagern", "Liste ergänzen"], rule: "Bestätigen erst NACH der Temperaturmessung." },
-  { domain: "Büro", steps: ["Reklamation erfassen", "Beweise sichten", "Entscheid treffen", "Kunden informieren", "Fall schliessen"], rule: "Entscheid erst NACH dem Sichten der Beweise." },
-];
-
-/** Cause -> effect pairs (temporal/causal reasoning). */
-const CAUSE_EFFECT: [string, string][] = [
-  ["Es regnet", "Die Strasse ist nass"],
-  ["Der Stecker wird gezogen", "Das Gerät ist aus"],
-  ["Die Platte wird heiss", "Das Wasser kocht"],
-  ["Der Filter ist verstopft", "Die Maschine saugt schlecht"],
-  ["Die Batterie ist leer", "Die Lampe bleibt dunkel"],
-  ["Das Ventil ist offen", "Der Druck fällt ab"],
-  ["Die Tür bleibt offen", "Der Kühlraum wird warm"],
-  ["Der Akku lädt", "Die Anzeige leuchtet grün"],
-  ["Die Sicherung löst aus", "Der Strom ist weg"],
-  ["Das Sieb ist voll", "Das Wasser läuft über"],
-  ["Der Reifen hat ein Loch", "Der Druck sinkt"],
-  ["Die Kette ist trocken", "Das Laufwerk quietscht"],
-];
-
-/** Safety / compliance principles: the correct answer refuses the shortcut. */
-const PRINCIPLES: [string, string, string][] = [
-  ["Versand vor Bezahlung?", "Nein – zuerst prüfen, dann versenden.", "Prozessreihenfolge."],
-  ["Kollegen nach Sturz allein hochziehen?", "Nein – Erste Hilfe holen.", "Sicherheit vor Schnelligkeit."],
-  ["Dokument sofort löschen?", "Nein – Aufbewahrungsfrist beachten.", "Compliance."],
-  ["Schutzbrille bei kurzem Schnitt weglassen?", "Nein – Schutzbrille immer tragen.", "Arbeitssicherheit."],
-  ["Abgelaufene Ware noch ausliefern?", "Nein – Ware aussortieren.", "Lebensmittelsicherheit."],
-  ["Maschine bei laufendem Motor reinigen?", "Nein – zuerst abschalten.", "Unfallverhütung."],
-  ["Passwort dem Kollegen geben?", "Nein – Zugänge sind persönlich.", "Datenschutz."],
-  ["Gefahrgut zu Lebensmitteln stellen?", "Nein – getrennt lagern.", "Lagervorschrift."],
-  ["Defektes Werkzeug weiterverwenden?", "Nein – aussortieren und melden.", "Prüfpflicht."],
-  ["Kundendaten privat notieren?", "Nein – nur im System erfassen.", "Datenschutz."],
-];
-
+const PROCESS_SCENARIOS: ProcessScenario[] = POOLS.PROCESS_SCENARIOS as ProcessScenario[];
+const CONSTRAINT_SCENARIOS: ConstraintScenario[] = POOLS.CONSTRAINT_SCENARIOS as ConstraintScenario[];
+const CAUSE_EFFECT: [string, string][] = POOLS.CAUSE_EFFECT as [string, string][];
+const PRINCIPLES: [string, string, string][] = POOLS.PRINCIPLES as [string, string, string][];
 const ri = (r: () => number, a: number, b: number) => Math.floor(r() * (b - a + 1)) + a;
 const pick = <T,>(r: () => number, arr: T[]): T => arr[Math.floor(r() * arr.length)];
 const shuffle = <T,>(arr: T[], r: () => number): T[] => {
