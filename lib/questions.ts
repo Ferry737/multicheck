@@ -69,6 +69,118 @@ function rng(seed: number) {
   if (s <= 0) s += 2147483646;
   return () => (s = (s * 16807) % 2147483647) / 2147483647;
 }
+/**
+ * TYPED PROCESS-SCENARIO POOL (prozesslogik widening).
+ *
+ * WHY: prozesslogik shipped with hard-coded scenario lists (3-5 per struct),
+ * giving totalRenderCapacity = 66 against ~227 servings over 56 days — each item
+ * seen ~3.4x. That is memorisation, not training.
+ *
+ * ANTI-GAMING RULE (loop §I): a variation counts ONLY if it changes what the
+ * student must do. These scenarios vary the DOMAIN, the OBJECTS, the ACTORS and
+ * the STEP CONTENT, so the student must re-derive the ordering each time. Font
+ * size, spacing and punctuation jitter are NOT used and are forbidden as a
+ * capacity fix.
+ *
+ * LINGUISTIC SAFETY: steps are short imperative/infinitive phrases that are
+ * grammatically self-contained, so no case/agreement inflection is required.
+ * Nothing here concatenates a noun into a sentence frame that would need
+ * declension — that is the satzbau problem and is handled separately with a
+ * typed lexicon. Every phrase below is authored, not assembled.
+ */
+
+interface ProcessScenario {
+  domain: string;
+  /** Ordered steps: correct process order. 4-5 short phrases. */
+  steps: string[];
+  /** A step that plausibly belongs to a DIFFERENT domain (irrelevant-step task). */
+  intruder: string;
+}
+
+/** Authored scenarios across four workplace domains. */
+const PROCESS_SCENARIOS: ProcessScenario[] = [
+  // ---- Werkstatt ----
+  { domain: "Werkstatt", steps: ["Material holen", "zuschneiden", "verleimen", "trocknen lassen"], intruder: "Rechnung buchen" },
+  { domain: "Werkstatt", steps: ["Auftrag lesen", "Werkzeug richten", "Teil fräsen", "Mass prüfen"], intruder: "Kaffee kochen" },
+  { domain: "Werkstatt", steps: ["Maschine sichern", "Werkstück spannen", "bohren", "entgraten"], intruder: "Post sortieren" },
+  { domain: "Werkstatt", steps: ["Schutzbrille anlegen", "Schleifpapier wählen", "schleifen", "Staub absaugen"], intruder: "Ware etikettieren" },
+  { domain: "Werkstatt", steps: ["Farbe rühren", "Fläche abkleben", "grundieren", "lackieren"], intruder: "Termin eintragen" },
+  { domain: "Werkstatt", steps: ["Defekt aufnehmen", "Ersatzteil bestellen", "Teil einbauen", "Funktion testen"], intruder: "Regal einräumen" },
+
+  // ---- Küche ----
+  { domain: "Küche", steps: ["Hände waschen", "Gemüse rüsten", "anbraten", "abschmecken"], intruder: "Lieferschein prüfen" },
+  { domain: "Küche", steps: ["Rezept lesen", "Zutaten abwägen", "Teig kneten", "backen"], intruder: "Werkbank reinigen" },
+  { domain: "Küche", steps: ["Wasser aufsetzen", "salzen", "Teigwaren kochen", "abgiessen"], intruder: "Formular ablegen" },
+  { domain: "Küche", steps: ["Kühlschrank prüfen", "Ware datieren", "einordnen", "Liste ergänzen"], intruder: "Reifen wechseln" },
+  { domain: "Küche", steps: ["Arbeitsfläche reinigen", "Brett bereitstellen", "Fleisch schneiden", "Brett desinfizieren"], intruder: "Angebot einholen" },
+  { domain: "Küche", steps: ["Bestellung annehmen", "Speise zubereiten", "anrichten", "servieren"], intruder: "Palette stapeln" },
+
+  // ---- Lager ----
+  { domain: "Lager", steps: ["Lieferung annehmen", "Ware prüfen", "einlagern", "Bestand buchen"], intruder: "Suppe abschmecken" },
+  { domain: "Lager", steps: ["Auftrag ausdrucken", "kommissionieren", "verpacken", "versenden"], intruder: "Fenster streichen" },
+  { domain: "Lager", steps: ["Palette wägen", "Etikett drucken", "Etikett anbringen", "Standort erfassen"], intruder: "Gemüse rüsten" },
+  { domain: "Lager", steps: ["Retoure öffnen", "Zustand prüfen", "Gutschrift auslösen", "Ware einordnen"], intruder: "Teig kneten" },
+  { domain: "Lager", steps: ["Bestand zählen", "Differenz notieren", "Ursache klären", "Korrektur buchen"], intruder: "Lack auftragen" },
+  { domain: "Lager", steps: ["Gefahrgut erkennen", "Schutzhandschuhe anlegen", "separat lagern", "Kennzeichnung prüfen"], intruder: "Tisch decken" },
+
+  // ---- Büro ----
+  { domain: "Büro", steps: ["Post öffnen", "Schreiben lesen", "Antwort verfassen", "absenden"], intruder: "Maschine ölen" },
+  { domain: "Büro", steps: ["Anmeldung öffnen", "Daten eingeben", "Eingaben prüfen", "Formular absenden"], intruder: "Ware kommissionieren" },
+  { domain: "Büro", steps: ["Dokument scannen", "Index setzen", "ablegen", "Original vernichten"], intruder: "Sauce binden" },
+  { domain: "Büro", steps: ["Rechnung prüfen", "Konto zuordnen", "Zahlung freigeben", "Belege archivieren"], intruder: "Werkstück spannen" },
+  { domain: "Büro", steps: ["Termin anfragen", "Raum reservieren", "Einladung senden", "Zusagen erfassen"], intruder: "Ware einlagern" },
+  { domain: "Büro", steps: ["Reklamation erfassen", "Sachverhalt prüfen", "Kunden informieren", "Fall abschliessen"], intruder: "Backblech einfetten" },
+];
+
+/** Constraint scenarios: an explicit rule the ordering must respect. */
+interface ConstraintScenario {
+  domain: string;
+  steps: string[];
+  /** Human-readable rule naming two steps whose order matters. */
+  rule: string;
+}
+
+const CONSTRAINT_SCENARIOS: ConstraintScenario[] = [
+  { domain: "Lager", steps: ["Bestellung prüfen", "Kreditlimit prüfen", "Freigabe einholen", "Versand buchen", "Rechnung senden"], rule: "Freigabe erst NACH Kreditlimitprüfung." },
+  { domain: "Werkstatt", steps: ["Auftrag lesen", "Maschine sichern", "Werkstück spannen", "fräsen", "Mass prüfen"], rule: "Spannen erst NACH dem Sichern der Maschine." },
+  { domain: "Küche", steps: ["Rezept lesen", "Hände waschen", "Zutaten rüsten", "kochen", "abschmecken"], rule: "Rüsten erst NACH dem Händewaschen." },
+  { domain: "Büro", steps: ["Antrag erfassen", "Unterlagen prüfen", "Vorgesetzte informieren", "Zahlung freigeben", "Beleg ablegen"], rule: "Freigabe erst NACH der Prüfung der Unterlagen." },
+  { domain: "Werkstatt", steps: ["Defekt aufnehmen", "Strom trennen", "Bauteil tauschen", "Strom zuschalten", "Funktion testen"], rule: "Bauteil tauschen erst NACH dem Trennen des Stroms." },
+  { domain: "Lager", steps: ["Gefahrgut erkennen", "Schutzausrüstung anlegen", "Ware umlagern", "Kennzeichnung prüfen", "Vorgang buchen"], rule: "Umlagern erst NACH dem Anlegen der Schutzausrüstung." },
+  { domain: "Küche", steps: ["Ware annehmen", "Temperatur messen", "Ware annehmen bestätigen", "einlagern", "Liste ergänzen"], rule: "Bestätigen erst NACH der Temperaturmessung." },
+  { domain: "Büro", steps: ["Reklamation erfassen", "Beweise sichten", "Entscheid treffen", "Kunden informieren", "Fall schliessen"], rule: "Entscheid erst NACH dem Sichten der Beweise." },
+];
+
+/** Cause -> effect pairs (temporal/causal reasoning). */
+const CAUSE_EFFECT: [string, string][] = [
+  ["Es regnet", "Die Strasse ist nass"],
+  ["Der Stecker wird gezogen", "Das Gerät ist aus"],
+  ["Die Platte wird heiss", "Das Wasser kocht"],
+  ["Der Filter ist verstopft", "Die Maschine saugt schlecht"],
+  ["Die Batterie ist leer", "Die Lampe bleibt dunkel"],
+  ["Das Ventil ist offen", "Der Druck fällt ab"],
+  ["Die Tür bleibt offen", "Der Kühlraum wird warm"],
+  ["Der Akku lädt", "Die Anzeige leuchtet grün"],
+  ["Die Sicherung löst aus", "Der Strom ist weg"],
+  ["Das Sieb ist voll", "Das Wasser läuft über"],
+  ["Der Reifen hat ein Loch", "Der Druck sinkt"],
+  ["Die Kette ist trocken", "Das Laufwerk quietscht"],
+];
+
+/** Safety / compliance principles: the correct answer refuses the shortcut. */
+const PRINCIPLES: [string, string, string][] = [
+  ["Versand vor Bezahlung?", "Nein – zuerst prüfen, dann versenden.", "Prozessreihenfolge."],
+  ["Kollegen nach Sturz allein hochziehen?", "Nein – Erste Hilfe holen.", "Sicherheit vor Schnelligkeit."],
+  ["Dokument sofort löschen?", "Nein – Aufbewahrungsfrist beachten.", "Compliance."],
+  ["Schutzbrille bei kurzem Schnitt weglassen?", "Nein – Schutzbrille immer tragen.", "Arbeitssicherheit."],
+  ["Abgelaufene Ware noch ausliefern?", "Nein – Ware aussortieren.", "Lebensmittelsicherheit."],
+  ["Maschine bei laufendem Motor reinigen?", "Nein – zuerst abschalten.", "Unfallverhütung."],
+  ["Passwort dem Kollegen geben?", "Nein – Zugänge sind persönlich.", "Datenschutz."],
+  ["Gefahrgut zu Lebensmitteln stellen?", "Nein – getrennt lagern.", "Lagervorschrift."],
+  ["Defektes Werkzeug weiterverwenden?", "Nein – aussortieren und melden.", "Prüfpflicht."],
+  ["Kundendaten privat notieren?", "Nein – nur im System erfassen.", "Datenschutz."],
+];
+
 const ri = (r: () => number, a: number, b: number) => Math.floor(r() * (b - a + 1)) + a;
 const pick = <T,>(r: () => number, arr: T[]): T => arr[Math.floor(r() * arr.length)];
 const shuffle = <T,>(arr: T[], r: () => number): T[] => {
@@ -832,73 +944,59 @@ function genProzess(r: () => number, d: number, structIndex = -1): Question {
   const path = structIndex >= 0 ? structIndex : ri(r, 0, 21);
   switch (path) {
     case 0: { // linear ordering of a familiar process
-      const steps = pick(r, [
-        ["Bestellung aufgeben", "Ware prüfen", "Versand", "Rechnung"],
-        ["Brief öffnen", "lesen", "antworten", "absenden"],
-        ["Material holen", "schneiden", "kleben", "trocknen lassen"],
-        ["Anmelden", "Daten eingeben", "prüfen", "absenden"],
-        ["Kaffee mahlen", "aufbrühen", "einschenken", "servieren"],
-      ]);
+      // WIDENED: typed scenario pool (24 authored scenarios x 4 domains) instead
+      // of 5 hard-coded lists. The domain/objects/steps change, so the student
+      // must re-derive the ordering each time (real variation, not cosmetic).
+      const steps = pick(r, PROCESS_SCENARIOS).steps;
       const correct = steps.join(" → ");
       return pl("linear-sequence-ordering", ph(["Ordne die Schritte sinnvoll:", "Bringe die Ablaufschritte in die richtige Reihenfolge:"]), correct,
         "Logische Reihenfolge: " + correct, shuffle([correct, wrongOrder(steps).join(" → ")], r), steps.length, 0, 2, "rotated-order");
     }
     case 1: { // conditional ordering (constraint between two steps)
-      const steps = ["Bestellung prüfen", "Kreditlimit prüfen", "Freigabe einholen", "Versand buchen", "Rechnung senden"];
-      return pl("conditional-sequence-ordering", "Ordne mit Bedingung: Freigabe erst NACH Kreditlimitprüfung.", steps.join(" → "),
-        "Bedingung beachtet.", [steps.join(" → "), wrongOrder(steps).join(" → ")], steps.length, 1, 3, "constraint-violated");
+      // WIDENED: 8 authored constraint scenarios; the RULE itself varies too.
+      const cs = pick(r, CONSTRAINT_SCENARIOS);
+      const steps = cs.steps;
+      return pl("conditional-sequence-ordering", `Ordne mit Bedingung: ${cs.rule}`, steps.join(" → "),
+        "Bedingung beachtet: " + cs.rule, [steps.join(" → "), wrongOrder(steps).join(" → ")], steps.length, 1, 3, "constraint-violated");
     }
     case 2: { // remove the irrelevant step
-      const sets = pick(r, [
-        [["Material holen", "schneiden", "kleben", "trocknen lassen"], "Kaffee trinken"],
-        [["Bestellung prüfen", "kommissionieren", "verpacken", "versenden"], "Fenster streichen"],
-        [["Dokument scannen", "ablegen", "Index setzen"], "Reifen wechseln"],
-      ]);
-      const correct = (sets[0] as string[]).join(" → ");
-      return pl("remove-irrelevant-step", "Welcher Schritt gehört NICHT in diesen Ablauf?", String(sets[1]),
-        `„${sets[1]}“ gehört nicht zum Prozess.`, dedupeOptions(shuffle([String(sets[1]), ...(sets[0] as string[]).slice(0, 3)], r)), 3, 0, 2, "removed-right-step");
+      // WIDENED: each scenario carries an intruder from a DIFFERENT domain, so
+      // the discrimination is genuine rather than lexical.
+      const sc = pick(r, PROCESS_SCENARIOS);
+      const correct = sc.steps.join(" → ");
+      return pl("remove-irrelevant-step", `Welcher Schritt gehört NICHT in diesen Ablauf (${sc.domain})?`, sc.intruder,
+        `„${sc.intruder}“ gehört nicht zum Prozess.`, dedupeOptions(shuffle([sc.intruder, ...sc.steps.slice(0, 3)], r)), 3, 0, 2, "removed-right-step");
     }
     case 3: { // principle application (safety/priority rule)
-      const principle = pick(r, [
-        ["Versand vor Bezahlung?", "Nein – zuerst prüfen, dann versenden.", "Prozessreihenfolge."],
-        ["Kollege allein hochziehen bei Sturz?", "Nein – Erste Hilfe holen.", "Sicherheit vor Schnelligkeit."],
-        ["Dokument sofort löschen?", "Nein – Aufbewahrungsfrist beachten.", "Compliance."],
-      ]);
+      const principle = pick(r, PRINCIPLES); // WIDENED: 10 authored principles
       return pl("principle-application", principle[0], principle[1], "Prinzip: " + principle[2], undefined, 1, 1, 2, "efficiency-over-safety");
     }
     case 4: { // classify step position (Anfang/Mitte/Ende)
-      const triple = pick(r, [
-        ["Bestellung aufgeben", "Versand", "Rechnung"],
-        ["lesen", "antworten", "absenden"],
-        ["Material holen", "kleben", "trocknen lassen"],
-      ]);
+      // WIDENED: triples derived from the scenario pool (first/middle/last of
+      // a real 4-step process), so position reasoning stays intact.
+      const sc4 = pick(r, PROCESS_SCENARIOS);
+      const triple = [sc4.steps[0], sc4.steps[1], sc4.steps[sc4.steps.length - 1]];
       const pos = ri(r, 0, 2);
       const label = pos === 0 ? "am Anfang" : pos === 1 ? "in der Mitte" : "am Ende";
       return pl("step-position-classify", `Wo steht „${triple[pos]}“ im Ablauf ${triple.join(" → ")}?`, label,
         `„${triple[pos]}“ steht ${label}.`, undefined, 3, 0, 2, "wrong-position");
     }
     case 5: { // cause before effect
-      const pair = pick(r, [
-        ["Es regnet", "Die Strasse ist nass"],
-        ["Der Stecker wird gezogen", "Das Gerät ist aus"],
-        ["Das Feuer brennt", "Das Wasser kocht"],
-      ]);
+      const pair = pick(r, CAUSE_EFFECT); // WIDENED: 12 authored cause/effect pairs
       return pl("cause-before-effect", `Was passiert ZUERST: „${pair[0]}“ oder „${pair[1]}“?`, pair[0],
         "Ursache vor Wirkung.", undefined, 2, 0, 2, "effect-first");
     }
     case 6: { // fill missing middle step
-      const t = pick(r, [
-        ["Anmelden", "absenden"],
-        ["Material holen", "trocknen lassen"],
-        ["Bestellung aufgeben", "Rechnung senden"],
-      ]);
-      const mid = pick(r, [
-        ["Daten eingeben", "Formular drucken"],
-        ["be- und verarbeiten", "wegwerfen"],
-        ["kommissionieren", "ignorieren"],
-      ]);
-      return pl("fill-missing-step", `Ergänze den sinnvollen Zwischenschritt: ${t[0]} → ? → ${t[1]}`, mid[0],
-        `${t[0]} → ${mid[0]} → ${t[1]}.`, undefined, 3, 0, 2, "implausible-middle");
+      // HUMAN-AUDIT FIX: endpoints and middle were drawn INDEPENDENTLY, producing
+      // semantically wrong chains such as "Anmelden → be- und verarbeiten → absenden".
+      // The middle step now belongs to the SAME authored process, and the
+      // distractor is a real step from a DIFFERENT domain.
+      const sc6 = pick(r, PROCESS_SCENARIOS);
+      const first = sc6.steps[0];
+      const mid6 = sc6.steps[1];
+      const last = sc6.steps[sc6.steps.length - 1];
+      return pl("fill-missing-step", `Ergänze den sinnvollen Zwischenschritt: ${first} → ? → ${last}`, mid6,
+        `${first} → ${mid6} → ${last}.`, dedupeOptions(shuffle([mid6, sc6.intruder, sc6.steps[2]], r)), 3, 0, 2, "implausible-middle");
     }
     case 7: { // dependency: may B start before A?
       const a = pick(r, ["Verpacken", "Etikettieren", "Endkontrolle"]);
@@ -907,12 +1005,28 @@ function genProzess(r: () => number, d: number, structIndex = -1): Question {
         `${a} liefert die Grundlage für ${b}.`, undefined, 2, 1, 2, "reversed-dependency");
     }
     case 8: { // detect repeated step (control loop)
-      return pl("detect-repeat-step", `Welcher Schritt kommt ZWEIMAL vor? Bestellung → Prüfen → Korrigieren → Prüfen → Versand`, "Prüfen",
-        "Kontrollschleife: Prüfen wiederholt sich.", undefined, 5, 0, 3, "wrong-repeat");
+      // WIDENED: the control loop is built from a real scenario, so the repeated
+      // step differs each time (was one fixed literal, capacity 1).
+      const sc8 = pick(r, PROCESS_SCENARIOS);
+      const rep = sc8.steps[1];
+      const chain8 = [sc8.steps[0], rep, sc8.steps[2], rep, sc8.steps[3]].join(" → ");
+      return pl("detect-repeat-step", `Welcher Schritt kommt ZWEIMAL vor? ${chain8}`, rep,
+        `Kontrollschleife: „${rep}“ wiederholt sich.`, dedupeOptions(shuffle([rep, sc8.steps[0], sc8.steps[2], sc8.steps[3]], r)), 5, 0, 3, "wrong-repeat");
     }
     case 9: { // parallel eligibility
-      return pl("parallel-vs-serial", `Können „Ware prüfen“ und „Verpackung vorbereiten“ gleichzeitig laufen?`, "Ja",
-        "Unabhängige Schritte sind parallel möglich.", undefined, 2, 1, 2, "false-serial");
+      // WIDENED: draws an INDEPENDENT pair (parallel = Ja) or a DEPENDENT pair
+      // from a constraint scenario (parallel = Nein), so the answer is not
+      // always "Ja" and the student must judge dependency.
+      const par = r() < 0.5;
+      if (par) {
+        const a9 = pick(r, PROCESS_SCENARIOS), b9 = pick(r, PROCESS_SCENARIOS);
+        const s1 = a9.steps[1], s2 = b9.domain === a9.domain ? b9.steps[3] : b9.steps[1];
+        return pl("parallel-vs-serial", `Können „${s1}“ und „${s2}“ gleichzeitig laufen?`, "Ja",
+          "Unabhängige Schritte sind parallel möglich.", ["Ja", "Nein"], 2, 1, 2, "false-serial");
+      }
+      const cs9 = pick(r, CONSTRAINT_SCENARIOS);
+      return pl("parallel-vs-serial", `Können „${cs9.steps[1]}“ und „${cs9.steps[2]}“ gleichzeitig laufen? Regel: ${cs9.rule}`, "Nein",
+        "Der zweite Schritt hängt vom ersten ab.", ["Ja", "Nein"], 2, 1, 2, "false-serial");
     }
     case 10: { // which step is skippable without breaking the goal
       const s = pick(r, [
@@ -924,8 +1038,12 @@ function genProzess(r: () => number, d: number, structIndex = -1): Question {
         "Ohne Unterschrift ist das Formular ungültig.", undefined, 3, 1, 2, "skippable-chosen");
     }
     case 11: { // first-failure point: where does the process break?
-      return pl("first-failure-point", `Ein Kunde erhält die falsche Ware. Wo wurde der Fehler WOHL erstmals gemacht? Bestellung erfassen → Kommissionierung → Verpackung → Versand`, "Kommissionierung",
-        "Falsche Artikel kommen meist aus der Kommissionierung.", undefined, 4, 1, 3, "last-step-blamed");
+      // WIDENED: the process and the failing step both vary; the blamed step is
+      // the one that SELECTS the item, not the last step (distractor logic kept).
+      const sc11 = pick(r, PROCESS_SCENARIOS);
+      const blame = sc11.steps[1];
+      return pl("first-failure-point", `Das Ergebnis ist falsch (${sc11.domain}). Wo wurde der Fehler WOHL erstmals gemacht? ${sc11.steps.join(" → ")}`, blame,
+        `Fehler entstehen meist bei „${blame}“, nicht erst am Ende.`, dedupeOptions(shuffle([...sc11.steps], r)), 4, 1, 3, "last-step-blamed");
     }
     case 12: { // if-then branching decision
       const b = pick(r, [
@@ -937,12 +1055,27 @@ function genProzess(r: () => number, d: number, structIndex = -1): Question {
         "Regelgesteuerte Verzweigung.", undefined, 2, 1, 3, "ignore-condition");
     }
     case 13: { // ordering by priority when capacity is short
-      return pl("priority-under-scarcity", `Du schaffst heute nur EINE Aufgabe: (a) Reklamation bearbeiten, (b) Archiv aufräumen, (c) Kaffeemaschine entkalken. Was zuerst?`, "(a)",
-        "Kundenrelevanz hat Vorrang.", undefined, 2, 1, 2, "comfort-first");
+      // WIDENED: the customer-relevant task varies, as do the two low-priority
+      // distractors, so the student applies the PRINCIPLE rather than recalling (a).
+      const urgent = pick(r, ["Reklamation bearbeiten", "Kundenanfrage beantworten", "Fehllieferung klären", "Termin mit Kunden bestätigen", "defekte Ware sperren"]);
+      const lows = shuffle(["Archiv aufräumen", "Kaffeemaschine entkalken", "Ordner neu beschriften", "Vorräte zählen", "Schreibtisch aufräumen"], r).slice(0, 2);
+      const trio = shuffle([urgent, ...lows], r);
+      return pl("priority-under-scarcity", `Du schaffst heute nur EINE Aufgabe: ${trio.map((x, i) => `(${"abc"[i]}) ${x}`).join(", ")}. Was zuerst?`, urgent,
+        "Kundenrelevanz hat Vorrang.", dedupeOptions(trio), 2, 1, 2, "comfort-first");
     }
     case 14: { // cycle detection in a loop process
-      return pl("loop-exit-condition", `Schleife: „Solange Stapel nicht leer: Karte ziehen, prüfen, ablegen.“ Was beendet die Schleife?`, "leerer Stapel",
-        "Abbruchbedingung erkennen.", undefined, 3, 1, 3, "no-exit");
+      // WIDENED: the loop subject and its exit condition vary together.
+      const loops = [
+        ["Stapel", "Karte ziehen, prüfen, ablegen", "leerer Stapel"],
+        ["Palette", "Paket nehmen, scannen, einlagern", "leere Palette"],
+        ["Postkorb", "Brief nehmen, lesen, ablegen", "leerer Postkorb"],
+        ["Auftragsliste", "Zeile lesen, kommissionieren, abhaken", "leere Auftragsliste"],
+        ["Kiste", "Teil prüfen, sortieren, weiterlegen", "leere Kiste"],
+        ["Warteschlange", "Kunden aufrufen, bedienen, abschliessen", "leere Warteschlange"],
+      ];
+      const lp = pick(r, loops);
+      return pl("loop-exit-condition", `Schleife: „Solange ${lp[0]} nicht leer: ${lp[1]}.“ Was beendet die Schleife?`, lp[2],
+        "Abbruchbedingung erkennen.", dedupeOptions(shuffle([lp[2], "voller " + lp[0], "nach 10 Durchläufen", "nie"], r)), 3, 1, 3, "no-exit");
     }
     case 15: { // order by alphabet vs numeric vs date (choose the right key)
       const t = pick(r, [["Rechnungen ablegen", "nach Rechnungsdatum"], ["Kundenkartei", "alphabetisch nach Name"], ["Artikelliste", "nach Artikelnummer"]]);
@@ -956,17 +1089,45 @@ function genProzess(r: () => number, d: number, structIndex = -1): Question {
         "Zwischenschritt im Prozess.", undefined, 2, 0, 2, "step-skipped");
     }
     case 17: { // exception handling: normal path interrupted
-      return pl("exception-path", `Im Normalfall läuft die Ware zum Versand. Was gilt bei STORNIERUNG durch den Kunden?`, "Ware zurück ins Lager einbuchen",
-        "Ausnahmezweig führt zurück ins Lager.", undefined, 2, 1, 3, "normal-path-forced");
+      // WIDENED: exception scenarios across domains; the correct branch differs.
+      const exc = [
+        ["Im Normalfall läuft die Ware zum Versand. Was gilt bei STORNIERUNG durch den Kunden?", "Ware zurück ins Lager einbuchen", "Ausnahmezweig führt zurück ins Lager."],
+        ["Normalerweise wird die Lieferung eingelagert. Was gilt bei TRANSPORTSCHADEN?", "Schaden dokumentieren und Annahme verweigern", "Ausnahmezweig stoppt die Annahme."],
+        ["Normalerweise wird das Gericht serviert. Was gilt bei FALSCHER BESTELLUNG?", "Gericht neu zubereiten", "Ausnahmezweig führt zurück in die Zubereitung."],
+        ["Normalerweise wird die Rechnung bezahlt. Was gilt bei PREISABWEICHUNG?", "Rechnung zurück zur Prüfung geben", "Ausnahmezweig führt zurück in die Prüfung."],
+        ["Normalerweise wird das Teil verbaut. Was gilt bei MASSABWEICHUNG?", "Teil aussortieren und nachfertigen", "Ausnahmezweig führt zurück in die Fertigung."],
+      ];
+      const ex = pick(r, exc);
+      return pl("exception-path", ex[0], ex[1], ex[2], undefined, 2, 1, 3, "normal-path-forced");
     }
     case 18: { // role handoff: who does the next step?
-      const t = pick(r, [["Lagermitarbeiter", "Spediteur"], ["Sachbearbeiter", "Teamleiter"], ["Empfang", "Poststelle"]]);
-      return pl("role-handoff", `Nach der Kommissionierung übergibt der Lagermitarbeiter die Ware an wen?`, t[0] === "Lagermitarbeiter" ? "den Spediteur" : t[0],
-        "Übergabepunkt im Prozess.", undefined, 2, 0, 2, "wrong-role");
+      // WIDENED (also a correctness fix): previously the prompt was fixed while
+      // the answer varied with an unused pick -> the answer could contradict the
+      // question. Now the handoff pair drives both.
+      const hand: [string, string, string][] = [
+        ["Kommissionierung", "Lagermitarbeiter", "Spediteur"],
+        ["Wareneingang", "Lagermitarbeiter", "Qualitätsprüfer"],
+        ["Vorprüfung", "Sachbearbeiter", "Teamleiter"],
+        ["Posteingang", "Empfang", "Poststelle"],
+        ["Zubereitung", "Koch", "Service"],
+        ["Reparatur", "Mechaniker", "Kundendienst"],
+      ];
+      const h = pick(r, hand);
+      return pl("role-handoff", `Nach der Station „${h[0]}“ übergibt ${h[1]} an wen?`, h[2],
+        "Übergabepunkt im Prozess.", dedupeOptions(shuffle([h[2], h[1], ...hand.filter(x => x[2] !== h[2]).slice(0, 2).map(x => x[2])], r)), 2, 0, 2, "wrong-role");
     }
     case 19: { // deadline gating: which step has a cutoff?
-      return pl("deadline-gate", `Bestellungen bis 14 Uhr gehen noch heute raus. Was entscheidet über den Versandtag?`, "der Zahlungseingang bis 14 Uhr",
-        "Cutoff-Zeit als Tor im Prozess.", undefined, 2, 1, 2, "no-gate");
+      // WIDENED: cutoff hour and the gating event both vary.
+      const hour = pick(r, ["11", "12", "14", "15", "16", "17"]);
+      const gates: [string, string][] = [
+        ["Bestellungen", "der Zahlungseingang bis " + hour + " Uhr"],
+        ["Retouren", "der Eingang der Ware bis " + hour + " Uhr"],
+        ["Aufträge", "die Freigabe bis " + hour + " Uhr"],
+        ["Anfragen", "der vollständige Antrag bis " + hour + " Uhr"],
+      ];
+      const g = pick(r, gates);
+      return pl("deadline-gate", `${g[0]} bis ${hour} Uhr werden noch heute bearbeitet. Was entscheidet über den Tag?`, g[1],
+        "Cutoff-Zeit als Tor im Prozess.", dedupeOptions(shuffle([g[1], "die Reihenfolge im Stapel", "die Grösse der Sendung", "der Wunsch des Kunden"], r)), 2, 1, 2, "no-gate");
     }
     case 20: { // count steps needed to reach a state
       const n = ri(r, 3, 6);
