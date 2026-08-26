@@ -2246,10 +2246,41 @@ export function generate(subskillId: string, difficulty: number, seed = Date.now
 
 export function generateBatch(subskillId: string, difficulty: number, n = 6, baseSeed = Date.now()): Question[] {
   const out: Question[] = [];
-  for (let i = 0; i < n; i++) {
-    // vary seed per item so prompts differ within a session
+  // Duplicate rejection with bounded retry. Previously this loop pushed whatever
+  // generate() returned, so at >=6x session load identical items appeared purely by
+  // collision once the struct pool saturated (measured: 1 exact dup at 6x, 2 at 10x,
+  // 11 near-dups at 10x). We now reject exact repeats AND prefer an unused struct
+  // signature, with a hard attempt ceiling so the loop can never spin forever.
+  const seenExact = new Set<string>();
+  const seenSig = new Set<string>();
+  const maxAttempts = Math.max(n * 12, 240);
+  let attempts = 0;
+  let rejectedExact = 0;
+  while (out.length < n && attempts < maxAttempts) {
+    const i = attempts++;
     const q = generate(subskillId, difficulty, baseSeed + i * 7919 + Math.floor(rng(baseSeed + i)() * 1e6));
+    if (!q) continue;
+    const key = q.prompt + "|" + String(q.answer);
+    if (seenExact.has(key)) { rejectedExact++; continue; }
+    const sig = q.structSig?.opSequence || "?";
+    // While unused signatures remain, skip a signature we already served — this
+    // spreads coverage across grammar families instead of hammering a few.
+    if (seenSig.has(sig) && seenSig.size < countStructs(subskillId) && out.length < n - 1 && attempts < maxAttempts - n) continue;
+    seenExact.add(key);
+    seenSig.add(sig);
+    out.push(q);
+  }
+  // Fallback: if the pool genuinely cannot fill n unique items, top up with the
+  // best available rather than returning short. This is visible, not silent.
+  let topUp = 0;
+  while (out.length < n && topUp < n * 4) {
+    const q = generate(subskillId, difficulty, baseSeed + (attempts + topUp) * 104729 + 17);
+    topUp++;
     if (q) out.push(q);
   }
   return out;
+}
+function countStructs(subskillId: string): number {
+  const g = (GENERATORS as any)[subskillId];
+  return Array.isArray(g) ? g.length : 1;
 }
