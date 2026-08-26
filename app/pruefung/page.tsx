@@ -10,6 +10,8 @@ import {
 } from "@/lib/exam";
 import { subskillById, AREAS } from "@/lib/curriculum";
 
+import { appendArchive, recordsFromSnapshot } from "@/lib/simArchive";
+
 const KEY = "multicheck-exam-v1";
 
 function loadExam(): ExamSnapshot | null {
@@ -113,6 +115,10 @@ export default function Pruefung() {
       return { subskill: q2.subskill, correct: s.correct[id], ms: s.responseTimes[id] || 0 };
     }), snap.mode === "voll" ? "full-sim" : "mini-sim");
     const plan = weeklyPlan(m2);
+    // ARCHIVE RAW ANSWERS BEFORE clearing in-progress state. clearExam() removes
+    // only the resumable snapshot; the append-only archive must survive so any
+    // future grading correction can be recomputed instead of invalidated.
+    try { appendArchive(recordsFromSnapshot(s, snap.mode)); } catch { /* never block a submission */ }
     clearExam();
     setResult({ overall: bd.overall, areas: bd.areas, subs: bd.subs, fatigue: fat, plan });
     set(s);

@@ -5,13 +5,14 @@ import { overallReadiness, decideToday, masteryOf, accuracy, avgSpeed } from "@/
 import { weeklyPlan } from "@/lib/exam";
 import { AREAS, subskillById, EXAM_DATE_DEFAULT } from "@/lib/curriculum";
 import { Card, ProgressRing, StatCard, Bar, StatusDot, Button } from "@/components/ui";
+import SimRegradeNotice from "@/components/SimRegradeNotice";
 
 function daysUntil(iso: string) {
   return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000));
 }
 
 export default function Heuten() {
-  const { model, ready } = useLearner();
+  const { model, ready, simRegradeNotice } = useLearner();
   if (!ready || !model) return <Skeleton />;
 
   const plan = decideToday(model);
@@ -25,6 +26,7 @@ export default function Heuten() {
 
   return (
     <div className="enter">
+      <SimRegradeNotice notice={simRegradeNotice} />
       <header className="flex items-end justify-between">
         <div>
           <p className="text-sm text-ink-muted">Guten Tag 👋</p>

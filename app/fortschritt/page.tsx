@@ -3,9 +3,10 @@ import { useLearner } from "@/lib/useLearner";
 import { AREAS } from "@/lib/curriculum";
 import { masteryOf, accuracy, avgSpeed, quadrant, readinessByArea, overallReadiness } from "@/lib/learner";
 import { Card, StatCard, ProgressRing, Bar } from "@/components/ui";
+import SimRegradeNotice from "@/components/SimRegradeNotice";
 
 export default function Fortschritt() {
-  const { model, ready } = useLearner();
+  const { model, ready, simRegradeNotice } = useLearner();
   if (!ready || !model) return <div className="text-sm text-ink-faint">Lade…</div>;
 
   const acc = accuracy(model), spd = avgSpeed(model), q = quadrant(model);
@@ -14,6 +15,7 @@ export default function Fortschritt() {
 
   return (
     <div className="enter">
+      <SimRegradeNotice notice={simRegradeNotice} />
       <h1 className="text-2xl font-semibold tracking-tight">Fortschritt</h1>
 
       <div className="grid sm:grid-cols-4 gap-3 mt-5">
