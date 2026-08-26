@@ -40,7 +40,11 @@ export interface ExamSnapshot {
   writingDeadline: number;
   submitted: boolean;
   sectionOrder: AreaId[];
-  memorizePhaseEnded?: Record<number, boolean>; // section idx -> memorize done (memory realism)
+  // MEMORY-WINDOW INTEGRITY: per-question consumed windows (qid -> deadline the
+  // window was consumed at). Replaces the per-section boolean, which let a
+  // refresh re-show a later memory item's stimulus for the rest of its window
+  // and let earlier sections' items re-render on any revisit.
+  memorizeConsumed?: Record<string, number>;
   finishedSections: number[];
 }
 
@@ -65,7 +69,7 @@ export function buildExam(mode: ExamMode, seed = Date.now()): ExamSnapshot {
     sections, currentSection: 0, currentIndex: 0,
     answers: {}, correct: {}, responseTimes: {}, questionStart: {},
     writingDraft: "", writingDeadline: 0,
-    submitted: false, sectionOrder: areaOrder, memorizePhaseEnded: {},
+    submitted: false, sectionOrder: areaOrder, memorizeConsumed: {},
     finishedSections: [],
   };
 }

@@ -48,6 +48,15 @@ export default function Pruefung() {
   };
   const resumeExam = () => { if (resume) { setSnap(resume); setMode(resume.mode); setResume(null); } };
 
+  // MEMORY-WINDOW INTEGRITY: mark this item's window consumed (one-shot, persisted
+  // with the snapshot) and move on to the question. The button is disabled until
+  // the absolute deadline passes, so the window cannot be cut short either.
+  const consumeAndAdvance = () => {
+    if (!memQ || !snap || now < memDeadline) return;
+    set({ ...snap, memorizeConsumed: { ...(snap.memorizeConsumed ?? {}), [memQ.id]: Date.now() } });
+  };
+
+
   if (!ready || !model) return <div className="text-sm text-ink-faint">Lade…</div>;
 
   if (!snap) {
@@ -124,10 +133,17 @@ export default function Pruefung() {
     set(s);
   };
 
-  // Memory realism: stimulus phase for questions with memorizeMs set
+  // Memory realism: stimulus phase for questions with memorizeMs set.
+  // MEMORY-WINDOW INTEGRITY: the window is one-shot PER ITEM, derived from
+  // absolute timestamps persisted in the snapshot (anti-exploit, same pattern as
+  // the section timer). Per-section flags previously let a refresh re-show a
+  // later memory item's stimulus for the rest of its window, and revisiting a
+  // finished section could re-render its items' stimuli.
   const memQ = q && q.memorizeMs ? q : null;
-  const isMemoryStimulusPhase = !!memQ && !(snap.memorizePhaseEnded?.[snap.currentSection]);
-  const memTimeLeft = isMemoryStimulusPhase ? Math.max(0, (snap.startedAt + 5000 + (memQ?.memorizeMs ?? 4000)) - now) : 0;
+  const memDeadline = memQ ? snap.startedAt + 5000 + (memQ.memorizeMs ?? 4000) : 0;
+  const consumedAt = memQ ? snap.memorizeConsumed?.[memQ.id] : undefined;
+  const isMemoryStimulusPhase = !!memQ && consumedAt === undefined && now < memDeadline;
+  const memTimeLeft = isMemoryStimulusPhase ? Math.max(0, memDeadline - now) : 0;
 
   // ---- render by phase ----
   if (snap.phase === "instructions") {
@@ -201,9 +217,9 @@ export default function Pruefung() {
       <Card className="mt-6 p-6 max-w-xl">
         <p className="text-xs text-ink-faint">Merken Sie sich den Reiz. Er verschwindet in {Math.ceil(memTimeLeft/1000)}s.</p>
         <div className="mt-3 rounded-card bg-page p-6 text-center" dangerouslySetInnerHTML={{ __html: q?.stimulus || "" }} />
-        {memTimeLeft <= 0 && (
-          <Button className="mt-4" onClick={() => set({ ...snap, memorizePhaseEnded: { ...(snap.memorizePhaseEnded||{}), [snap.currentSection]: true } })}>Weiter</Button>
-        )}
+        <Button className="mt-4" onClick={consumeAndAdvance} disabled={now < memDeadline}>
+          {now < memDeadline ? `Warten (${Math.ceil(memTimeLeft/1000)}s)` : "Weiter"}
+        </Button>
       </Card>
     );
   }

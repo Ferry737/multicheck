@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { gradeAnswer } from "@/lib/grading";
+import { loadMemWindows, saveMemWindows, planMemWindow, consumeMemWindow, MEMWINDOW_TTL_MS } from "@/lib/memwindow";
 import { Question, resolveDifficulty } from "@/lib/questions";
 import { useLearner } from "@/lib/useLearner";
 import { subskillById, areaOf } from "@/lib/curriculum";
@@ -59,14 +60,43 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
   }, [i]);
 
   const [hidden, setHidden] = useState(false);
-  // Auto-hide memory stimulus after memorizeMs (Phase 5-F: honor memorizeMs, strict in exam mode)
+  // MEMORY-WINDOW INTEGRITY (P0 memory-exploit loop): previously this window was
+  // plain component state, so a refresh remounted with a FULL fresh window and
+  // a student could re-memorize indefinitely. The absolute deadline and
+  // consumed state now persist in lib/memwindow.ts, keyed by the STABLE
+  // exactHash (question ids are regenerated on every mount and would silently
+  // reopen the exploit). Within TTL: remaining time only, never an extension;
+  // once consumed/expired the stimulus cannot re-render this session.
+  // Recall items legitimately recur ACROSS days, so entries go stale after TTL
+  // and the next real session gets a fresh window (test-memwindow.mjs case 7).
   useEffect(() => {
     const cur = qs[i];
-    if (cur?.type === "recall" && cur.memorizeMs && !hidden) {
-      const t = setTimeout(() => setHidden(true), cur.memorizeMs);
-      return () => clearTimeout(t);
-    }
-  }, [qs, i, hidden]);
+    if (cur?.type !== "recall" || !cur.memorizeMs) return;
+    // Key = rendered CONTENT (subskill + prompt), not q.id: ids regenerate every
+    // mount and would silently reopen the exploit. structHash/templateKey are
+    // coarser than the rendered task (shared by every item of the struct), which
+    // would wrongly consume siblings' windows; prompt uniquely identifies what
+    // the student actually sees.
+    const qk = "memw:" + cur.subskill + ":" + cur.prompt;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const all = loadMemWindows(typeof window !== "undefined" ? window.localStorage : null);
+      const plan = planMemWindow(all, qk, Date.now(), cur.memorizeMs, MEMWINDOW_TTL_MS);
+      saveMemWindows(typeof window !== "undefined" ? window.localStorage : null, { ...all, [qk]: plan.entry });
+      setHidden(!plan.renderStimulus);
+      if (plan.renderStimulus && plan.hideAfterMs != null) {
+        timer = setTimeout(() => {
+          setHidden(true);
+          try {
+            const store = typeof window !== "undefined" ? window.localStorage : null;
+            const latest = loadMemWindows(store);
+            saveMemWindows(store, { ...latest, [qk]: consumeMemWindow(latest[qk] ?? plan.entry) });
+          } catch { /* private mode */ }
+        }, plan.hideAfterMs);
+      }
+    } catch { setHidden(false); }
+    return () => { if (timer) clearTimeout(timer); };
+  }, [qs, i]);
 
   if (status === "error") return (
     <div className="enter max-w-md mx-auto px-6 py-20 text-center">
