@@ -7,7 +7,39 @@ node_modules
 
 # QA / crash artifacts
 core
+core.*
 *.core
 .gstack/
 scripts/qa-*.sh
 tsconfig.tsbuildinfo
+
+# Build / test output (reproducible)
+dist/
+build/
+out/
+coverage/
+playwright-report/
+test-results/
+.turbo/
+.vercel/
+
+# Caches
+.cache/
+.npm/
+.eslintcache
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# Credential-bearing artifacts (never commit)
+auth.json
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# OS temp
+.DS_Store
+Thumbs.db
