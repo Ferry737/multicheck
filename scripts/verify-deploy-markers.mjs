@@ -24,7 +24,9 @@ console.log("chunks fetched:", fetched, "bytes:", scanned.length);
 
 const found = [];
 for (const s of ["Kartonstapel","Gewinde schneiden","Schreiben lesen","Ader crimpen",
-                 "Terminliste","Chargenprotokolle","Auftragserfassung","Zuschnitt"]) {
+                 "Terminliste","Chargenprotokolle","Auftragserfassung","Zuschnitt",
+                 "schwache-bereiche-evidenzgate-v1","multicheck-memwindow-v1",
+                 "multicheck-memwindow"]) {
   const n = scanned.split(s).length - 1;
   if (n > 0 && isAscii(s)) found.push([s, n]);
 }
