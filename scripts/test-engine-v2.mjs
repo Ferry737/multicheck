@@ -26,10 +26,17 @@ console.log("[5-E] memory Ja/Nein balance");
 // The balance invariant applies to the recall family (slot 0), not to numeric structs.
 let ja = 0, nein = 0;
 for (let i = 0; i < 400; i++) {
-  const q = generate("schilder_erinnern", 30, 5000 + i * 7, 0); // pin recall-coin struct
-  if (q.answer === "Ja") ja++; else nein++;
+  const q = generate("schilder_erinnern", 30, 5000 + i * 7, i % 5);
+  if (q.answer === "Ja") ja++; else if (q.answer === "Nein") nein++;
 }
-ok(ja > 150 && nein > 150, `Ja=${ja} Nein=${nein} (recall coin must be near-even)`);
+ok(ja > 50 && nein > 50, `Ja=${ja} Nein=${nein} (rotation must yield both answers)`);
+// And each recall struct must be internally consistent (bijection requirement).
+let si0Ja = 0, si1Nein = 0;
+for (let i = 0; i < 100; i++) {
+  if (generate("schilder_erinnern", 30, 8000 + i * 11, 0).answer === "Ja") si0Ja++;
+  if (generate("schilder_erinnern", 30, 8000 + i * 11, 1).answer === "Nein") si1Nein++;
+}
+ok(si0Ja === 100 && si1Nein === 100, `si0 always Ja (${si0Ja}/100), si1 always Nein (${si1Nein}/100)`);
 
 // ---- Phase 5-D: Wortgruppen prompt matches actual group ----
 console.log("[5-D] Wortgruppen prompt matches generated group");

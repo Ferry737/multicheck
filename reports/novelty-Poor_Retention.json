@@ -57,7 +57,7 @@
     "structDupRate50": 0.4759,
     "structDupRate200": 0.4759,
     "structDupRateAll": 0.4759,
-    "surfaceDupRate200": 0.0082,
+    "surfaceDupRate200": 0,
     "uniqueStruct": 22,
     "structHHI": 0.0476,
     "topFamilyShare": 0.0512,

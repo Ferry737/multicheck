@@ -112,6 +112,7 @@ const PREV_STEP: [string, string][] = POOLS.PREV_STEP as [string, string][];
 const LOOPS: [string, string, string][] = POOLS.LOOPS as [string, string, string][];
 const EXCEPTIONS: [string, string, string][] = POOLS.EXCEPTIONS as [string, string, string][];
 const HANDOFFS: [string, string, string][] = POOLS.HANDOFFS as [string, string, string][];
+const GATES: [string, string][] = POOLS.GATES as [string, string][];
 const ri = (r: () => number, a: number, b: number) => Math.floor(r() * (b - a + 1)) + a;
 const pick = <T,>(r: () => number, arr: T[]): T => arr[Math.floor(r() * arr.length)];
 const shuffle = <T,>(arr: T[], r: () => number): T[] => {
@@ -1031,15 +1032,11 @@ function genProzess(r: () => number, d: number, structIndex = -1): Question {
         "Übergabepunkt im Prozess.", dedupeOptions(shuffle([h[2], h[1], ...hand.filter(x => x[2] !== h[2]).slice(0, 2).map(x => x[2])], r)), 2, 0, 2, "wrong-role");
     }
     case 19: { // deadline gating: which step has a cutoff?
-      // WIDENED: cutoff hour and the gating event both vary.
-      const hour = pick(r, ["11", "12", "14", "15", "16", "17"]);
-      const gates: [string, string][] = [
-        ["Bestellungen", "der Zahlungseingang bis " + hour + " Uhr"],
-        ["Retouren", "der Eingang der Ware bis " + hour + " Uhr"],
-        ["Aufträge", "die Freigabe bis " + hour + " Uhr"],
-        ["Anfragen", "der vollständige Antrag bis " + hour + " Uhr"],
-      ];
-      const g = pick(r, gates);
+      // WIDENED: cutoff hour and the gating event both vary, drawn from the JSON
+      // pool (14 gates x 10 hours) instead of 4 inline entries x 6 hours.
+      const hour = pick(r, ["10", "11", "12", "13", "14", "15", "16", "17", "18", "9"]);
+      const g0 = pick(r, GATES);
+      const g: [string, string] = [g0[0], `${g0[1]} bis ${hour} Uhr`];
       return pl("deadline-gate", `${g[0]} bis ${hour} Uhr werden noch heute bearbeitet. Was entscheidet über den Tag?`, g[1],
         "Cutoff-Zeit als Tor im Prozess.", dedupeOptions(shuffle([g[1], "die Reihenfolge im Stapel", "die Grösse der Sendung", "der Wunsch des Kunden"], r)), 2, 1, 2, "no-gate");
     }
@@ -1309,12 +1306,16 @@ function genSchilder(r: () => number, d: number, structIndex = -1): Question {
   const chosen = shuffle(SIGNS, r).slice(0, k);
   const svg = genSchilderSvg(k, chosen);
   // slot0 = recall-present/absent with balanced coin; slot1 = forced-absent (Nein).
-    // Coin uses a FRESH hash of the stream value so it is unbiased regardless of position.
-    // Balanced coin from the FIRST raw draw (fixed position, full-period bit):
+    // BIJECTION FIX (Amendment: structIndex <-> structHash must be 1:1).
+    // Previously BOTH si=0 and si=1 used a balanced coin, so each emitted the
+    // signatures recall-present AND recall-absent — two structs sharing two
+    // signatures, which broke the bijection and made the signature space
+    // ambiguous. Now the struct DETERMINES the case:
+    //   si=0 -> always present (answer "Ja"),  si=1 -> always absent ("Nein").
+    // Ja/Nein balance is preserved because the composer rotates si=0 and si=1
+    // evenly, and the remaining slots (2..4) are non-Ja/Nein task types.
     const firstRaw = Math.floor(r() * 2147483647);
-    // slot0 & slot1 are both balanced-coin recall structs (independent seed streams);
-    // slot1 additionally excludes the FIRST sign from the ask pool to vary its surface.
-    const present = structIndex === -1 ? (firstRaw % 2 === 0) : (firstRaw % 2 === (structIndex === 0 ? 0 : 1));
+    const present = structIndex === -1 ? (firstRaw % 2 === 0) : (structIndex === 0);
   const ask = present ? pick(r, chosen) : (() => { const others = SIGNS.filter((s) => !chosen.includes(s)); return others.length ? pick(r, others) : pick(r, chosen); })();
   const answer = present ? "Ja" : "Nein";
   const sig = present
