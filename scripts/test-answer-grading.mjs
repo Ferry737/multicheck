@@ -61,3 +61,26 @@ expect("Nein", "Ja", false, "choice wrong", "choice");
 
 console.log(`\n${fail === 0 ? "ALL PASS" : fail + " FAILURES"}`);
 if (fail > 0) throw new Error("decimal-input regression FAILED");
+
+// ===== EXAM PATH: lib/exam.ts gradeAnswer must match Trainer semantics =====
+const examMod = await import("/opt/data/projects/multicheck/lib/exam.ts");
+if (typeof examMod.gradeAnswer !== "function") throw new Error("exam.gradeAnswer missing");
+let exFail = 0;
+function expectExam(input, answer, want, label, kind = "input") {
+  const got = examMod.gradeAnswer(input, answer, kind);
+  const ok = got === want;
+  if (!ok) exFail++;
+  console.log(`${ok ? "PASS" : "FAIL"} | EXAM "${input}" vs "${answer}" -> ${got ? "ACCEPT" : "REJECT"} (want ${want ? "ACCEPT" : "REJECT"}) ${label}`);
+}
+console.log("\n=== EXAM grading parity ===");
+expectExam("1.0", "1", true, "trailing .0");
+expectExam("1,0", "1", true, "comma decimal");
+expectExam("24,60", "24.6", true, "comma + trailing zero");
+expectExam("1'234", "1234", true, "Swiss thousands");
+expectExam("2", "1", false, "wrong integer");
+expectExam("24.7", "24.6", false, "off by 0.1");
+expectExam("abc", "1", false, "non-numeric");
+expectExam("Ja", "Ja", true, "choice exact", "choice");
+expectExam("Nein", "Ja", false, "choice wrong", "choice");
+console.log(`\nEXAM ${exFail === 0 ? "ALL PASS" : exFail + " FAILURES"}`);
+if (exFail > 0) throw new Error("exam grading parity FAILED");

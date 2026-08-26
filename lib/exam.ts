@@ -84,7 +84,7 @@ export function remainingMs(s: ExamSnapshot, now = Date.now()): number {
 export function answerCurrent(s: ExamSnapshot, value: string, now = Date.now()): ExamSnapshot {
   const q = currentQuestion(s);
   if (!q) return s;
-  const correct = norm(value) === norm(q.answer) || (q.kind === "choice" && value === q.answer);
+  const correct = gradeAnswer(value, q.answer, q.kind);
   const rt = s.questionStart[q.id] ? now - s.questionStart[q.id] : 0;
   return {
     ...s,
@@ -140,7 +140,28 @@ export function finalize(s: ExamSnapshot): ExamSnapshot {
   return { ...s, phase: "completed" };
 }
 
-function norm(v: string) { return (v || "").replace(/\s/g, "").replace(",", ".").toLowerCase(); }
+// Answer grading (shared semantics with components/Trainer.tsx).
+// Text: strip whitespace, ALL commas -> dots (global), lowercase.
+function norm(v: string) { return (v || "").replace(/\s/g, "").replace(/,/g, ".").toLowerCase(); }
+// Numeric tolerance: a mathematically correct answer must never be graded wrong on
+// formatting alone (1 vs 1.0 vs 1,0 vs 1'234). Applied to non-choice answers only.
+function asNumber(s: string): number | null {
+  const cleaned = (s || "").trim().replace(/['\u2019\s]/g, "").replace(/,/g, ".");
+  if (!/^[+-]?\d*\.?\d+$/.test(cleaned)) return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+function numericMatch(a: string, b: string): boolean {
+  const na = asNumber(a), nb = asNumber(b);
+  if (na === null || nb === null) return false;
+  return Math.abs(na - nb) < 1e-9;
+}
+/** Single grading choke point for exam answers. */
+export function gradeAnswer(value: string, answer: string, kind?: string): boolean {
+  return norm(value) === norm(answer) ||
+    (kind === "choice" && value === answer) ||
+    (kind !== "choice" && numericMatch(value, answer));
+}
 
 // ---- Post-exam breakdown (Loop 9) ----
 export interface AreaResult { area: AreaId; accuracy: number; avgMs: number; confidence: number; weak: boolean; }
