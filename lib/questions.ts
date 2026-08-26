@@ -424,6 +424,26 @@ const SB_REG = ["prüfen", "holen", "packen", "zeigen", "fragen", "kaufen", "mel
 const SB_REFLV = [["freuen", "sich freuen über"], ["melden", "sich melden"], ["beeilen", "sich beeilen"],
   ["interessieren", "sich interessieren für"], ["erinnern", "sich erinnern an"], ["ärgern", "sich ärgern über"]];
 const SB_REFL_BY_PERSON = [["ich", "mich"], ["du", "dich"], ["er", "sich"], ["wir", "uns"], ["ihr", "euch"], ["sie", "sich"]];
+// Adjectives with comparative/superlative forms. `dim` marks the semantic dimension
+// so objects only take adjectives that can sensibly describe them: "die warme Schere"
+// and "die Schere ist wärmer als der Bericht" were 30-sample findings.
+// "size"/"quality" apply to any workplace object; "temp"/"age" are restricted.
+const SB_ADJ: { base: string; comp: string; sup: string; umlaut: boolean; dim: "size" | "quality" | "temp" | "age" }[] = [
+  { base: "gross", comp: "grösser", sup: "grösste", umlaut: true, dim: "size" },
+  { base: "klein", comp: "kleiner", sup: "kleinste", umlaut: true, dim: "size" },
+  { base: "lang", comp: "länger", sup: "längste", umlaut: true, dim: "size" },
+  { base: "kurz", comp: "kürzer", sup: "kürzeste", umlaut: true, dim: "size" },
+  { base: "schwer", comp: "schwerer", sup: "schwerste", umlaut: false, dim: "size" },
+  { base: "leicht", comp: "leichter", sup: "leichteste", umlaut: false, dim: "size" },
+  { base: "hoch", comp: "höher", sup: "höchste", umlaut: true, dim: "size" },
+  { base: "neu", comp: "neuer", sup: "neueste", umlaut: false, dim: "quality" },
+  { base: "günstig", comp: "günstiger", sup: "günstigste", umlaut: false, dim: "quality" },
+  { base: "wichtig", comp: "wichtiger", sup: "wichtigste", umlaut: false, dim: "quality" },
+  { base: "genau", comp: "genauer", sup: "genaueste", umlaut: false, dim: "quality" },
+  { base: "gut", comp: "besser", sup: "beste", umlaut: false, dim: "quality" },
+  { base: "alt", comp: "älter", sup: "älteste", umlaut: true, dim: "age" },
+  { base: "warm", comp: "wärmer", sup: "wärmste", umlaut: true, dim: "temp" },
+];
 // --- SEMANTIC COMPATIBILITY LAYER (Phase 2) ---
 // Grammar alone licensed nonsense like "die Ware schreiben". Objects carry a
 // semantic class; each verb declares which classes it accepts. Composition draws
@@ -618,13 +638,20 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       ]);
       return sb("plural-formation", `Plural: „${b[0]}“`, b[1], "Pluralform lernen.", 1, 0, 2, "wrong-plural");
     }
-    case 13: { // comparative
-      const b = pick(r, [["groß", "größer"], ["schnell", "schneller"], ["teuer", "teurer"], ["gut", "besser"], ["viel", "mehr"]]);
-      return sb("comparative-form", `Komparativ von „${b[0]}“`, b[1], "Steigerungsform.", 1, 0, 2, "mehr-plus-adjective");
+    case 13: { // comparative used in a COMPARISON clause with "als"
+      const a = pick(r, SB_ADJ.filter((x) => x.dim === "size" || x.dim === "quality"));
+      const n1 = pick(r, OBJS);
+      const n2 = pick(r, OBJS.filter((x: any) => x.lemma !== n1.lemma));
+      return sb("comparative-form", `Vergleich mit „als“: „${cw(n1.nom)} ist ${a.base}__ als ${n2.nom}.“ — Komparativ von „${a.base}“`,
+        a.comp, `Komparativ + „als“ beim Vergleich: ${a.base} → ${a.comp}.`, 2, 1, 3, "mehr-plus-adjective");
     }
-    case 14: { // superlative with 'am'
-      const b = pick(r, [["schnell", "am schnellsten"], ["gut", "am besten"], ["gerne", "am liebsten"], ["billig", "am billigsten"]]);
-      return sb("superlative-am", `Superlativ: „${b[0]}“`, b[1], "am + Stamm + -sten.", 1, 0, 2, "wrong-superlative");
+    case 14: { // superlative in PREDICATIVE position: "am ...sten"
+      const a = pick(r, SB_ADJ.filter((x) => x.dim === "size" || x.dim === "quality"));
+      const n = pick(r, OBJS);
+      // Predicative superlative: "am" + superlative stem + "-en".
+      const pred = "am " + a.sup.replace(/e$/, "en");
+      return sb("superlative-am", `Prädikativer Superlativ: „${cw(n.nom)} ist ___.“ (von „${a.base}“)`, pred,
+        `Prädikativ: am + Superlativstamm + -en → ${pred}.`, 2, 1, 3, "wrong-superlative");
     }
     case 15: { // imperative
       const b = pick(r, [
@@ -742,17 +769,26 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       return sb("reflexive-pronoun", `Reflexivpronomen einsetzen: „${subj} ${conj} ___“ (${v[1]})`, p[1],
         `Reflexivpronomen richtet sich nach dem Subjekt: ${p[0]} → ${p[1]}.`, 2, 1, 2, "wrong-reflexive");
     }
-    case 25: { // adjective declension after definite article
-      const b = pick(r, [
-        ["der neue Mitarbeiter", "neue"], ["die alte Rechnung", "alte"], ["das kleine Paket", "kleine"],
-      ]);
-      const t = pick(r, [["der groß__ Tisch", "große"], ["die klein__ Schachtel", "kleine"], ["das neu__ Regal", "neue"]]);
-      return sb("adj-ending-def-article", `Adjektivendung: „${b[0]}“ — füllen Sie: „${t[0]}“`, t[1],
-        "Nach bestimmtem Artikel: -e (Nom. Sg.).", 1, 1, 2, "missing-or-wrong-ending");
+    case 25: { // adjective ending after DEFINITE article (weak declension)
+      const a = pick(r, SB_ADJ.filter((x) => x.dim === "size" || x.dim === "quality"));
+      const n = pick(r, OBJS);
+      const isAkk = r() < 0.5;
+      // Weak declension: -e in nom sg for all genders; -en for masculine accusative.
+      const end = isAkk && n.gender === "der" ? "en" : "e";
+      const art = isAkk && n.gender === "der" ? "den" : n.gender;
+      return sb("adj-ending-def-article", `Adjektivendung nach bestimmtem Artikel (${isAkk ? "Akkusativ" : "Nominativ"}): „${art} ${a.base}__ ${n.lemma}“`,
+        `${art} ${a.base}${end} ${n.lemma}`,
+        `Nach bestimmtem Artikel gilt die schwache Deklination → -${end}.`, 2, 2, 3, "missing-or-wrong-ending");
     }
-    case 26: { // adjective declension after indefinite article
-      const t = pick(r, [["ein groß__ Tisch", "großer"], ["eine klein__ Schachtel", "kleine"], ["ein neu__ Regal", "neues"]]);
-      return sb("adj-ending-indef-article", `Adjektivendung: „${t[0]}“`, t[1], "Nach unbestimmtem Artikel zeigt die Endung das Genus.", 1, 1, 3, "wrong-ending");
+    case 26: { // adjective ending after INDEFINITE article (mixed declension)
+      const a = pick(r, SB_ADJ.filter((x) => x.dim === "size" || x.dim === "quality"));
+      const n = pick(r, OBJS);
+      // Mixed declension: the ending must carry the gender the article cannot show.
+      const end = n.gender === "der" ? "er" : n.gender === "die" ? "e" : "es";
+      const art = n.gender === "die" ? "eine" : "ein";
+      return sb("adj-ending-indef-article", `Adjektivendung nach unbestimmtem Artikel (Nominativ): „${art} ${a.base}__ ${n.lemma}“`,
+        `${art} ${a.base}${end} ${n.lemma}`,
+        `„${art}“ zeigt das Genus nicht — die Adjektivendung übernimmt es: ${n.gender} → -${end}.`, 2, 2, 3, "wrong-ending");
     }
     case 27: { // Präteritum of sein/haben
       const o = pick(r, OBJS);
@@ -817,13 +853,21 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       const w = pick(r, [["der Hund", "die Hunde"], ["die Katze", "die Katzen"], ["das Buch", "die Bücher"], ["der Baum", "die Bäume"]]);
       return sb("plural-form", `Plural von „${w[0]}“?`, w[1], "Pluralendung -e/-n/-er.", 1, 0, 2, "singular-returned");
     }
-    case 34: { // comparative
-      const w = pick(r, [["schnell", "schneller"], ["groß", "größer"], ["billig", "billiger"], ["teuer", "teurer"]]);
-      return sb("comparative", `Steigerung von „${w[0]}“?`, w[1], "Komparativ mit -er.", 1, 0, 2, "no-comparison");
+    case 34: { // comparative in ATTRIBUTIVE position (declined before a noun)
+      const a = pick(r, SB_ADJ.filter((x) => x.dim === "size" || x.dim === "quality"));
+      const n = pick(r, OBJS);
+      // Attributive comparative after the definite article: weak -e ending.
+      const form = a.comp + "e";
+      return sb("comparative", `Attributiver Komparativ: „${n.gender} ___ ${n.lemma}“ (von „${a.base}“)`,
+        `${n.gender} ${form} ${n.lemma}`,
+        `Komparativ + Adjektivendung nach bestimmtem Artikel: ${a.base} → ${a.comp} → ${form}.`, 2, 2, 3, "no-comparison");
     }
-    case 35: { // superlative
-      const w = pick(r, [["schnell", "am schnellsten"], ["gut", "am besten"], ["hoch", "am höchsten"]]);
-      return sb("superlative", `Höchststufe von „${w[0]}“?`, w[1], "Superlativ mit am -sten.", 1, 0, 2, "comparative-returned");
+    case 35: { // superlative in ATTRIBUTIVE position (declined before a noun)
+      const a = pick(r, SB_ADJ.filter((x) => x.dim === "size" || x.dim === "quality"));
+      const n = pick(r, OBJS);
+      return sb("superlative", `Attributiver Superlativ: „${n.gender} ___ ${n.lemma}“ (von „${a.base}“)`,
+        `${n.gender} ${a.sup} ${n.lemma}`,
+        `Superlativ steht attributiv mit Artikel: ${a.base} → ${a.sup}.`, 2, 2, 3, "comparative-returned");
     }
     case 36: { // question word selection
       const q = pick(r, [["Wer", "eine Person"], ["Was", "eine Sache"], ["Wo", "ein Ort"], ["Wann", "eine Zeit"]]);
@@ -910,9 +954,12 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       const s = pick(r, [["schreiben", "geschrieben"], ["lesen", "gelesen"], ["fahren", "gefahren"], ["sehen", "gesehen"]]);
       return sb("participle-strong", `Partizip Perfekt von „${s[0]}“?`, s[1], "Starkes Verb: ge-…-en/-t.", 1, 1, 2, "weak-participle");
     }
-    case 48: { // comparative of adjectives with umlaut
-      const s = pick(r, [["alt", "älter"], ["jung", "jünger"], ["kalt", "kälter"], ["warm", "wärmer"]]);
-      return sb("comparative-umlaut", `Steigerung von „${s[0]}“?`, s[1], "Umlaut im Komparativ.", 1, 0, 2, "no-umlaut");
+    case 48: { // comparative of adjectives that take an UMLAUT
+      // Only umlaut-marked adjectives, so the tested rule is actually present.
+      const a = pick(r, SB_ADJ.filter((x) => x.umlaut && (x.dim === "size" || x.dim === "quality")));
+      const n = pick(r, OBJS);
+      return sb("comparative-umlaut", `Umlaut im Komparativ: „${cw(n.nom)} ist ___ als sonst.“ (von „${a.base}“)`,
+        a.comp, `Einsilbige Adjektive mit a/o/u bekommen im Komparativ einen Umlaut: ${a.base} → ${a.comp}.`, 2, 1, 3, "no-umlaut");
     }
     case 49: { // sentence type: statement vs question (word order)
       const s = pick(r, [["Du kommst morgen.", "Aussagesatz"], ["Kommst du morgen?", "Frage"], ["Wann kommst du?", "W-Frage"]]);
