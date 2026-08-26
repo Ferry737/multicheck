@@ -34,6 +34,19 @@ const THRESHOLD_CMP = new RegExp(
 const COALESCED_CMP = new RegExp(
   `\\(\\s*\\w+(\\?)?\\.(${METRICS.join("|")})\\s*\\?\\?\\s*0\\s*\\)\\s*(<|>|<=|>=)`, "i"
 );
+// RETRO-FIX (guard-hardening loop): helper-wrapped metric reads escaping the
+// pattern above. app/page.tsx:24 shipped LIVE while this guard passed because
+// the ambiguous value was read THROUGH presentation helpers (masteryOf(...))
+// instead of a direct `.mastery` property. Any use of these helpers in a
+// comparison or a filter/sort/find/map predicate decides a student-facing claim
+// exactly like a raw read does, so require a same-line evidence guard too.
+const METRIC_HELPERS = ["masteryOf", "speedOf", "accuracyOf", "retentionOf"];
+const HELPER_CMP = new RegExp(
+  `\\b(?:${METRIC_HELPERS.join("|")})\\s*\\([^)]*\\)\\s*(<|>|<=|>=)`, "i"
+);
+const HELPER_IN_PREDICATE = new RegExp(
+  `\\b(?:filter|sort|find|findIndex|some|every|map)\\s*\\([^\\n]*\\b(?:${METRIC_HELPERS.join("|")})\\s*\\(`, "i"
+);
 
 function walk(dir, out = []) {
   for (const e of readdirSync(dir)) {
@@ -61,7 +74,7 @@ for (const f of files) {
   lines.forEach((ln, i) => {
     const t = ln.trim();
     if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*")) return;
-    const hit = THRESHOLD_CMP.test(ln) || COALESCED_CMP.test(ln);
+    const hit = THRESHOLD_CMP.test(ln) || COALESCED_CMP.test(ln) || HELPER_CMP.test(ln) || HELPER_IN_PREDICATE.test(ln);
     if (!hit) return;
     // Same-line guard is acceptable (e.g. hasSpeedEvidence(st) && st.speed < 0.6)
     const sameLineGuard = /hasEvidence\(|hasSpeedEvidence\(|isReviewDue\(/.test(ln);
