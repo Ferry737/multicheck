@@ -490,11 +490,9 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
         "Imperativbildung nach Adressat.", 1, 1, 2, "infinitive-as-imperative");
     }
     case 16: { // possessive articles
-      const who = pick(r, [["ich", "mein Handy"], ["du", "dein Handy"], ["er", "sein Handy"]]);
-      void who;
-      const nounCase = pick(r, [["mein Vater", "meinen Vater (Akk.)"], ["meine Tasche", "meine Tasche (Akk.)"], ["mein Buch", "mein Buch (Akk.)"]]);
-      return sb("possessive-declension", `Possessivartikel im Akkusativ: „Ich sehe ___“ (ausgangend von „${nounCase[0].split(" ")[0]}“ + Nomen)`, nounCase[1],
-        "Endung nach Genus im Akkusativ.", 1, 1, 2, "missing-ending");
+      const who = pick(r, [["ich", "mein Handy", "mein"], ["du", "dein Handy", "dein"], ["er", "sein Handy", "sein"]]);
+      return sb("possessive-declension", `Possessivartikel im Akkusativ: „Ich sehe ___“ (ausgangend von ${who[0]} + ${who[1]})`, who[2],
+        "Endung nach Genus im Akkusativ: ich → mein, du → dein, er → sein.", 1, 1, 2, "missing-ending");
     }
     case 17: { // preposition 'in' + Dativ (location) vs Akkusativ (direction)
       const b = pick(r, [
@@ -509,9 +507,8 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
         ["Ich fahre morgen nach Bern.", "Zeit vor Ort"],
         ["Wir treffen uns heute im Büro.", "Zeit vor Ort"],
       ]);
-      void ans;
-      return sb("wordorder-tekamolo", `Reihenfolge der Angaben: Zeit, Ort — „Ich gehe (heute)(ins Büro).“, kombiniert?`,
-        "Ich gehe heute ins Büro.", "Temporale Angabe vor lokaler.", 2, 1, 3, "place-before-time");
+      return sb("wordorder-tekamolo", `Reihenfolge der Angaben: Zeit, Ort — „${ans[0]}“, kombiniert?`, ans[1],
+        "Temporale Angabe vor lokaler.", 2, 1, 3, "place-before-time");
     }
     case 19: { // connector meaning choice
       const c = pick(r, [
@@ -519,8 +516,7 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
         ["Das Material fehlt, ______ bestellen wir neu.", "deshalb"],
         ["Es regnet, ______ spielen wir drinnen.", "trotzdem"],
       ]);
-      void c;
-      return sb("connector-meaning", `Verbinde logisch: „Die Lieferung ist spät, ___ rufen wir an.“ (Folge)`, "deshalb",
+      return sb("connector-meaning", `Verbinde logisch: „${c[0]}“ (Folge)`, c[1],
         "Folge: deshalb; Grund: denn/weil.", 1, 1, 2, "weil-for-consequence");
     }
     case 20: { // zu + infinitive after verbs like versuchen/vorhaben
@@ -560,21 +556,17 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       const b = pick(r, [
         ["der neue Mitarbeiter", "neue"], ["die alte Rechnung", "alte"], ["das kleine Paket", "kleine"],
       ]);
-      void b;
       const t = pick(r, [["der groß__ Tisch", "große"], ["die klein__ Schachtel", "kleine"], ["das neu__ Regal", "neue"]]);
-      return sb("adj-ending-def-article", `Adjektivendung: „${t[0]}“`, t[1], "Nach bestimmtem Artikel: -e (Nom. Sg.).", 1, 1, 2, "missing-or-wrong-ending");
+      return sb("adj-ending-def-article", `Adjektivendung: „${b[0]}“ — füllen Sie: „${t[0]}“`, t[1],
+        "Nach bestimmtem Artikel: -e (Nom. Sg.).", 1, 1, 2, "missing-or-wrong-ending");
     }
     case 26: { // adjective declension after indefinite article
       const t = pick(r, [["ein groß__ Tisch", "großer"], ["eine klein__ Schachtel", "kleine"], ["ein neu__ Regal", "neues"]]);
       return sb("adj-ending-indef-article", `Adjektivendung: „${t[0]}“`, t[1], "Nach unbestimmtem Artikel zeigt die Endung das Genus.", 1, 1, 3, "wrong-ending");
     }
     case 27: { // Präteritum of sein/haben (common in writing)
-      const b = pick(r, [
-        ["Ich ___ gestern im Lager.", "(war) sein-Präteritum"], ["Wir ___ keine Zeit.", "(hatten) haben-Präteritum"],
-      ]);
-      void b;
-      const t = pick(r, [["Ich ___ gestern krank (sein)", "war"], ["Wir ___ müde (haben)", "hatten"]]);
-      return sb("praeteritum-sein-haben", `Präteritum: „${t[0]}“`, t[1], "war / hatten.", 1, 0, 2, "perfect-used-in-writing");
+      const b = pick(r, [["Ich ___ gestern im Lager.", "war"], ["Wir ___ keine Zeit.", "hatten"]]);
+      return sb("praeteritum-sein-haben", `Präteritum: „${b[0]}“`, b[1], "war / hatten.", 1, 0, 2, "perfect-used-in-writing");
     }
     case 28: { // Futur I
       const b = pick(r, [
@@ -596,12 +588,11 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
     }
     default: { // 31: um...zu vs damit
       const b = pick(r, [
-        ["Ich komme früh, ___ ich habe Zeit.", "weil"], // purpose/reason contrast pair
+        ["Ich komme früh, ___ ich habe Zeit.", "weil"],
         ["Ich lerne Deutsch, ___ ich in der Schweiz arbeite.", "weil"],
         ["Ich spare Geld, ___ ein Auto zu kaufen.", "um"],
       ]);
-      void b;
-      return sb("um-zu-vs-damit", `„Ich spare Geld, ___ ein Auto zu kaufen.“ (Zwecksatz mit gleichem Subjekt)`, "um",
+      return sb("um-zu-vs-damit", `„${b[0]}“ (Zwecksatz mit gleichem Subjekt)`, b[1],
         "gleiches Subjekt: um…zu; verschiedenes: damit.", 1, 1, 3, "damit-for-same-subject");
     }
     // --- additional rule-level grammar paths (32..49) to exceed 50 distinct structs ---
