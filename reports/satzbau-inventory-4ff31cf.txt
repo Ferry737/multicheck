@@ -1,0 +1,57 @@
+satzbau: 52 structs, floor=13, seeds=3000
+BELOW FLOOR: 33/52
+min=2 median=4 max=2984 total=26321
+
+si  cap  prompts  tag
+23     2        2  konjunktiv-request  <-- BELOW
+44     2        2  pronoun-case  <-- BELOW
+16     3        3  possessive-declension  <-- BELOW
+17     3        3  in-dative-vs-accusative  <-- BELOW
+19     3        3  connector-meaning  <-- BELOW
+20     3        3  zu-infinitive  <-- BELOW
+24     3        3  reflexive-pronoun  <-- BELOW
+26     3        3  adj-ending-indef-article  <-- BELOW
+29     3        3  n-declension  <-- BELOW
+31     3        3  um-zu-vs-damit  <-- BELOW
+35     3        3  superlative  <-- BELOW
+37     3        3  negation-kein-nicht  <-- BELOW
+39     3        3  separable-verb  <-- BELOW
+40     3        3  imperative  <-- BELOW
+41     3        3  two-way-preposition  <-- BELOW
+42     3        3  conjunction-meaning  <-- BELOW
+43     3        3  verb-second  <-- BELOW
+45     3        3  adj-declension  <-- BELOW
+46     3        3  modal-verb  <-- BELOW
+49     3        3  sentence-type  <-- BELOW
+50     3        3  temporal-preposition  <-- BELOW
+51     3        3  reflexive-verb  <-- BELOW
+11     4        4  separable-prefix-end  <-- BELOW
+14     4        4  superlative-am  <-- BELOW
+33     4        4  plural-form  <-- BELOW
+34     4        4  comparative  <-- BELOW
+36     4        4  question-word  <-- BELOW
+47     4        4  participle-strong  <-- BELOW
+48     4        4  comparative-umlaut  <-- BELOW
+12     5        5  plural-formation  <-- BELOW
+13     5        5  comparative-form  <-- BELOW
+38     5        5  possessive  <-- BELOW
+25     9        9  adj-ending-def-article  <-- BELOW
+15    16       16  imperative-form
+ 5    35       35  article-gender-nominativ
+ 6    35       35  akkusative-masculine
+ 7    35       35  dative-after-mit
+32    35       35  article-gender-genitiv
+27   284      284  praeteritum-sein-haben
+10   450      450  modal-infinitive-end
+ 9   540      504  perfect-sein
+18   711      711  wordorder-tekamolo
+ 2  1918     1918  question-inversion
+30  1921     1921  lassen-construction
+ 4  2009     1918  negation-nicht-placement
+ 8  2009     1918  perfect-haben
+22  2213     2213  passive-werden
+ 0  2499     2499  reorder-verbsecond
+ 3  2650     2650  wquestion-fronting
+ 1  2912     2912  subordinate-verb-final
+21  2949     2949  relative-pronoun
+28  2984     2984  futur-i

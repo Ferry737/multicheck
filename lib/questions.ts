@@ -402,6 +402,28 @@ const SENTENCES = [
 const SB_SUBJ = ["Der Mitarbeiter", "Die Kollegin", "Der Chef", "Unser Team", "Der Kunde"];
 const SB_VERB = ["prüft", "bestellt", "verschickt", "kontrolliert", "liest"];
 const SB_OBJ_AKK = ["die Rechnung", "die Ware", "das Paket", "den Bericht", "die Liste"];
+// --- reusable grammar tables (only what the curriculum needs) ---
+// Dative-governing verbs — NON-separable and person-agent compatible only.
+// ("zuhören" removed: separable, needs "hört dir zu". "passen"/"gehören" removed:
+// require a thing-subject, so "Ich passe ihm" is unnatural. 30-sample read finding.)
+const SB_DAT_GOV = [["helfen", "hilft"], ["danken", "dankt"], ["antworten", "antwortet"],
+  ["gratulieren", "gratuliert"], ["folgen", "folgt"], ["vertrauen", "vertraut"], ["glauben", "glaubt"]];
+const SB_AKK_GOV = [["sehen", "sieht"], ["fragen", "fragt"], ["besuchen", "besucht"], ["rufen", "ruft"],
+  ["informieren", "informiert"], ["kennen", "kennt"], ["brauchen", "braucht"]];
+// Persons where dative and accusative pronouns DIFFER (wir/ihr excluded: uns/euch identical).
+const SB_PRON_CASE = [["ich", "mir", "mich"], ["du", "dir", "dich"], ["er", "ihm", "ihn"],
+  ["sie (Singular)", "ihr", "sie"], ["sie (Plural)", "ihnen", "sie"]];
+// Possessive stems by owner.
+const SB_POSS = [["ich", "mein"], ["du", "dein"], ["er", "sein"], ["sie", "ihr"], ["wir", "unser"]];
+// Weak masculine (n-declension) nouns: nominative -> accusative/dative stem form.
+const SB_NDECL = [["der Kunde", "Kunden"], ["der Kollege", "Kollegen"], ["der Junge", "Jungen"],
+  ["der Name", "Namen"], ["der Herr", "Herrn"], ["der Mensch", "Menschen"],
+  ["der Nachbar", "Nachbarn"], ["der Student", "Studenten"], ["der Praktikant", "Praktikanten"]];
+// Fully regular -en verbs (safe for reflexive + imperative composition).
+const SB_REG = ["prüfen", "holen", "packen", "zeigen", "fragen", "kaufen", "melden", "warten", "machen", "liefern"];
+const SB_REFLV = [["freuen", "sich freuen über"], ["melden", "sich melden"], ["beeilen", "sich beeilen"],
+  ["interessieren", "sich interessieren für"], ["erinnern", "sich erinnern an"], ["ärgern", "sich ärgern über"]];
+const SB_REFL_BY_PERSON = [["ich", "mich"], ["du", "dich"], ["er", "sich"], ["wir", "uns"], ["ihr", "euch"], ["sie", "sich"]];
 function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
   const ph = (arr: string[]) => pick(r, arr);
   const cw = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -598,18 +620,30 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       return sb("passive-werden", `Passiv: „${active}“`, `${o.nom} wird ${v.participle}.`,
         "Objekt wird Subjekt; werden + Partizip II.", 2, 1, 3, "wrong-auxiliary");
     }
-    case 23: { // Konjunktiv II polite request
-      const b = pick(r, [
-        ["Helfen Sie mir.", "Könnten Sie mir helfen?"],
-        ["Geben Sie mir das.", "Könnten Sie mir das geben?"],
-      ]);
-      return sb("konjunktiv-request", `Höfliche Bitte: „${b[0]}“`, b[1], "könnten/würden + Infinitiv.", 1, 1, 3, "blunt-imperative");
+    case 23: { // Konjunktiv II: polite request from a blunt imperative
+      const v = pick(r, SB_REG);
+      const o = pick(r, NOUNS);
+      const modal = pick(r, [["könnten", "Könnten Sie"], ["würden", "Würden Sie"]]);
+      const blunt = `${v.replace(/n$/, "")} Sie ${o.ack}!`;
+      return sb("konjunktiv-request", `Höfliche Bitte (Konjunktiv II): „${blunt}“ — mit „${modal[0]}“`,
+        `${modal[1]} ${o.ack} ${v}?`, "könnten/würden + Infinitiv am Satzende; Fragezeichen.", 2, 1, 3, "blunt-imperative");
     }
-    case 24: { // reflexive verbs
-      const b = pick(r, [
-        ["Ich wasche ___.", "mich"], ["Du interessierst dich ___ Musik.", "dich"], ["Wir freuen ___.", "uns"],
-      ]);
-      return sb("reflexive-pronoun", `Reflexivpronomen einsetzen: „${b[0]}“`, b[1], "Reflexivpronomen passend zum Subjekt.", 1, 1, 2, "wrong-reflexive");
+    case 24: { // reflexive pronoun agrees with the SUBJECT person
+      const p = pick(r, SB_REFL_BY_PERSON);
+      const v = pick(r, SB_REFLV);
+      const subj = p[0] === "er" ? "Er" : p[0] === "sie" ? "Sie" : cw(p[0]);
+      // Regular present-tense conjugation. Stem rule: verbs in -ern/-eln drop only
+      // the final -n ("erinnern" -> "erinner"), all others drop -en ("melden" -> "meld").
+      // The -e- linking vowel is required after -d/-t stems ("meldest", not "meldst").
+      const stem = /[e][rl]n$/.test(v[0]) ? v[0].replace(/n$/, "") : v[0].replace(/en$/, "");
+      const link = /[dt]$/.test(stem) ? "e" : "";
+      const conj = p[0] === "ich" ? stem + "e"
+        : p[0] === "du" ? stem + link + "st"
+        : p[0] === "er" ? stem + link + "t"
+        : p[0] === "ihr" ? stem + link + "t"
+        : v[0];
+      return sb("reflexive-pronoun", `Reflexivpronomen einsetzen: „${subj} ${conj} ___“ (${v[1]})`, p[1],
+        `Reflexivpronomen richtet sich nach dem Subjekt: ${p[0]} → ${p[1]}.`, 2, 1, 2, "wrong-reflexive");
     }
     case 25: { // adjective declension after definite article
       const b = pick(r, [
@@ -646,9 +680,15 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       return sb("futur-i", `Futur I: „${present}“`, `${subj} ${werden} ${t} ${o.ack} ${v.inf}.`,
         "werden (Position 2) + Infinitiv am Satzende.", 2, 0, 3, "present-only");
     }
-    case 29: { // n-Deklination (weak nouns)
-      const b = pick(r, [["der Junge (Akk.)", "den Jungen"], ["der Kollege (Dat.)", "dem Kollegen"], ["der Kunde (Akk.)", "den Kunden"]]);
-      return sb("n-declension", `n-Deklination: „${b[0]}“`, b[1], "Schwache Nomen bekommen -n(en).", 1, 1, 3, "regular-declension");
+    case 29: { // n-Deklination: weak masculines take -n in ALL cases but nominative
+      const n = pick(r, SB_NDECL);
+      const isDat = r() < 0.5;
+      const art = isDat ? "dem" : "den";
+      const v = isDat ? pick(r, SB_DAT_GOV) : pick(r, SB_AKK_GOV);
+      const subj = pick(r, ["Ich", "Er", "Wir", "Die Kollegin"]);
+      const form = subj === "Ich" ? v[0].replace(/en$/, "e") : subj === "Wir" ? v[0] : v[1];
+      return sb("n-declension", `n-Deklination: „${subj} ${form} ___“ (${n[0]}, ${isDat ? "Dativ" : "Akkusativ"})`,
+        `${art} ${n[1]}`, `Schwache Nomen: ${n[0]} → ${art} ${n[1]} (-n auch im Singular).`, 2, 1, 3, "regular-declension");
     }
     case 30: { // verb 'lassen' + Objekt + Infinitiv
       const v = pick(r, AKKV);
@@ -702,9 +742,14 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       const s = pick(r, [["auf|stehen", "Ich stehe um 7 Uhr ___.", "auf"], ["ein|kaufen", "Wir kaufen Brot ___.", "ein"], ["an|rufen", "Er ruft mich ___.", "an"]]);
       return sb("separable-verb", `Trennbares Verb: „${s[0]}“ → ${s[1]}`, s[2], "Präfix ans Ende bei Konjugation.", 1, 1, 2, "prefix-dropped");
     }
-    case 40: { // imperative du/ihr/Sie
-      const s = pick(r, [["du", "Komm!"], ["ihr", "Kommt!"], ["Sie", "Kommen Sie!"]]);
-      return sb("imperative", `Imperativ für „${s[0]}“ von „kommen“?`, s[1], "Imperativform nach Person.", 1, 0, 2, "infinitive-returned");
+    case 40: { // imperative form by addressee (du / ihr / Sie)
+      const v = pick(r, SB_REG);
+      const o = pick(r, NOUNS);
+      const who = pick(r, [["du", ""], ["ihr", "t"], ["Sie", "en Sie"]]);
+      const stem = v.replace(/n$/, "").replace(/e$/, "");
+      const form = who[0] === "du" ? stem + "!" : who[0] === "ihr" ? stem + "t!" : v + " Sie!";
+      return sb("imperative", `Imperativ für „${who[0]}“ von „${v}“ (Objekt: ${o.ack})`, form,
+        `Adressat ${who[0]}: ${form}`, 2, 1, 2, "infinitive-returned");
     }
     case 41: { // two-way preposition (Wechselpräposition) case
       const s = pick(r, [["Die Katze liegt ___ dem Tisch (ruht auf der Fläche).", "auf"], ["Das Bild hängt ___ der Wand.", "an"], ["Das Buch liegt ___ dem Tisch.", "unter"]]);
@@ -718,9 +763,15 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       const s = pick(r, [["Heute", "komme", "ich"], ["Morgen", "gehe", "wir"], ["Gestern", "kam", "er"]]);
       return sb("verb-second", `Satzbau: „${s[0]} ... ${s[2]} ${s[1]} ...“ — Verb an Position 2?`, s[1], "In Hauptsatz steht das Verb an Position 2.", 1, 1, 3, "verb-first");
     }
-    case 44: { // dative vs accusative personal pronoun
-      const s = pick(r, [["Ich helfe ___.", "ihm", "ihn"], ["Sie sieht ___.", "ihn", "ihm"]]);
-      return sb("pronoun-case", `Ergänze: „${s[0]}“`, s[1], "helfen → Dativ (ihm); sehen → Akkusativ (ihn).", 1, 1, 2, "wrong-case-pronoun");
+    case 44: { // pronoun case decided by VERB GOVERNMENT (dative vs accusative)
+      const p = pick(r, SB_PRON_CASE);
+      const isDat = r() < 0.5;
+      const v = isDat ? pick(r, SB_DAT_GOV) : pick(r, SB_AKK_GOV);
+      const subj = pick(r, ["Ich", "Er", "Sie", "Wir"]);
+      const form = subj === "Ich" ? v[0].replace(/en$/, "e") : subj === "Wir" ? v[0] : v[1];
+      return sb("pronoun-case", `Ergänze das Pronomen: „${subj} ${form} ___.“ (gemeint ist: ${p[0]}) — Verb: ${v[0]}`,
+        isDat ? p[1] : p[2],
+        `„${v[0]}“ verlangt ${isDat ? "Dativ" : "Akkusativ"}: ${isDat ? p[1] : p[2]}.`, 2, 1, 3, "wrong-case-pronoun");
     }
     case 45: { // adjective declension after der/die/das
       const s = pick(r, [["der", "gute", "Mann"], ["die", "gute", "Frau"], ["das", "gute", "Kind"]]);
