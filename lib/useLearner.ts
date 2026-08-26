@@ -4,6 +4,17 @@ import { CoachModel, emptyCoach, updateModel, Attempt, SessionMode, recordSimula
 
 const KEY = "multicheck-coach-v3";
 const SCHEMA = 3;
+/**
+ * One-time remediation flag for the pre-76ce485 exam grading defect.
+ * lib/exam.ts mis-graded typed numeric answers (1.0 / 1,0 / 24,60 / 1'234 were
+ * scored WRONG), and applyExamToModel folded those verdicts into mastery /
+ * simPerf / readiness. clearExam() deletes the raw answers on submit, so the
+ * affected values CANNOT be recomputed. Measured worst case: mastery understated
+ * by 0.852 (0.899 -> 0.047) and simPerf 1.000 -> 0.000 on a 12-item mini-sim.
+ * Carrying those numbers forward is a false-readiness failure, so sim-derived
+ * signal is invalidated once and the student is told.
+ */
+const SIM_REGRADE_FLAG = "simRegradeV1";
 
 export type LoadStatus = "loading" | "ready" | "error";
 
@@ -79,6 +90,31 @@ export function useLearner() {
           }
 
           if (m.version !== SCHEMA) m.version = SCHEMA;
+
+          // ---- ONE-TIME SIM REGRADE INVALIDATION (pre-76ce485 grading defect) ----
+          // Raw simulation answers are deleted on submit, so mis-graded sim signal
+          // cannot be recomputed. Reset ONLY sim-derived fields; training-derived
+          // mastery/accuracy stay intact. Runs once, then records the flag.
+          const anyM = m as unknown as Record<string, unknown>;
+          if (!anyM[SIM_REGRADE_FLAG]) {
+            let affected = 0;
+            for (const sid of Object.keys(m.subs)) {
+              const st = m.subs[sid];
+              if (!st) continue;
+              if ((st.simPerf ?? 0) > 0) {
+                m.subs[sid] = { ...st, simPerf: 0, confidence: Math.min(st.confidence ?? 0, 0.5) };
+                affected++;
+              }
+            }
+            anyM[SIM_REGRADE_FLAG] = true;
+            if (affected > 0) {
+              anyM.simRegradeNotice =
+                "Frühere Prüfungssimulationen wurden wegen eines Bewertungsfehlers " +
+                "(Zahlenformate wie 1,0 oder 24,60 wurden falsch gewertet) zurückgesetzt. " +
+                "Bitte eine neue Simulation starten für eine korrekte Einschätzung.";
+              console.warn(`[multicheck] sim regrade: invalidated sim signal for ${affected} subskill(s).`);
+            }
+          }
         }
       } else {
         m = emptyCoach();
@@ -125,5 +161,7 @@ export function useLearner() {
     });
   }, []);
 
-  return { model, record, save, reset, retry, applySim, ready: status === "ready", status, errorMsg };
+  // Surface the one-time sim-regrade notice so invalidation is never silent.
+  const simRegradeNotice = ((model as unknown as Record<string, unknown> | null)?.simRegradeNotice as string | undefined) ?? null;
+  return { model, record, save, reset, retry, applySim, ready: status === "ready", status, errorMsg, simRegradeNotice };
 }

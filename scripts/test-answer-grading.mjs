@@ -63,8 +63,10 @@ console.log(`\n${fail === 0 ? "ALL PASS" : fail + " FAILURES"}`);
 if (fail > 0) throw new Error("decimal-input regression FAILED");
 
 // ===== EXAM PATH: lib/exam.ts gradeAnswer must match Trainer semantics =====
-const examMod = await import("/opt/data/projects/multicheck/lib/exam.ts");
-if (typeof examMod.gradeAnswer !== "function") throw new Error("exam.gradeAnswer missing");
+// gradeAnswer now lives in the single choke point lib/grading.ts, which exam.ts,
+// Trainer.tsx and MicroLesson.tsx all import (Task 2).
+const examMod = await import("/opt/data/projects/multicheck/lib/grading.ts");
+if (typeof examMod.gradeAnswer !== "function") throw new Error("grading.gradeAnswer missing");
 let exFail = 0;
 function expectExam(input, answer, want, label, kind = "input") {
   const got = examMod.gradeAnswer(input, answer, kind);

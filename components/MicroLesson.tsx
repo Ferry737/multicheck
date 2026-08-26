@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { gradeAnswer } from "@/lib/grading";
 import { Lesson, lessonForConcept } from "@/lib/lessons";
 import { Button } from "@/components/ui";
 
@@ -20,8 +21,7 @@ export function MicroLesson({ concept, onDone }: { concept?: string; onDone: (su
     );
   }
 
-  const norm = (s: string) => s.replace(/\s/g, "").toLowerCase();
-  const checkGuided = () => { const ok = norm(g) === norm(lesson.guided.a); setGOk(ok); };
+  const checkGuided = () => { const ok = gradeAnswer(g, lesson.guided.a); setGOk(ok); };
   const checkIndep = () => { const ok = lesson.independent.check(i); setIOk(ok); };
 
   return (
