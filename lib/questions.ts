@@ -623,14 +623,13 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       ]);
       return sb("modal-infinitive-end", `Welches Muster gilt: „${b[0]}“?`, b[1], "Modalverb Position 2, Infinitiv ganz am Ende.", 2, 1, 3, "finite-form-at-end");
     }
-    case 11: { // separable verb prefix to the end
-      const b = pick(r, [
-        ["Er ruft den Kunden an.", "anrufen"],
-        ["Wir geben die Ware ab.", "abgeben"],
-        ["Sie sieht das Paket ein.", "einsehen"],
-        ["Er stellt die Ware um.", "umstellen"],
-      ]);
-      return sb("separable-prefix-end", `Trennbares Verb erkennen: „${b[0]}“ → Infinitiv?`, b[1], "Präfix abtrennen und zusammensetzen.", 1, 0, 2, "wrong-prefix");
+    case 11: { // reconstruct the INFINITIVE from a split separable verb in a sentence
+      const v = pick(r, SEPV);
+      const pfx = ["an", "ab", "auf", "ein", "um", "vor", "mit", "nach"].find((x) => v.inf.startsWith(x)) || "an";
+      const p = pick(r, ["ich", "du", "er", "wir"]);
+      const lp = licensedPair();
+      return sb("separable-prefix-end", `Welcher Infinitiv steckt dahinter? „${cw(p)} ${v.pres[p]} ${lp.n.ack} ${pfx}.“`,
+        v.inf, `Präfix „${pfx}“ + Verbstamm gehören zusammen: ${v.inf}.`, 2, 2, 2, "wrong-prefix");
     }
     case 12: { // plural formation: NOMINATIVE plural from the noun's own table
       const n = pick(r, NOUNS);
@@ -870,9 +869,16 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
         `${n.gender} ${a.sup} ${n.lemma}`,
         `Superlativ steht attributiv mit Artikel: ${a.base} → ${a.sup}.`, 2, 2, 3, "comparative-returned");
     }
-    case 36: { // question word selection
-      const q = pick(r, [["Wer", "eine Person"], ["Was", "eine Sache"], ["Wo", "ein Ort"], ["Wann", "eine Zeit"]]);
-      return sb("question-word", `Fragewort für ${q[1]}?`, q[0], "Fragewort nach Bedeutung.", 1, 0, 2, "wrong-question-word");
+    case 36: { // question word chosen by the semantic role being asked about
+      const lp = licensedPair();
+      const role = pick(r, [
+        ["die handelnde Person", "Wer"], ["das Objekt der Handlung", "Was"],
+        ["den Ort", "Wo"], ["die Zeit", "Wann"], ["den Grund", "Warum"],
+        ["die Art und Weise", "Wie"], ["das Ziel der Bewegung", "Wohin"],
+        ["die Herkunft", "Woher"], ["den Besitzer", "Wessen"],
+      ]);
+      return sb("question-word", `Erfrage ${role[0]} im Satz „Die Kollegin ${lp.v.pres["er"]} ${lp.n.ack} im Büro.“ — Fragewort?`,
+        role[1], `Für ${role[0]} fragt man mit „${role[1]}“.`, 2, 2, 2, "wrong-question-word");
     }
     case 37: { // negation: kein (nouns) vs nicht (verbs/adverbs)
       const n = pick(r, NOUNS);
@@ -890,9 +896,15 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
         useKein ? `Nomen ohne bestimmten Artikel → kein-: ${n.gender} → ${kein}.` : "Verb/Angabe negieren → nicht.",
         2, 1, 3, "nicht-for-kein");
     }
-    case 38: { // possessive pronoun
-      const s = pick(r, [["Ich", "mein"], ["du", "dein"], ["er", "sein"], ["sie", "ihr"], ["wir", "unser"]]);
-      return sb("possessive", `Zugehörigkeit von „${s[0]}“?`, s[1], "Possessivpronomen nach Person.", 1, 0, 2, "wrong-possessive");
+    case 38: { // possessive article in the DATIVE (distinct from case 16's nom/akk)
+      const own = pick(r, SB_POSS);
+      const n = pick(r, OBJS);
+      // Dative: masculine/neuter -em, feminine -er.
+      const end = n.gender === "die" ? "er" : "em";
+      const prep = pick(r, ["mit", "bei", "von", "nach", "zu"]);
+      return sb("possessive", `Possessivartikel im Dativ nach „${prep}“: „${prep} ___ ${n.lemma}“ (Besitzer: ${own[0]})`,
+        `${prep} ${own[1]}${end} ${n.lemma}`,
+        `Dativ: ${n.gender} ${n.lemma} → ${own[1]}${end}.`, 2, 2, 3, "wrong-possessive");
     }
     case 39: { // separable verb: prefix detaches to the sentence end
       const v = pick(r, SEPV);
@@ -914,13 +926,29 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       return sb("imperative", `Imperativ für „${who[0]}“ von „${v}“ (Objekt: ${o.ack})`, form,
         `Adressat ${who[0]}: ${form}`, 2, 1, 2, "infinitive-returned");
     }
-    case 41: { // two-way preposition (Wechselpräposition) case
-      const s = pick(r, [["Die Katze liegt ___ dem Tisch (ruht auf der Fläche).", "auf"], ["Das Bild hängt ___ der Wand.", "an"], ["Das Buch liegt ___ dem Tisch.", "unter"]]);
-      return sb("two-way-preposition", `Wechselpräposition: „${s[0]}“`, s[1], "Lage → Dativ.", 1, 1, 2, "accusative-chosen");
+    case 41: { // two-way preposition CHOICE: which preposition matches the relation?
+      const n = pick(r, OBJS.filter((x: any) => ["Regal", "Tisch", "Stuhl"].includes(x.lemma)));
+      const rel = pick(r, [
+        ["liegt obenauf", "auf"], ["hängt an der Seite", "an"], ["steht darunter", "unter"],
+        ["steht daneben", "neben"], ["steht dahinter", "hinter"], ["steht davor", "vor"],
+        ["liegt darin", "in"], ["steht dazwischen", "zwischen"],
+      ]);
+      const obj = pick(r, OBJS.filter((x: any) => ["Liste", "Formular", "Bericht", "Paket", "Schere"].includes(x.lemma)));
+      return sb("two-way-preposition", `Welche Wechselpräposition passt? „${cw(obj.nom)} ___ ${n.dat}“ — Lage: ${rel[0]} (wo?)`,
+        rel[1], `Lage „${rel[0]}“ → „${rel[1]}“ + Dativ (wo?).`, 2, 2, 3, "wrong-preposition");
     }
-    case 42: { // conjunction und/oder/aber/sondern
-      const s = pick(r, [["Ich komme, ___ ich habe Zeit.", "weil"], ["Er ist müde, ___ er arbeitet.", "aber"], ["Nicht rot, ___ blau.", "sondern"]]);
-      return sb("conjunction-meaning", `Passende Konjunktion: „${s[0]}“`, s[1], "Satzsinn bestimmt Konjunktion.", 1, 1, 2, "wrong-conjunction");
+    case 42: { // SUBORDINATING conjunction + verb-final clause (contrast to case 19)
+      // Case 19 tests main-clause connectors (verb stays position 2). This family
+      // tests subordinators, where the verb moves to the end — a different rule.
+      const sub = pick(r, [
+        ["Grund", "weil"], ["Zeit (gleichzeitig)", "während"], ["Bedingung", "wenn"],
+        ["Zeitpunkt danach", "nachdem"], ["Einräumung", "obwohl"], ["Zeitpunkt davor", "bevor"],
+      ]);
+      const lp = licensedPair();
+      const p = pick(r, ["ich", "er", "wir", "sie"]);
+      const finite = lp.v.pres[p];
+      return sb("conjunction-meaning", `Nebensatz-Konjunktion (${sub[0]}) — Verb ans Ende: „Wir warten, ___ ${p} ${lp.n.ack} ${finite}.“`,
+        sub[1], `${sub[0]} → „${sub[1]}“; im Nebensatz steht das Verb am Ende („${finite}“).`, 3, 2, 3, "wrong-conjunction");
     }
     case 43: { // verb-second: fronting an element pushes the subject after the verb
       // Static place only: a directional phrase ("in die Schweiz") with a static
@@ -943,9 +971,12 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
         isDat ? p[1] : p[2],
         `„${v[0]}“ verlangt ${isDat ? "Dativ" : "Akkusativ"}: ${isDat ? p[1] : p[2]}.`, 2, 1, 3, "wrong-case-pronoun");
     }
-    case 45: { // adjective declension after der/die/das
-      const s = pick(r, [["der", "gute", "Mann"], ["die", "gute", "Frau"], ["das", "gute", "Kind"]]);
-      return sb("adj-declension", `Artikel + Adjektiv: „___ ${s[1]}e ${s[2]}“`, s[0], "Adjektivendung -e nach bestimmtem Artikel.", 1, 1, 2, "strong-ending");
+    case 45: { // which article does a given adjective ending imply? (reverse direction)
+      const n = pick(r, OBJS);
+      const a = pick(r, SB_ADJ.filter((x) => x.dim === "size" || x.dim === "quality"));
+      // Weak -e ending appears with the definite article; the learner supplies it.
+      return sb("adj-declension", `Welcher bestimmte Artikel passt: „___ ${a.base}e ${n.lemma}“ (Nominativ)?`,
+        n.gender, `Die schwache Endung -e verlangt den bestimmten Artikel; ${n.lemma} ist ${n.gender}.`, 2, 2, 2, "strong-ending");
     }
     case 46: { // modal verb: conjugated modal at position 2, infinitive at the end
       const modal = pick(r, LEX.SB_MODAL_VERBS as any[]);
@@ -969,17 +1000,39 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       return sb("comparative-umlaut", `Umlaut im Komparativ: „${cw(n.nom)} ist ___ als sonst.“ (von „${a.base}“)`,
         a.comp, `Einsilbige Adjektive mit a/o/u bekommen im Komparativ einen Umlaut: ${a.base} → ${a.comp}.`, 2, 1, 3, "no-umlaut");
     }
-    case 49: { // sentence type: statement vs question (word order)
-      const s = pick(r, [["Du kommst morgen.", "Aussagesatz"], ["Kommst du morgen?", "Frage"], ["Wann kommst du?", "W-Frage"]]);
-      return sb("sentence-type", `Welche Satzart: „${s[0]}“?`, s[1], "Wortstellung bestimmt Satzart.", 1, 0, 2, "wrong-sentence-type");
+    case 49: { // sentence type identified from word order
+      const lp = licensedPair();
+      const p = pick(r, ["du", "er", "wir", "sie"]);
+      const f = lp.v.pres[p];
+      const kind = pick(r, [
+        ["Aussagesatz", `${cw(p)} ${f} ${lp.n.ack}.`],
+        ["Ja/Nein-Frage", `${cw(f)} ${p} ${lp.n.ack}?`],
+        ["W-Frage", `Wann ${f} ${p} ${lp.n.ack}?`],
+        ["Aufforderung", `${cw(lp.v.inf)} Sie ${lp.n.ack}!`],
+      ]);
+      return sb("sentence-type", `Welcher Satztyp ist das? „${kind[1]}“`, kind[0],
+        "Verbposition und Satzzeichen bestimmen den Satztyp.", 2, 2, 3, "wrong-sentence-type");
     }
-    case 50: { // temporal preposition (vor/nach/seit/bis)
-      const s = pick(r, [["Ich lerne ___ der Prüfung.", "vor"], ["Wir feiern ___ der Arbeit.", "nach"], ["Er wohnt hier ___ 2020.", "seit"]]);
-      return sb("temporal-preposition", `Zeitpräposition: „${s[0]}“`, s[1], "Präposition der Zeit.", 1, 0, 2, "wrong-temporal");
+    case 50: { // temporal preposition chosen by the time relation it expresses
+      const rel = pick(r, [
+        ["früher als das Ereignis", "vor"], ["später als das Ereignis", "nach"],
+        ["Beginn in der Vergangenheit, dauert an", "seit"], ["Endpunkt", "bis"],
+        ["Zeitraum-Dauer", "während"], ["Zeitpunkt am Tag", "an"],
+      ]);
+      const ev = pick(r, ["der Prüfung", "der Schulung", "dem Termin", "der Pause", "dem Feierabend", "der Lieferung"]);
+      return sb("temporal-preposition", `Temporale Präposition: „Wir handeln ___ ${ev}.“ — Bedeutung: ${rel[0]}`,
+        rel[1], `„${rel[0]}“ → ${rel[1]}.`, 2, 2, 2, "wrong-temporal-preposition");
     }
-    case 51: { // reflexive verb (sich waschen, sich freuen)
-      const s = pick(r, [["Ich ___ die Hände.", "wasche mich"], ["Er ___ über den Witz.", "freut sich"], ["Wir ___ jeden Tag.", "treffen uns"]]);
-      return sb("reflexive-verb", `Reflexives Verb: „${s[0]}“`, s[1], "Reflexivpronomen beim Verb.", 1, 1, 2, "missing-reflexive");
+    case 51: { // reflexive verb: which verb REQUIRES a reflexive pronoun?
+      const rv = pick(r, SB_REFLV);
+      const p = pick(r, SB_REFL_BY_PERSON);
+      const stem = /[e][rl]n$/.test(rv[0]) ? rv[0].replace(/n$/, "") : rv[0].replace(/en$/, "");
+      const link = /[dt]$/.test(stem) ? "e" : "";
+      const conj = p[0] === "ich" ? stem + "e" : p[0] === "du" ? stem + link + "st"
+        : p[0] === "er" || p[0] === "ihr" ? stem + link + "t" : rv[0];
+      const subj = p[0] === "er" ? "Er" : p[0] === "sie" ? "Sie" : cw(p[0]);
+      return sb("reflexive-verb", `Reflexives Verb vervollständigen: „${subj} ${conj} ___“ — welches Verb liegt zugrunde?`,
+        rv[1], `„${rv[1]}“ braucht immer ein Reflexivpronomen (hier: ${p[1]}).`, 2, 2, 2, "non-reflexive-form");
     }
   }
 }
