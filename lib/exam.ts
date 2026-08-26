@@ -1,6 +1,7 @@
 // lib/exam.ts — Exam state machine + persistence + timing + scoring (Loop 1-9, 11).
 // Pure, deterministic, testable. UI consumes this; no scattered booleans.
 import { AREAS, ALL_SUBSKILLS, subskillById, AreaId } from "./curriculum";
+import { hasEvidence, DIAGNOSTIC_PENDING, NOT_YET_ASSESSED } from "./evidence";
 import { gradeAnswer, normalizeAnswer as norm } from "./grading";
 import { Question, generateBatch } from "./questions";
 import { CoachModel, recordSimulation, emptyCoach } from "./coach";
@@ -212,18 +213,24 @@ export function applyExamToModel(m: CoachModel, s: ExamSnapshot, mode: ExamMode)
 export interface AutoPlan { today: string; tomorrow: string; in2: string; notes: string[]; }
 export function weeklyPlan(m: CoachModel, examDate = m.examDate): AutoPlan {
   const days = Math.max(0, Math.ceil((new Date(examDate).getTime() - Date.now()) / DAY));
-  const weak = ALL_SUBSKILLS.filter((s) => (m.subs[s.id]?.mastery ?? 0) < 0.4);
+  // EVIDENCE GATE: mastery=0 means "unknown", not "weak". Counting unmeasured
+  // subskills as weak told every brand-new student they had 12 weak areas.
+  const assessed = ALL_SUBSKILLS.filter((s) => hasEvidence(m.subs[s.id]));
+  const weak = assessed.filter((s) => (m.subs[s.id]?.mastery ?? 0) < 0.4);
   const near = days <= 7;
-  const today = near
-    ? `Schwerpunkt: ${weak.slice(0, 2).map((s) => s.name).join(" + ") || "Erhaltung"} · Simulation + Tempo`
-    : `Schwerpunkt: ${weak.slice(0, 3).map((s) => s.name).join(" + ") || "Ausbau"} · Konzeptaufbau`;
+  const diagnosing = assessed.length === 0;
+  const today = diagnosing
+    ? DIAGNOSTIC_PENDING
+    : near
+      ? `Schwerpunkt: ${weak.slice(0, 2).map((s) => s.name).join(" + ") || "Erhaltung"} · Simulation + Tempo`
+      : `Schwerpunkt: ${weak.slice(0, 3).map((s) => s.name).join(" + ") || "Ausbau"} · Konzeptaufbau`;
   return {
     today,
-    tomorrow: "Gemischt + Spaced Review",
-    in2: days <= 28 ? "Mini-Simulation" : "Adaptive Practice",
+    tomorrow: diagnosing ? "Diagnose fortsetzen" : "Gemischt + Spaced Review",
+    in2: diagnosing ? "Adaptive Practice" : (days <= 28 ? "Mini-Simulation" : "Adaptive Practice"),
     notes: [
       `Noch ${days} Tage bis Prüfung`,
-      weak.length ? `${weak.length} schwache Bereiche` : "Keine schwachen Bereiche",
+      diagnosing ? NOT_YET_ASSESSED : (weak.length ? `${weak.length} schwache Bereiche` : "Keine schwachen Bereiche"),
     ],
   };
 }

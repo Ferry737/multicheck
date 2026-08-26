@@ -10,6 +10,7 @@ const PRIMARY = [
   { href: "/fehler", label: "Fehler", icon: "✕" },
   { href: "/fortschritt", label: "Fortschritt", icon: "◔" },
   { href: "/textschreiben", label: "Schreiben", icon: "✎" },
+  { href: "/einstellungen", label: "Einstellungen", icon: "⚙" },
   // KI removed from PRIMARY: AI is behind the engine, not a standalone chatbot.
   // "Coach fragen" remains reachable as an optional in-lesson action, not primary nav.
 ];

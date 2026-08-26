@@ -5,6 +5,7 @@
 import crypto from "crypto";
 import { AREAS, ALL_SUBSKILLS, subskillById, areaOf, Subskill, AreaId } from "./curriculum";
 import { Question, generateBatch, generate, GENERATORS } from "./questions";
+import { hasEvidence, hasSpeedEvidence, isReviewDue, DIAGNOSTIC_PENDING, NOT_YET_ASSESSED } from "./evidence";
 
 /** Exact-duplicate degradations per subskill — surfaced by the audit (G1 truth). */
 export const g1Violations: Record<string, number> = {};
@@ -543,22 +544,31 @@ function distribute(blocks: SessionBlock[], subs: Subskill[], n: number, m: Coac
   const per = Math.max(2, Math.ceil(n / subs.length));
   for (const s of subs.slice(0, Math.ceil(n / per))) {
     const st = m.subs[s.id];
-    const slow = st && st.speed < 0.6;
+    // EVIDENCE GATE: speed=0 means "never timed", so a fresh student must not be
+    // pushed into speed drills before an accuracy baseline exists.
+    const slow = hasSpeedEvidence(st) && st.speed < 0.6;
     const modeFinal: SessionMode = slow && mode === "adaptive" ? "speed" : mode;
     blocks.push({ subskill: s.id, mode: modeFinal, count: per, minutes: Math.round(per * 2.2), why });
   }
 }
 
 function explainWhy(m: CoachModel, blocks: SessionBlock[]): string {
-  const limiting = DRILL
+  // EVIDENCE GATE: never make a subskill-specific claim from zero-initialised
+  // state. mastery=0 / speed=0 / nextReview=0 mean "no data", not "measured bad".
+  const evidenced = DRILL.filter((s) => hasEvidence(m.subs[s.id]));
+  if (evidenced.length === 0) return DIAGNOSTIC_PENDING;
+
+  const limiting = evidenced
     .map((s) => ({ s, mk: m.subs[s.id]?.mastery ?? 0 }))
     .sort((a, b) => a.mk - b.mk)
     .slice(0, 2)
     .map((x) => x.s.name);
-  const slow = ALL_SUBSKILLS.find((s) => (m.subs[s.id]?.speed ?? 0) < 0.5);
-  let w = `Schwerpunkt auf ${limiting.join(" und ")}.`;
+  // Speed claims need TIMED evidence, not just any evidence.
+  const slow = ALL_SUBSKILLS.find((s) => hasSpeedEvidence(m.subs[s.id]) && (m.subs[s.id]?.speed ?? 0) < 0.5);
+  let w = limiting.length ? `Schwerpunkt auf ${limiting.join(" und ")}.` : DIAGNOSTIC_PENDING;
   if (slow) w += ` ${slow.name} braucht mehr Tempo.`;
-  const due = blocks.filter((b) => b.mode === "spaced").length;
+  // Only count reviews that were actually scheduled (nextReview > 0).
+  const due = blocks.filter((b) => b.mode === "spaced" && isReviewDue(m.subs[b.subskill])).length;
   if (due) w += ` ${due} Wiederholung(en) fällig.`;
   return w;
 }
@@ -678,10 +688,12 @@ export function needsLesson(m: CoachModel, id: string): { lesson: boolean; conce
 export function explainDecision(m: CoachModel, block: SessionBlock): string {
   const st = m.subs[block.subskill];
   const name = subskillById(block.subskill)?.name ?? block.subskill;
+  // EVIDENCE GATE: with no data, state that plainly instead of reporting 0%.
+  if (!hasEvidence(st)) return `${name}: ${NOT_YET_ASSESSED} — Diagnose.`;
   if (block.mode === "spaced") return `${name}: fällige Wiederholung (${Math.round((st?.retention ?? 0) * 100)}% Behalten).`;
   if (block.mode === "speed") return `${name}: Tempo ${Math.round((st?.speed ?? 0) * 100)}% — Speed-Drill.`;
   const mk = Math.round((st?.mastery ?? 0) * 100);
-  const due = st && st.nextReview <= Date.now();
+  const due = isReviewDue(st);
   return `${name}: ${mk}% Beherrschung${due ? ", fällig" : ""} — ${block.mode === "maintenance" ? "Erhaltung" : "Ausbau"}.`;
 }
 
@@ -793,6 +805,23 @@ export interface ProgramPhase {
 export function twoMonthProgram(m: CoachModel, totalDays = 56): ProgramPhase[] {
   const daysLeft = Math.max(7, Math.ceil((new Date(m.examDate).getTime() - Date.now()) / 86400000));
   const weeks = Math.min(8, Math.max(2, Math.ceil(daysLeft / 7)));
+  // NEAR-EXAM OVERRIDE: with under 3 weeks left there is no time to build
+  // foundations first. Front-load simulation + tempo so the student actually
+  // reaches exam conditions before sitting the real thing. Without this, a
+  // student 10 days out was served "Grundlagen" and never reached the
+  // simulation phase.
+  if (daysLeft < 21) {
+    const plan: ProgramPhase[] = [];
+    for (let w = 1; w <= weeks; w++) {
+      plan.push({
+        week: w,
+        label: "Prüfungssimulation",
+        focus: "Simulationen unter Zeitdruck, Fehlermuster abstellen, Tempo sichern.",
+        minutesPerDay: 25,
+      });
+    }
+    return plan;
+  }
   // Phase emphasis shifts as the exam nears (deterministic, evidence-based cadence).
   const plan: ProgramPhase[] = [];
   for (let w = 1; w <= weeks; w++) {
