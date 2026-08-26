@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useLearner } from "@/lib/useLearner";
 import { overallReadiness, decideToday, masteryOf, accuracy, avgSpeed } from "@/lib/learner";
+import { hasEvidence } from "@/lib/evidence";
 import { weeklyPlan } from "@/lib/exam";
 import { AREAS, subskillById, EXAM_DATE_DEFAULT } from "@/lib/curriculum";
 import { Card, ProgressRing, StatCard, Bar, StatusDot, Button } from "@/components/ui";
@@ -21,7 +22,11 @@ export default function Heuten() {
   const dLeft = daysUntil(model.examDate || EXAM_DATE_DEFAULT.toISOString());
   const studiedMin = Math.round(model.totalStudyMs / 60000);
   const acc = accuracy(model), spd = avgSpeed(model);
-  const weakSkills = AREAS.flatMap((a) => a.subskills).filter((s) => masteryOf(model, s.id) < 0.4).slice(0, 3);
+  // EVIDENCE GATE: mastery=0 means "not yet assessed", not "weak". Without this
+  // gate a brand-new student was shown three arbitrary subskills under
+  // "Schwache Bereiche" (red StatusDots) BEFORE answering a single item —
+  // the same cold-start fabrication class fixed in coach.ts/exam.ts.
+  const weakSkills = AREAS.flatMap((a) => a.subskills).filter((s) => hasEvidence(model.subs[s.id]) && masteryOf(model, s.id) < 0.4).slice(0, 3);
   const confLow = AREAS.flatMap((a) => a.subskills).filter((s) => (model.subs[s.id]?.confidence ?? 0) < 0.3).length;
 
   return (
