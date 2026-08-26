@@ -364,11 +364,37 @@ function genMental(r: () => number, d: number, heldOutFlag = false, structIndex 
 // ===== KOPFRECHNEN: training dispatch wrapper (held-out unreachable here) =====
 function genMentalTrain(r: () => number, d: number, structIndex = -1): Question { return genMental(r, d, false, structIndex); }
 // ===== DEUTSCH =====
+// Word-order sentences for struct 0. Tokens are WORDS ONLY — the sentence-final
+// period is NOT a token: shuffling punctuation leaked position information and
+// rendered as a stray "." in the scrambled prompt (browser-found student defect),
+// and joining it produced "… an ." with a space before the period.
+// Variety is syntactic (verb-second with fronted time/place, separable-prefix
+// finals, modal finals, dative+accusative order), not noun substitution.
 const SENTENCES = [
-  ["Der", "Kunde", "bezahlt", "an", "der", "Kasse", "."],
-  ["Wir", "bestellen", "die", "Ware", "online", "."],
-  ["Die", "Lieferung", "kommt", "morgen", "an", "."],
-  ["Er", "schreibt", "eine", "E-Mail", "an", "den", "Chef", "."],
+  ["Der", "Kunde", "bezahlt", "an", "der", "Kasse"],
+  ["Wir", "bestellen", "die", "Ware", "online"],
+  ["Die", "Lieferung", "kommt", "morgen", "an"],
+  ["Er", "schreibt", "eine", "E-Mail", "an", "den", "Chef"],
+  ["Heute", "prüft", "die", "Kollegin", "die", "Rechnung"],
+  ["Morgen", "liefern", "wir", "das", "Paket", "aus"],
+  ["Der", "Chef", "unterschreibt", "den", "Vertrag", "heute"],
+  ["Im", "Lager", "stapeln", "wir", "die", "Kartons"],
+  ["Die", "Kollegin", "ruft", "den", "Kunden", "an"],
+  ["Wir", "müssen", "die", "Liste", "kontrollieren"],
+  ["Der", "Mitarbeiter", "gibt", "die", "Ware", "ab"],
+  ["Nach", "der", "Pause", "beginnt", "die", "Schulung"],
+  ["Sie", "sendet", "dem", "Kunden", "die", "Rechnung"],
+  ["Das", "Formular", "liegt", "auf", "dem", "Tisch"],
+  ["Am", "Freitag", "schliesst", "das", "Lager", "früher"],
+  ["Der", "Bericht", "muss", "heute", "fertig", "werden"],
+  ["Wir", "stellen", "die", "Regale", "um"],
+  ["Die", "Maschine", "läuft", "seit", "acht", "Uhr"],
+  ["Er", "trägt", "die", "Werte", "in", "die", "Liste", "ein"],
+  ["Zuerst", "wiegen", "wir", "das", "Material"],
+  ["Die", "Kundin", "holt", "das", "Paket", "ab"],
+  ["Unser", "Team", "kontrolliert", "jede", "Sendung"],
+  ["Der", "Termin", "findet", "am", "Montag", "statt"],
+  ["Wir", "räumen", "den", "Arbeitsplatz", "auf"],
 ];
 // ===== SATZBAU: 32 distinct rule-level paths (German sentence rules) + 8 held-out =====
 // Each path = a distinct grammar RULE the learner must apply (verb position, case,
@@ -406,8 +432,10 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
   switch (path) {
     case 0: { // verb-second statement order
       const parts = pick(r, SENTENCES);
-      return sb("reorder-verbsecond", "Bilde einen korrekten Satz: " + shuffle(parts, r).join(" "), parts.join(" "),
-        "Richtig: " + parts.join(" ") + " — Verb auf Position 2.", 1, 0, 2, "wrong-word-order");
+      // punctuation is appended, never shuffled (see SENTENCES comment)
+      const correct = parts.join(" ") + ".";
+      return sb("reorder-verbsecond", "Bilde einen korrekten Satz: " + shuffle(parts, r).join(" "), correct,
+        "Richtig: " + correct + " — Verb auf Position 2.", 1, 0, 2, "wrong-word-order");
     }
     case 1: { // subordinate clause: verb to the end
       const subj = pick(r, SB_SUBJ), obj = pick(r, SB_OBJ_AKK);
@@ -649,7 +677,7 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       return sb("possessive", `Zugehörigkeit von „${s[0]}“?`, s[1], "Possessivpronomen nach Person.", 1, 0, 2, "wrong-possessive");
     }
     case 39: { // separable verb prefix
-      const s = pick(r, [["auf|stehen", "Ich stehe um 7 Uhr ___ .", "auf"], ["ein|kaufen", "Wir kaufen Brot ___ .", "ein"], ["an|rufen", "Er ruft mich ___ .", "an"]]);
+      const s = pick(r, [["auf|stehen", "Ich stehe um 7 Uhr ___.", "auf"], ["ein|kaufen", "Wir kaufen Brot ___.", "ein"], ["an|rufen", "Er ruft mich ___.", "an"]]);
       return sb("separable-verb", `Trennbares Verb: „${s[0]}“ → ${s[1]}`, s[2], "Präfix ans Ende bei Konjugation.", 1, 1, 2, "prefix-dropped");
     }
     case 40: { // imperative du/ihr/Sie
@@ -669,7 +697,7 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       return sb("verb-second", `Satzbau: „${s[0]} ... ${s[2]} ${s[1]} ...“ — Verb an Position 2?`, s[1], "In Hauptsatz steht das Verb an Position 2.", 1, 1, 3, "verb-first");
     }
     case 44: { // dative vs accusative personal pronoun
-      const s = pick(r, [["Ich helfe ___ .", "ihm", "ihn"], ["Sie sieht ___ .", "ihn", "ihm"]]);
+      const s = pick(r, [["Ich helfe ___.", "ihm", "ihn"], ["Sie sieht ___.", "ihn", "ihm"]]);
       return sb("pronoun-case", `Ergänze: „${s[0]}“`, s[1], "helfen → Dativ (ihm); sehen → Akkusativ (ihn).", 1, 1, 2, "wrong-case-pronoun");
     }
     case 45: { // adjective declension after der/die/das
