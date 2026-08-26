@@ -239,6 +239,366 @@
         "Fall abschliessen"
       ],
       "intruder": "Backblech einfetten"
+    },
+    {
+      "domain": "Werkstatt",
+      "steps": [
+        "Zeichnung lesen",
+        "Rohteil spannen",
+        "drehen",
+        "Mass kontrollieren"
+      ],
+      "intruder": "Rechnung buchen"
+    },
+    {
+      "domain": "Werkstatt",
+      "steps": [
+        "Schweissgerät prüfen",
+        "Naht vorbereiten",
+        "schweissen",
+        "Naht schleifen"
+      ],
+      "intruder": "Termin eintragen"
+    },
+    {
+      "domain": "Werkstatt",
+      "steps": [
+        "Öl ablassen",
+        "Filter wechseln",
+        "Öl einfüllen",
+        "Stand prüfen"
+      ],
+      "intruder": "Salat waschen"
+    },
+    {
+      "domain": "Werkstatt",
+      "steps": [
+        "Kabel abisolieren",
+        "Ader crimpen",
+        "Stecker montieren",
+        "Durchgang messen"
+      ],
+      "intruder": "Ware etikettieren"
+    },
+    {
+      "domain": "Werkstatt",
+      "steps": [
+        "Bohrer wählen",
+        "Loch anreissen",
+        "bohren",
+        "Gewinde schneiden"
+      ],
+      "intruder": "Brief frankieren"
+    },
+    {
+      "domain": "Werkstatt",
+      "steps": [
+        "Fläche entfetten",
+        "Klebstoff auftragen",
+        "Teile fügen",
+        "Presszeit abwarten"
+      ],
+      "intruder": "Kasse abrechnen"
+    },
+    {
+      "domain": "Werkstatt",
+      "steps": [
+        "Werkzeug prüfen",
+        "Späne entfernen",
+        "Maschine ölen",
+        "Wartung eintragen"
+      ],
+      "intruder": "Menü planen"
+    },
+    {
+      "domain": "Werkstatt",
+      "steps": [
+        "Muster prüfen",
+        "Farbe mischen",
+        "Probe streichen",
+        "Farbton freigeben"
+      ],
+      "intruder": "Paket wiegen"
+    },
+    {
+      "domain": "Werkstatt",
+      "steps": [
+        "Gerät ausschalten",
+        "Abdeckung öffnen",
+        "Sicherung tauschen",
+        "Funktion testen"
+      ],
+      "intruder": "Rezept lesen"
+    },
+    {
+      "domain": "Küche",
+      "steps": [
+        "Ofen vorheizen",
+        "Blech einfetten",
+        "Teig einfüllen",
+        "backen"
+      ],
+      "intruder": "Palette stapeln"
+    },
+    {
+      "domain": "Küche",
+      "steps": [
+        "Fisch ausnehmen",
+        "filetieren",
+        "würzen",
+        "braten"
+      ],
+      "intruder": "Formular ablegen"
+    },
+    {
+      "domain": "Küche",
+      "steps": [
+        "Salat waschen",
+        "schleudern",
+        "Sauce anrühren",
+        "anrichten"
+      ],
+      "intruder": "Bohrer wechseln"
+    },
+    {
+      "domain": "Küche",
+      "steps": [
+        "Suppe abschmecken",
+        "passieren",
+        "erhitzen",
+        "servieren"
+      ],
+      "intruder": "Regal montieren"
+    },
+    {
+      "domain": "Küche",
+      "steps": [
+        "Ware datieren",
+        "Kühlschrank prüfen",
+        "alte Ware vorziehen",
+        "neue hinten einordnen"
+      ],
+      "intruder": "Naht schweissen"
+    },
+    {
+      "domain": "Küche",
+      "steps": [
+        "Gerät reinigen",
+        "Teile trocknen",
+        "zusammensetzen",
+        "Funktion prüfen"
+      ],
+      "intruder": "Angebot schreiben"
+    },
+    {
+      "domain": "Küche",
+      "steps": [
+        "Bestellung lesen",
+        "Zutaten bereitstellen",
+        "kochen",
+        "ausgeben"
+      ],
+      "intruder": "Reifen aufpumpen"
+    },
+    {
+      "domain": "Küche",
+      "steps": [
+        "Teig portionieren",
+        "formen",
+        "gehen lassen",
+        "backen"
+      ],
+      "intruder": "Lieferschein abheften"
+    },
+    {
+      "domain": "Küche",
+      "steps": [
+        "Messer schärfen",
+        "Brett bereitlegen",
+        "schneiden",
+        "Reste entsorgen"
+      ],
+      "intruder": "Kabel verlegen"
+    },
+    {
+      "domain": "Lager",
+      "steps": [
+        "Lieferschein lesen",
+        "Menge zählen",
+        "Abweichung melden",
+        "Ware buchen"
+      ],
+      "intruder": "Sauce binden"
+    },
+    {
+      "domain": "Lager",
+      "steps": [
+        "Auftrag scannen",
+        "Regal anfahren",
+        "Artikel greifen",
+        "Menge bestätigen"
+      ],
+      "intruder": "Teig kneten"
+    },
+    {
+      "domain": "Lager",
+      "steps": [
+        "Karton falten",
+        "Ware polstern",
+        "Karton verschliessen",
+        "Adresse anbringen"
+      ],
+      "intruder": "Öl wechseln"
+    },
+    {
+      "domain": "Lager",
+      "steps": [
+        "Stapler prüfen",
+        "Last aufnehmen",
+        "transportieren",
+        "Last absetzen"
+      ],
+      "intruder": "Salat rüsten"
+    },
+    {
+      "domain": "Lager",
+      "steps": [
+        "Inventurliste holen",
+        "Fach zählen",
+        "Wert erfassen",
+        "Liste abgeben"
+      ],
+      "intruder": "Gewinde schneiden"
+    },
+    {
+      "domain": "Lager",
+      "steps": [
+        "Kühlware erkennen",
+        "sofort umlagern",
+        "Temperatur notieren",
+        "Vorgang buchen"
+      ],
+      "intruder": "Brief tippen"
+    },
+    {
+      "domain": "Lager",
+      "steps": [
+        "Sendung wiegen",
+        "Frachtart wählen",
+        "Label erzeugen",
+        "Übergabe quittieren"
+      ],
+      "intruder": "Zwiebeln hacken"
+    },
+    {
+      "domain": "Lager",
+      "steps": [
+        "Bruchware trennen",
+        "Schaden fotografieren",
+        "Meldung erfassen",
+        "Ware entsorgen"
+      ],
+      "intruder": "Farbe mischen"
+    },
+    {
+      "domain": "Lager",
+      "steps": [
+        "Leergut sammeln",
+        "sortieren",
+        "zählen",
+        "Rückgabe buchen"
+      ],
+      "intruder": "Suppe abschmecken"
+    },
+    {
+      "domain": "Büro",
+      "steps": [
+        "E-Mail lesen",
+        "Anliegen prüfen",
+        "Antwort formulieren",
+        "Antwort senden"
+      ],
+      "intruder": "Werkstück spannen"
+    },
+    {
+      "domain": "Büro",
+      "steps": [
+        "Beleg prüfen",
+        "Betrag erfassen",
+        "Konto wählen",
+        "Buchung speichern"
+      ],
+      "intruder": "Blech einfetten"
+    },
+    {
+      "domain": "Büro",
+      "steps": [
+        "Anruf annehmen",
+        "Anliegen notieren",
+        "weiterleiten",
+        "Rückruf vereinbaren"
+      ],
+      "intruder": "Naht schleifen"
+    },
+    {
+      "domain": "Büro",
+      "steps": [
+        "Vertrag lesen",
+        "Fristen markieren",
+        "Kalender eintragen",
+        "Vertrag ablegen"
+      ],
+      "intruder": "Ware kommissionieren"
+    },
+    {
+      "domain": "Büro",
+      "steps": [
+        "Bedarf erheben",
+        "Angebote vergleichen",
+        "Bestellung auslösen",
+        "Eingang prüfen"
+      ],
+      "intruder": "Fisch filetieren"
+    },
+    {
+      "domain": "Büro",
+      "steps": [
+        "Protokoll öffnen",
+        "Beschlüsse eintragen",
+        "Aufgaben zuweisen",
+        "Protokoll versenden"
+      ],
+      "intruder": "Filter wechseln"
+    },
+    {
+      "domain": "Büro",
+      "steps": [
+        "Adressliste öffnen",
+        "Dubletten suchen",
+        "Einträge zusammenführen",
+        "Liste speichern"
+      ],
+      "intruder": "Teig portionieren"
+    },
+    {
+      "domain": "Büro",
+      "steps": [
+        "Urlaubsantrag prüfen",
+        "Vertretung klären",
+        "Antrag genehmigen",
+        "Kalender aktualisieren"
+      ],
+      "intruder": "Stapler prüfen"
+    },
+    {
+      "domain": "Büro",
+      "steps": [
+        "Spesenbeleg sammeln",
+        "Betrag summieren",
+        "Formular ausfüllen",
+        "zur Freigabe geben"
+      ],
+      "intruder": "Ofen vorheizen"
     }
   ],
   "CONSTRAINT_SCENARIOS": [
@@ -329,6 +689,138 @@
         "Fall schliessen"
       ],
       "rule": "Entscheid erst NACH dem Sichten der Beweise."
+    },
+    {
+      "domain": "Werkstatt",
+      "steps": [
+        "Zeichnung lesen",
+        "Rohteil spannen",
+        "drehen",
+        "Mass kontrollieren",
+        "freigeben"
+      ],
+      "rule": "Drehen erst NACH dem Spannen."
+    },
+    {
+      "domain": "Werkstatt",
+      "steps": [
+        "Gerät ausschalten",
+        "Abdeckung öffnen",
+        "Sicherung tauschen",
+        "Abdeckung schliessen",
+        "einschalten"
+      ],
+      "rule": "Abdeckung öffnen erst NACH dem Ausschalten."
+    },
+    {
+      "domain": "Küche",
+      "steps": [
+        "Ofen vorheizen",
+        "Blech einfetten",
+        "Teig einfüllen",
+        "backen",
+        "auskühlen lassen"
+      ],
+      "rule": "Einfüllen erst NACH dem Einfetten."
+    },
+    {
+      "domain": "Küche",
+      "steps": [
+        "Messer schärfen",
+        "Brett bereitlegen",
+        "schneiden",
+        "Brett reinigen",
+        "wegräumen"
+      ],
+      "rule": "Schneiden erst NACH dem Bereitlegen."
+    },
+    {
+      "domain": "Lager",
+      "steps": [
+        "Lieferschein lesen",
+        "Menge zählen",
+        "Abweichung melden",
+        "Ware buchen",
+        "einlagern"
+      ],
+      "rule": "Buchen erst NACH dem Zählen."
+    },
+    {
+      "domain": "Lager",
+      "steps": [
+        "Stapler prüfen",
+        "Last aufnehmen",
+        "transportieren",
+        "Last absetzen",
+        "Fahrt quittieren"
+      ],
+      "rule": "Aufnehmen erst NACH der Prüfung."
+    },
+    {
+      "domain": "Büro",
+      "steps": [
+        "Beleg prüfen",
+        "Betrag erfassen",
+        "Konto wählen",
+        "Buchung speichern",
+        "Beleg ablegen"
+      ],
+      "rule": "Speichern erst NACH der Kontowahl."
+    },
+    {
+      "domain": "Büro",
+      "steps": [
+        "Vertrag lesen",
+        "Fristen markieren",
+        "Kalender eintragen",
+        "Vertrag ablegen",
+        "Bestätigung senden"
+      ],
+      "rule": "Eintragen erst NACH dem Markieren."
+    },
+    {
+      "domain": "Werkstatt",
+      "steps": [
+        "Fläche entfetten",
+        "Klebstoff auftragen",
+        "Teile fügen",
+        "Presszeit abwarten",
+        "prüfen"
+      ],
+      "rule": "Auftragen erst NACH dem Entfetten."
+    },
+    {
+      "domain": "Küche",
+      "steps": [
+        "Ware annehmen",
+        "Temperatur messen",
+        "Annahme bestätigen",
+        "einlagern",
+        "Liste ergänzen"
+      ],
+      "rule": "Bestätigen erst NACH der Messung."
+    },
+    {
+      "domain": "Lager",
+      "steps": [
+        "Karton falten",
+        "Ware polstern",
+        "Karton verschliessen",
+        "Adresse anbringen",
+        "übergeben"
+      ],
+      "rule": "Verschliessen erst NACH dem Polstern."
+    },
+    {
+      "domain": "Büro",
+      "steps": [
+        "Bedarf erheben",
+        "Angebote vergleichen",
+        "Bestellung auslösen",
+        "Eingang prüfen",
+        "Rechnung freigeben"
+      ],
+      "rule": "Auslösen erst NACH dem Vergleich."
     }
   ],
   "CAUSE_EFFECT": [
@@ -379,6 +871,78 @@
     [
       "Die Kette ist trocken",
       "Das Laufwerk quietscht"
+    ],
+    [
+      "Der Schalter wird gedrückt",
+      "Die Lampe leuchtet"
+    ],
+    [
+      "Die Heizung läuft",
+      "Der Raum wird warm"
+    ],
+    [
+      "Das Fenster ist offen",
+      "Es zieht im Zimmer"
+    ],
+    [
+      "Der Hahn wird aufgedreht",
+      "Das Wasser läuft"
+    ],
+    [
+      "Die Bremse wird betätigt",
+      "Das Fahrzeug wird langsamer"
+    ],
+    [
+      "Der Teig ruht",
+      "Das Volumen nimmt zu"
+    ],
+    [
+      "Die Kühlung fällt aus",
+      "Die Ware verdirbt"
+    ],
+    [
+      "Das Öl fehlt",
+      "Das Lager läuft heiss"
+    ],
+    [
+      "Der Alarm wird ausgelöst",
+      "Die Türen verriegeln"
+    ],
+    [
+      "Die Datei wird gespeichert",
+      "Die Änderung bleibt erhalten"
+    ],
+    [
+      "Der Draht reisst",
+      "Der Stromkreis ist offen"
+    ],
+    [
+      "Die Sonne scheint",
+      "Die Wäsche trocknet"
+    ],
+    [
+      "Das Ventil schliesst",
+      "Der Durchfluss stoppt"
+    ],
+    [
+      "Der Reifen wird aufgepumpt",
+      "Der Druck steigt"
+    ],
+    [
+      "Die Naht wird geschweisst",
+      "Die Teile sind verbunden"
+    ],
+    [
+      "Das Passwort ist falsch",
+      "Der Zugang wird verweigert"
+    ],
+    [
+      "Der Puffer ist voll",
+      "Neue Aufträge warten"
+    ],
+    [
+      "Das Etikett fehlt",
+      "Die Ware ist nicht zuordenbar"
     ]
   ],
   "PRINCIPLES": [
@@ -431,6 +995,1014 @@
       "Kundendaten privat notieren?",
       "Nein – nur im System erfassen.",
       "Datenschutz."
+    ],
+    [
+      "Gerüst ohne Geländer benutzen?",
+      "Nein – Absturzsicherung anbringen.",
+      "Arbeitssicherheit."
+    ],
+    [
+      "Warnhinweis überkleben?",
+      "Nein – Kennzeichnung muss lesbar bleiben.",
+      "Kennzeichnungspflicht."
+    ],
+    [
+      "Kundenreklamation ignorieren, weil viel zu tun ist?",
+      "Nein – Reklamation erfassen.",
+      "Kundenrelevanz."
+    ],
+    [
+      "Rohes Fleisch neben Salat schneiden?",
+      "Nein – getrennte Bretter verwenden.",
+      "Hygiene."
+    ],
+    [
+      "Sicherung stärker einsetzen, damit sie hält?",
+      "Nein – Ursache beheben.",
+      "Elektrosicherheit."
+    ],
+    [
+      "Ohne Einweisung Stapler fahren?",
+      "Nein – Einweisung ist Pflicht.",
+      "Qualifikation."
+    ],
+    [
+      "Ablaufdatum überkleben?",
+      "Nein – Ware aussortieren.",
+      "Lebensmittelrecht."
+    ],
+    [
+      "Fremde Unterschrift setzen?",
+      "Nein – nur selbst unterschreiben.",
+      "Urkundenechtheit."
+    ],
+    [
+      "Notausgang zustellen?",
+      "Nein – Fluchtweg frei halten.",
+      "Brandschutz."
+    ],
+    [
+      "Messwert schätzen statt messen?",
+      "Nein – nachmessen.",
+      "Prüfpflicht."
+    ],
+    [
+      "Chemikalien umfüllen ohne Beschriftung?",
+      "Nein – Gefäss kennzeichnen.",
+      "Gefahrstoffrecht."
+    ],
+    [
+      "Arbeitsunfall nicht melden?",
+      "Nein – Unfall dokumentieren.",
+      "Meldepflicht."
+    ],
+    [
+      "Werkzeug ohne Prüfung weitergeben?",
+      "Nein – Zustand prüfen.",
+      "Sorgfaltspflicht."
+    ],
+    [
+      "Kundenliste privat mitnehmen?",
+      "Nein – Daten bleiben im Betrieb.",
+      "Datenschutz."
+    ]
+  ],
+  "DEPENDENCY_PAIRS": [
+    [
+      "Endkontrolle",
+      "Fakturierung"
+    ],
+    [
+      "Verpacken",
+      "Versand"
+    ],
+    [
+      "Etikettieren",
+      "Auslieferung"
+    ],
+    [
+      "Zahlungseingang",
+      "Freigabe"
+    ],
+    [
+      "Wareneingangsprüfung",
+      "Einlagerung"
+    ],
+    [
+      "Kreditlimitprüfung",
+      "Bestellfreigabe"
+    ],
+    [
+      "Mass prüfen",
+      "Montage"
+    ],
+    [
+      "Temperaturmessung",
+      "Warenannahme"
+    ],
+    [
+      "Unterschrift",
+      "Archivierung"
+    ],
+    [
+      "Rezeptprüfung",
+      "Abgabe"
+    ],
+    [
+      "Sicherheitsprüfung",
+      "Inbetriebnahme"
+    ],
+    [
+      "Kalkulation",
+      "Angebot"
+    ],
+    [
+      "Grundierung",
+      "Lackierung"
+    ],
+    [
+      "Reinigung",
+      "Desinfektion"
+    ],
+    [
+      "Rohteil spannen",
+      "Drehen"
+    ],
+    [
+      "Ausschalten",
+      "Sicherungswechsel"
+    ],
+    [
+      "Blech einfetten",
+      "Teig einfüllen"
+    ],
+    [
+      "Menge zählen",
+      "Warenbuchung"
+    ],
+    [
+      "Staplerprüfung",
+      "Lastaufnahme"
+    ],
+    [
+      "Belegprüfung",
+      "Buchung"
+    ],
+    [
+      "Entfetten",
+      "Klebstoffauftrag"
+    ],
+    [
+      "Anreissen",
+      "Bohren"
+    ],
+    [
+      "Fristenmarkierung",
+      "Kalendereintrag"
+    ],
+    [
+      "Farbprobe",
+      "Lackierung"
+    ],
+    [
+      "Angebotsvergleich",
+      "Bestellung"
+    ],
+    [
+      "Teig ruhen lassen",
+      "Backen"
+    ],
+    [
+      "Naht vorbereiten",
+      "Schweissen"
+    ],
+    [
+      "Filterwechsel",
+      "Ölbefüllung"
+    ],
+    [
+      "Adresslabel",
+      "Übergabe"
+    ],
+    [
+      "Vertretung klären",
+      "Urlaubsfreigabe"
+    ]
+  ],
+  "MANDATORY_STEP": [
+    [
+      [
+        "Formular ausfüllen",
+        "unterschreiben",
+        "abschicken"
+      ],
+      "unterschreiben",
+      "Ohne Unterschrift ist das Formular ungültig."
+    ],
+    [
+      [
+        "Teil messen",
+        "Mass prüfen",
+        "einbauen"
+      ],
+      "Mass prüfen",
+      "Ohne Prüfung wird ein falsches Mass verbaut."
+    ],
+    [
+      [
+        "Ware annehmen",
+        "Temperatur messen",
+        "einlagern"
+      ],
+      "Temperatur messen",
+      "Ohne Messung ist die Kühlkette nicht belegt."
+    ],
+    [
+      [
+        "Maschine öffnen",
+        "Strom trennen",
+        "Bauteil tauschen"
+      ],
+      "Strom trennen",
+      "Ohne Trennen besteht Stromschlaggefahr."
+    ],
+    [
+      [
+        "Rechnung prüfen",
+        "Konto zuordnen",
+        "Zahlung freigeben"
+      ],
+      "Rechnung prüfen",
+      "Ohne Prüfung wird ein falscher Betrag bezahlt."
+    ],
+    [
+      [
+        "Zutaten rüsten",
+        "Hände waschen",
+        "Teig kneten"
+      ],
+      "Hände waschen",
+      "Ohne Händewaschen ist die Hygiene verletzt."
+    ],
+    [
+      [
+        "Ware scannen",
+        "Bestand buchen",
+        "Regal einordnen"
+      ],
+      "Bestand buchen",
+      "Ohne Buchung stimmt der Bestand nicht."
+    ],
+    [
+      [
+        "Auftrag lesen",
+        "Schutzbrille anlegen",
+        "schleifen"
+      ],
+      "Schutzbrille anlegen",
+      "Ohne Schutzbrille droht Augenverletzung."
+    ],
+    [
+      [
+        "Kunden anhören",
+        "Sachverhalt prüfen",
+        "Entscheid mitteilen"
+      ],
+      "Sachverhalt prüfen",
+      "Ohne Prüfung ist der Entscheid unbegründet."
+    ],
+    [
+      [
+        "Palette wägen",
+        "Etikett drucken",
+        "Etikett anbringen"
+      ],
+      "Etikett anbringen",
+      "Ohne Etikett ist die Ware nicht identifizierbar."
+    ],
+    [
+      [
+        "Zeichnung lesen",
+        "Rohteil spannen",
+        "drehen"
+      ],
+      "Rohteil spannen",
+      "Ohne Spannen löst sich das Teil in der Maschine."
+    ],
+    [
+      [
+        "Gerät ausschalten",
+        "Abdeckung öffnen",
+        "Sicherung tauschen"
+      ],
+      "Gerät ausschalten",
+      "Ohne Ausschalten besteht Stromschlaggefahr."
+    ],
+    [
+      [
+        "Ofen vorheizen",
+        "Blech einfetten",
+        "Teig einfüllen"
+      ],
+      "Blech einfetten",
+      "Ohne Einfetten klebt der Teig fest."
+    ],
+    [
+      [
+        "Lieferschein lesen",
+        "Menge zählen",
+        "Ware buchen"
+      ],
+      "Menge zählen",
+      "Ohne Zählen bleibt die Abweichung unbemerkt."
+    ],
+    [
+      [
+        "Stapler prüfen",
+        "Last aufnehmen",
+        "transportieren"
+      ],
+      "Stapler prüfen",
+      "Ohne Prüfung droht ein Defekt unter Last."
+    ],
+    [
+      [
+        "Beleg prüfen",
+        "Betrag erfassen",
+        "Buchung speichern"
+      ],
+      "Beleg prüfen",
+      "Ohne Prüfung wird ein falscher Betrag gebucht."
+    ],
+    [
+      [
+        "Fläche entfetten",
+        "Klebstoff auftragen",
+        "Teile fügen"
+      ],
+      "Fläche entfetten",
+      "Ohne Entfetten hält die Klebung nicht."
+    ],
+    [
+      [
+        "Kabel abisolieren",
+        "Ader crimpen",
+        "Durchgang messen"
+      ],
+      "Durchgang messen",
+      "Ohne Messung bleibt ein Wackelkontakt unentdeckt."
+    ],
+    [
+      [
+        "Vertrag lesen",
+        "Fristen markieren",
+        "Kalender eintragen"
+      ],
+      "Fristen markieren",
+      "Ohne Markieren wird eine Frist versäumt."
+    ],
+    [
+      [
+        "Ware datieren",
+        "alte Ware vorziehen",
+        "neue hinten einordnen"
+      ],
+      "alte Ware vorziehen",
+      "Ohne Vorziehen verdirbt die ältere Ware."
+    ],
+    [
+      [
+        "Muster prüfen",
+        "Farbe mischen",
+        "Probe streichen"
+      ],
+      "Probe streichen",
+      "Ohne Probe wird ein falscher Farbton lackiert."
+    ],
+    [
+      [
+        "Bohrer wählen",
+        "Loch anreissen",
+        "bohren"
+      ],
+      "Loch anreissen",
+      "Ohne Anreissen sitzt das Loch falsch."
+    ]
+  ],
+  "BRANCHES": [
+    [
+      "Die Ware ist beschädigt.",
+      "Ware zurückweisen und Schaden dokumentieren"
+    ],
+    [
+      "Der Kunde ist nicht zu Hause.",
+      "Zustellung erneut versuchen / Abholung anbieten"
+    ],
+    [
+      "Der Lagerbestand ist leer.",
+      "Nachbestellen und Kunden informieren"
+    ],
+    [
+      "Die Kühlkette wurde unterbrochen.",
+      "Ware sperren und Vorgesetzte informieren"
+    ],
+    [
+      "Das Mass liegt ausserhalb der Toleranz.",
+      "Teil nachfertigen"
+    ],
+    [
+      "Die Rechnung weicht vom Angebot ab.",
+      "Rechnung zur Prüfung zurückgeben"
+    ],
+    [
+      "Die Maschine meldet eine Störung.",
+      "Maschine abschalten und Wartung rufen"
+    ],
+    [
+      "Das Formular ist unvollständig.",
+      "Fehlende Angaben nachfordern"
+    ],
+    [
+      "Der Zahlungseingang fehlt.",
+      "Versand zurückhalten"
+    ],
+    [
+      "Die Lieferung enthält Gefahrgut.",
+      "Getrennt lagern und kennzeichnen"
+    ],
+    [
+      "Der Kunde widerruft die Bestellung.",
+      "Auftrag stornieren und Ware einbuchen"
+    ],
+    [
+      "Das Haltbarkeitsdatum ist überschritten.",
+      "Ware aussortieren"
+    ],
+    [
+      "Das Werkzeug ist stumpf.",
+      "Werkzeug schärfen oder tauschen"
+    ],
+    [
+      "Der Ofen erreicht die Temperatur nicht.",
+      "Störung melden und Backen verschieben"
+    ],
+    [
+      "Die Palette ist beschädigt.",
+      "Ware umpacken"
+    ],
+    [
+      "Die Adresse ist unlesbar.",
+      "Sendung zurückhalten und klären"
+    ],
+    [
+      "Der Stapler zeigt eine Warnleuchte.",
+      "Fahrt abbrechen und Wartung rufen"
+    ],
+    [
+      "Die Unterschrift fehlt.",
+      "Dokument zur Unterschrift zurückgeben"
+    ],
+    [
+      "Der Kunde nennt eine falsche Bestellnummer.",
+      "Nummer verifizieren"
+    ],
+    [
+      "Das Kabel ist beschädigt.",
+      "Kabel ersetzen"
+    ],
+    [
+      "Die Frist läuft heute ab.",
+      "Vorgang priorisieren"
+    ],
+    [
+      "Der Farbton weicht ab.",
+      "Farbe neu mischen"
+    ],
+    [
+      "Der Bestand weicht von der Liste ab.",
+      "Nachzählen und Differenz melden"
+    ],
+    [
+      "Das Gerät riecht verbrannt.",
+      "Sofort abschalten und melden"
+    ]
+  ],
+  "SORT_KEYS": [
+    [
+      "Rechnungen ablegen",
+      "nach Rechnungsdatum"
+    ],
+    [
+      "Kundenkartei",
+      "alphabetisch nach Name"
+    ],
+    [
+      "Artikelliste",
+      "nach Artikelnummer"
+    ],
+    [
+      "Lieferscheine",
+      "nach Lieferdatum"
+    ],
+    [
+      "Personalakten",
+      "alphabetisch nach Nachname"
+    ],
+    [
+      "Ersatzteile",
+      "nach Teilenummer"
+    ],
+    [
+      "Termine",
+      "chronologisch nach Uhrzeit"
+    ],
+    [
+      "Postfächer",
+      "alphabetisch nach Empfänger"
+    ],
+    [
+      "Chargen",
+      "nach Haltbarkeitsdatum"
+    ],
+    [
+      "Werkzeuge",
+      "nach Grösse"
+    ],
+    [
+      "Bestellungen",
+      "nach Eingangsdatum"
+    ],
+    [
+      "Kundenanfragen",
+      "nach Priorität"
+    ],
+    [
+      "Lagerplätze",
+      "nach Platznummer"
+    ],
+    [
+      "Rezepte",
+      "alphabetisch nach Gericht"
+    ],
+    [
+      "Schrauben",
+      "nach Durchmesser"
+    ],
+    [
+      "Farbdosen",
+      "nach Farbcode"
+    ],
+    [
+      "Protokolle",
+      "chronologisch nach Sitzungsdatum"
+    ],
+    [
+      "Mitarbeitende",
+      "nach Abteilung"
+    ],
+    [
+      "Lieferanten",
+      "alphabetisch nach Firma"
+    ],
+    [
+      "Werkzeugkasten",
+      "nach Werkzeugart"
+    ]
+  ],
+  "WAIT_STEPS": [
+    [
+      "Bestellung",
+      "Versand",
+      "Zahlungseingang abwarten"
+    ],
+    [
+      "Bewerbung",
+      "Vorstellungsgespräch",
+      "Einladung abwarten"
+    ],
+    [
+      "Rechnung",
+      "Mahnung",
+      "Zahlungsfrist verstreichen lassen"
+    ],
+    [
+      "Lackierung",
+      "Montage",
+      "Trocknungszeit abwarten"
+    ],
+    [
+      "Teigansatz",
+      "Backen",
+      "Teig ruhen lassen"
+    ],
+    [
+      "Reparaturauftrag",
+      "Rückgabe",
+      "Ersatzteil abwarten"
+    ],
+    [
+      "Antrag",
+      "Bescheid",
+      "Prüfung abwarten"
+    ],
+    [
+      "Bestellung",
+      "Einlagerung",
+      "Wareneingang abwarten"
+    ],
+    [
+      "Klebung",
+      "Belastung",
+      "Presszeit abwarten"
+    ],
+    [
+      "Bestellung",
+      "Lieferung",
+      "Transportzeit abwarten"
+    ],
+    [
+      "Anfrage",
+      "Angebot",
+      "Kalkulation abwarten"
+    ],
+    [
+      "Reparatur",
+      "Abholung",
+      "Funktionstest abwarten"
+    ],
+    [
+      "Farbauftrag",
+      "Zweitanstrich",
+      "Trocknung abwarten"
+    ],
+    [
+      "Bewerbung",
+      "Zusage",
+      "Entscheid abwarten"
+    ],
+    [
+      "Mahnung",
+      "Inkasso",
+      "Zahlungsfrist abwarten"
+    ],
+    [
+      "Wareneingang",
+      "Verkauf",
+      "Qualitätsprüfung abwarten"
+    ],
+    [
+      "Backen",
+      "Verpacken",
+      "Auskühlen abwarten"
+    ],
+    [
+      "Antrag",
+      "Auszahlung",
+      "Genehmigung abwarten"
+    ],
+    [
+      "Schweissen",
+      "Belastungstest",
+      "Abkühlen abwarten"
+    ],
+    [
+      "Impfung",
+      "Freigabe",
+      "Beobachtungszeit abwarten"
+    ]
+  ],
+  "PREV_STEP": [
+    [
+      "Versand",
+      "Verpackung"
+    ],
+    [
+      "Rechnung",
+      "Versand"
+    ],
+    [
+      "Trocknen",
+      "Lackieren"
+    ],
+    [
+      "Montage",
+      "Mass prüfen"
+    ],
+    [
+      "Einlagerung",
+      "Wareneingangsprüfung"
+    ],
+    [
+      "Servieren",
+      "Anrichten"
+    ],
+    [
+      "Abschicken",
+      "Unterschreiben"
+    ],
+    [
+      "Archivierung",
+      "Index setzen"
+    ],
+    [
+      "Inbetriebnahme",
+      "Sicherheitsprüfung"
+    ],
+    [
+      "Auslieferung",
+      "Etikettieren"
+    ],
+    [
+      "Backen",
+      "Teig kneten"
+    ],
+    [
+      "Entgraten",
+      "Bohren"
+    ],
+    [
+      "Mass kontrollieren",
+      "Drehen"
+    ],
+    [
+      "Sicherung tauschen",
+      "Abdeckung öffnen"
+    ],
+    [
+      "Teig einfüllen",
+      "Blech einfetten"
+    ],
+    [
+      "Ware buchen",
+      "Menge zählen"
+    ],
+    [
+      "Transportieren",
+      "Last aufnehmen"
+    ],
+    [
+      "Buchung speichern",
+      "Konto wählen"
+    ],
+    [
+      "Teile fügen",
+      "Klebstoff auftragen"
+    ],
+    [
+      "Gewinde schneiden",
+      "Bohren"
+    ],
+    [
+      "Kalender eintragen",
+      "Fristen markieren"
+    ],
+    [
+      "Naht schleifen",
+      "Schweissen"
+    ],
+    [
+      "Stand prüfen",
+      "Öl einfüllen"
+    ],
+    [
+      "Antwort senden",
+      "Antwort formulieren"
+    ]
+  ],
+  "LOOPS": [
+    [
+      "Stapel",
+      "Karte ziehen, prüfen, ablegen",
+      "leerer Stapel"
+    ],
+    [
+      "Palette",
+      "Paket nehmen, scannen, einlagern",
+      "leere Palette"
+    ],
+    [
+      "Postkorb",
+      "Brief nehmen, lesen, ablegen",
+      "leerer Postkorb"
+    ],
+    [
+      "Auftragsliste",
+      "Zeile lesen, kommissionieren, abhaken",
+      "leere Auftragsliste"
+    ],
+    [
+      "Kiste",
+      "Teil prüfen, sortieren, weiterlegen",
+      "leere Kiste"
+    ],
+    [
+      "Warteschlange",
+      "Kunden aufrufen, bedienen, abschliessen",
+      "leere Warteschlange"
+    ],
+    [
+      "Regal",
+      "Artikel zählen, notieren, weiterrücken",
+      "leeres Regal"
+    ],
+    [
+      "Mailbox",
+      "Nachricht öffnen, beantworten, archivieren",
+      "leere Mailbox"
+    ],
+    [
+      "Rohteilbehälter",
+      "Teil spannen, drehen, ablegen",
+      "leerer Behälter"
+    ],
+    [
+      "Blech",
+      "Teigstück formen, legen, backen",
+      "volles Blech"
+    ],
+    [
+      "Musterkarte",
+      "Farbe prüfen, notieren, weiterblättern",
+      "letzte Farbe erreicht"
+    ],
+    [
+      "Prüfliste",
+      "Punkt lesen, testen, abhaken",
+      "alle Punkte abgehakt"
+    ],
+    [
+      "Wäschekorb",
+      "Stück nehmen, falten, einlegen",
+      "leerer Korb"
+    ],
+    [
+      "Belegstapel",
+      "Beleg prüfen, buchen, ablegen",
+      "leerer Belegstapel"
+    ],
+    [
+      "Sendungsliste",
+      "Adresse lesen, Label drucken, kleben",
+      "leere Sendungsliste"
+    ],
+    [
+      "Werkzeugwagen",
+      "Werkzeug prüfen, reinigen, einsortieren",
+      "leerer Wagen"
+    ]
+  ],
+  "EXCEPTIONS": [
+    [
+      "Im Normalfall läuft die Ware zum Versand. Was gilt bei STORNIERUNG durch den Kunden?",
+      "Ware zurück ins Lager einbuchen",
+      "Ausnahmezweig führt zurück ins Lager."
+    ],
+    [
+      "Normalerweise wird die Lieferung eingelagert. Was gilt bei TRANSPORTSCHADEN?",
+      "Schaden dokumentieren und Annahme verweigern",
+      "Ausnahmezweig stoppt die Annahme."
+    ],
+    [
+      "Normalerweise wird das Gericht serviert. Was gilt bei FALSCHER BESTELLUNG?",
+      "Gericht neu zubereiten",
+      "Ausnahmezweig führt zurück in die Zubereitung."
+    ],
+    [
+      "Normalerweise wird die Rechnung bezahlt. Was gilt bei PREISABWEICHUNG?",
+      "Rechnung zurück zur Prüfung geben",
+      "Ausnahmezweig führt zurück in die Prüfung."
+    ],
+    [
+      "Normalerweise wird das Teil verbaut. Was gilt bei MASSABWEICHUNG?",
+      "Teil aussortieren und nachfertigen",
+      "Ausnahmezweig führt zurück in die Fertigung."
+    ],
+    [
+      "Normalerweise wird die Ware verkauft. Was gilt bei ABGELAUFENEM DATUM?",
+      "Ware aussortieren und entsorgen",
+      "Ausnahmezweig entfernt die Ware."
+    ],
+    [
+      "Normalerweise wird die Maschine gestartet. Was gilt bei FEHLENDER SCHUTZABDECKUNG?",
+      "Start verweigern und Abdeckung montieren",
+      "Ausnahmezweig sichert zuerst."
+    ],
+    [
+      "Normalerweise wird der Antrag genehmigt. Was gilt bei FEHLENDEN UNTERLAGEN?",
+      "Unterlagen nachfordern",
+      "Ausnahmezweig pausiert den Vorgang."
+    ],
+    [
+      "Normalerweise wird die Sendung zugestellt. Was gilt bei UNBEKANNTEM EMPFÄNGER?",
+      "Sendung an Absender zurücksenden",
+      "Ausnahmezweig führt zurück zum Absender."
+    ],
+    [
+      "Normalerweise wird lackiert. Was gilt bei ZU HOHER LUFTFEUCHTIGKEIT?",
+      "Lackieren verschieben",
+      "Ausnahmezweig wartet auf Bedingungen."
+    ],
+    [
+      "Normalerweise wird die Kühlware eingelagert. Was gilt bei UNTERBROCHENER KÜHLKETTE?",
+      "Ware sperren und melden",
+      "Ausnahmezweig sperrt die Ware."
+    ],
+    [
+      "Normalerweise wird der Beleg gebucht. Was gilt bei FEHLENDER UNTERSCHRIFT?",
+      "Beleg zur Unterschrift zurückgeben",
+      "Ausnahmezweig fordert die Unterschrift."
+    ],
+    [
+      "Normalerweise wird das Werkzeug ausgegeben. Was gilt bei ERKENNBAREM DEFEKT?",
+      "Werkzeug sperren und ersetzen",
+      "Ausnahmezweig sortiert aus."
+    ],
+    [
+      "Normalerweise wird der Termin bestätigt. Was gilt bei DOPPELBUCHUNG?",
+      "Konflikt klären und neu terminieren",
+      "Ausnahmezweig löst den Konflikt."
+    ]
+  ],
+  "HANDOFFS": [
+    [
+      "Kommissionierung",
+      "Lagermitarbeiter",
+      "Spediteur"
+    ],
+    [
+      "Wareneingang",
+      "Lagermitarbeiter",
+      "Qualitätsprüfer"
+    ],
+    [
+      "Vorprüfung",
+      "Sachbearbeiter",
+      "Teamleiter"
+    ],
+    [
+      "Posteingang",
+      "Empfang",
+      "Poststelle"
+    ],
+    [
+      "Zubereitung",
+      "Koch",
+      "Service"
+    ],
+    [
+      "Reparatur",
+      "Mechaniker",
+      "Kundendienst"
+    ],
+    [
+      "Rohbearbeitung",
+      "Dreher",
+      "Schleifer"
+    ],
+    [
+      "Endkontrolle",
+      "Prüfer",
+      "Versand"
+    ],
+    [
+      "Kalkulation",
+      "Kalkulator",
+      "Verkauf"
+    ],
+    [
+      "Backstube",
+      "Bäcker",
+      "Verkauf"
+    ],
+    [
+      "Warenannahme",
+      "Fahrer",
+      "Lagermitarbeiter"
+    ],
+    [
+      "Buchhaltung",
+      "Sachbearbeiter",
+      "Revision"
+    ],
+    [
+      "Lackierung",
+      "Lackierer",
+      "Montage"
+    ],
+    [
+      "Bestellannahme",
+      "Verkauf",
+      "Lager"
+    ],
+    [
+      "Reinigung",
+      "Reinigungskraft",
+      "Hauswart"
+    ],
+    [
+      "Aufmass",
+      "Monteur",
+      "Planer"
     ]
   ]
 }

@@ -103,6 +103,15 @@ const PROCESS_SCENARIOS: ProcessScenario[] = POOLS.PROCESS_SCENARIOS as ProcessS
 const CONSTRAINT_SCENARIOS: ConstraintScenario[] = POOLS.CONSTRAINT_SCENARIOS as ConstraintScenario[];
 const CAUSE_EFFECT: [string, string][] = POOLS.CAUSE_EFFECT as [string, string][];
 const PRINCIPLES: [string, string, string][] = POOLS.PRINCIPLES as [string, string, string][];
+const DEPENDENCY_PAIRS: [string, string][] = POOLS.DEPENDENCY_PAIRS as [string, string][];
+const MANDATORY_STEP: [string[], string, string][] = POOLS.MANDATORY_STEP as [string[], string, string][];
+const BRANCHES: [string, string][] = POOLS.BRANCHES as [string, string][];
+const SORT_KEYS: [string, string][] = POOLS.SORT_KEYS as [string, string][];
+const WAIT_STEPS: [string, string, string][] = POOLS.WAIT_STEPS as [string, string, string][];
+const PREV_STEP: [string, string][] = POOLS.PREV_STEP as [string, string][];
+const LOOPS: [string, string, string][] = POOLS.LOOPS as [string, string, string][];
+const EXCEPTIONS: [string, string, string][] = POOLS.EXCEPTIONS as [string, string, string][];
+const HANDOFFS: [string, string, string][] = POOLS.HANDOFFS as [string, string, string][];
 const ri = (r: () => number, a: number, b: number) => Math.floor(r() * (b - a + 1)) + a;
 const pick = <T,>(r: () => number, arr: T[]): T => arr[Math.floor(r() * arr.length)];
 const shuffle = <T,>(arr: T[], r: () => number): T[] => {
@@ -909,22 +918,29 @@ function genProzess(r: () => number, d: number, structIndex = -1): Question {
         "Ursache vor Wirkung.", undefined, 2, 0, 2, "effect-first");
     }
     case 6: { // fill missing middle step
-      // HUMAN-AUDIT FIX: endpoints and middle were drawn INDEPENDENTLY, producing
+      // HUMAN-AUDIT FIX 1: endpoints and middle were drawn INDEPENDENTLY, producing
       // semantically wrong chains such as "Anmelden → be- und verarbeiten → absenden".
-      // The middle step now belongs to the SAME authored process, and the
-      // distractor is a real step from a DIFFERENT domain.
+      // HUMAN-AUDIT FIX 2: steps[2] was used as a distractor, but in a 4-step
+      // process it is ALSO a valid intermediate step — "Post öffnen → Antwort
+      // verfassen → absenden" reads correctly, so two options were defensible.
+      // Distractors now come only from OTHER domains, leaving exactly one answer.
       const sc6 = pick(r, PROCESS_SCENARIOS);
       const first = sc6.steps[0];
       const mid6 = sc6.steps[1];
       const last = sc6.steps[sc6.steps.length - 1];
+      const foreign = PROCESS_SCENARIOS.filter((x) => x.domain !== sc6.domain);
+      const d1 = pick(r, foreign).steps[1];
+      const d2 = sc6.intruder;
       return pl("fill-missing-step", `Ergänze den sinnvollen Zwischenschritt: ${first} → ? → ${last}`, mid6,
-        `${first} → ${mid6} → ${last}.`, dedupeOptions(shuffle([mid6, sc6.intruder, sc6.steps[2]], r)), 3, 0, 2, "implausible-middle");
+        `${first} → ${mid6} → ${last}.`, dedupeOptions(shuffle([mid6, d1, d2], r)), 3, 0, 2, "implausible-middle");
     }
     case 7: { // dependency: may B start before A?
-      const a = pick(r, ["Verpacken", "Etikettieren", "Endkontrolle"]);
-      const b = pick(r, ["Versand", "Auslieferung", "Fakturierung"]);
-      return pl("dependency-check", `Darf „${b}“ starten, bevor „${a}“ abgeschlossen ist?`, "Nein",
-        `${a} liefert die Grundlage für ${b}.`, undefined, 2, 1, 2, "reversed-dependency");
+      // WIDENED: authored predecessor/dependent pairs. Previously two independent
+      // picks could form a pair with no real dependency (e.g. Etikettieren ->
+      // Fakturierung), making the "Nein" answer unjustified.
+      const dp = pick(r, DEPENDENCY_PAIRS);
+      return pl("dependency-check", `Darf „${dp[1]}“ starten, bevor „${dp[0]}“ abgeschlossen ist?`, "Nein",
+        `${dp[0]} liefert die Grundlage für ${dp[1]}.`, ["Ja", "Nein"], 2, 1, 2, "reversed-dependency");
     }
     case 8: { // detect repeated step (control loop)
       // WIDENED: the control loop is built from a real scenario, so the repeated
@@ -951,13 +967,11 @@ function genProzess(r: () => number, d: number, structIndex = -1): Question {
         "Der zweite Schritt hängt vom ersten ab.", ["Ja", "Nein"], 2, 1, 2, "false-serial");
     }
     case 10: { // which step is skippable without breaking the goal
-      const s = pick(r, [
-        [["holen", "messen", "dokumentieren"], "dokumentieren"],
-        [["bestellen", "einlagern", "feiern"], "feiern"],
-      ]);
-      void s;
-      return pl("skip-step-consequence", `Ablauf: Formular ausfüllen → unterschreiben → abschicken. Welcher Schritt darf NIEMALS übersprungen werden?`, "unterschreiben",
-        "Ohne Unterschrift ist das Formular ungültig.", undefined, 3, 1, 2, "skippable-chosen");
+      // WIDENED + DEFECT FIX: the old code picked a value then discarded it
+      // (void s) and always emitted the same hardcoded Formular prompt.
+      const ms = pick(r, MANDATORY_STEP);
+      return pl("skip-step-consequence", `Ablauf: ${ms[0].join(" → ")}. Welcher Schritt darf NIEMALS übersprungen werden?`, ms[1],
+        ms[2], dedupeOptions(shuffle([...ms[0]], r)), 3, 1, 2, "skippable-chosen");
     }
     case 11: { // first-failure point: where does the process break?
       // WIDENED: the process and the failing step both vary; the blamed step is
@@ -968,11 +982,7 @@ function genProzess(r: () => number, d: number, structIndex = -1): Question {
         `Fehler entstehen meist bei „${blame}“, nicht erst am Ende.`, dedupeOptions(shuffle([...sc11.steps], r)), 4, 1, 3, "last-step-blamed");
     }
     case 12: { // if-then branching decision
-      const b = pick(r, [
-        ["Die Ware ist beschädigt.", "Ware zurückweisen und Schaden dokumentieren"],
-        ["Der Kunde ist nicht zu Hause.", "Zustellung erneut versuchen / Abholung anbieten"],
-        ["Der Lagerbestand ist leer.", "Nachbestellen und Kunden informieren"],
-      ]);
+      const b = pick(r, BRANCHES); // WIDENED: 12 authored condition/branch pairs
       return pl("branch-decision", `Wenn "${b[0]}" — was ist der richtige Prozesszweig?`, b[1],
         "Regelgesteuerte Verzweigung.", undefined, 2, 1, 3, "ignore-condition");
     }
@@ -987,53 +997,35 @@ function genProzess(r: () => number, d: number, structIndex = -1): Question {
     }
     case 14: { // cycle detection in a loop process
       // WIDENED: the loop subject and its exit condition vary together.
-      const loops = [
-        ["Stapel", "Karte ziehen, prüfen, ablegen", "leerer Stapel"],
-        ["Palette", "Paket nehmen, scannen, einlagern", "leere Palette"],
-        ["Postkorb", "Brief nehmen, lesen, ablegen", "leerer Postkorb"],
-        ["Auftragsliste", "Zeile lesen, kommissionieren, abhaken", "leere Auftragsliste"],
-        ["Kiste", "Teil prüfen, sortieren, weiterlegen", "leere Kiste"],
-        ["Warteschlange", "Kunden aufrufen, bedienen, abschliessen", "leere Warteschlange"],
-      ];
-      const lp = pick(r, loops);
+      const lp = pick(r, LOOPS); // WIDENED: 16 authored loop subjects
       return pl("loop-exit-condition", `Schleife: „Solange ${lp[0]} nicht leer: ${lp[1]}.“ Was beendet die Schleife?`, lp[2],
         "Abbruchbedingung erkennen.", dedupeOptions(shuffle([lp[2], "voller " + lp[0], "nach 10 Durchläufen", "nie"], r)), 3, 1, 3, "no-exit");
     }
     case 15: { // order by alphabet vs numeric vs date (choose the right key)
-      const t = pick(r, [["Rechnungen ablegen", "nach Rechnungsdatum"], ["Kundenkartei", "alphabetisch nach Name"], ["Artikelliste", "nach Artikelnummer"]]);
-      return pl("sort-key-selection", `Womit sortiert man am sinnvollsten: ${t[0]}?`, t[1],
-        "Passender Sortierschlüssel.", undefined, 2, 0, 2, "random-key");
+      // WIDENED: 10 authored key choices; distractors are other real keys.
+      const sk = pick(r, SORT_KEYS);
+      const otherKeys = SORT_KEYS.filter((x) => x[1] !== sk[1]).map((x) => x[1]);
+      return pl("sort-key-selection", `Womit sortiert man am sinnvollsten: ${sk[0]}?`, sk[1],
+        "Passender Sortierschlüssel.", dedupeOptions(shuffle([sk[1], ...shuffle(otherKeys, r).slice(0, 2)], r)), 2, 0, 2, "random-key");
     }
     case 16: { // buffer/waiting logic: what happens between two steps?
-      const t = pick(r, [["Bestellung", "Versand"], ["Bewerbung", "Vorstellungsgespräch"], ["Rechnung", "Mahnung"]]);
-      return pl("intermediate-wait-step", `Was liegt typischerweise ZWISCHEN „${t[0]}“ und „${t[1]}“?`,
-        t[0] === "Rechnung" ? "Zahlungsfrist verstreichen lassen" : t[0] === "Bewerbung" ? "Einladung abwarten" : "Zahlungseingang abwarten",
-        "Zwischenschritt im Prozess.", undefined, 2, 0, 2, "step-skipped");
+      // WIDENED: each entry carries its OWN waiting step, replacing a ternary
+      // chain that would have silently mis-answered any new pair.
+      const ws = pick(r, WAIT_STEPS);
+      const otherWaits = WAIT_STEPS.filter((x) => x[2] !== ws[2]).map((x) => x[2]);
+      return pl("intermediate-wait-step", `Was liegt typischerweise ZWISCHEN „${ws[0]}“ und „${ws[1]}“?`, ws[2],
+        "Zwischenschritt im Prozess.", dedupeOptions(shuffle([ws[2], ...shuffle(otherWaits, r).slice(0, 2)], r)), 2, 0, 2, "step-skipped");
     }
     case 17: { // exception handling: normal path interrupted
       // WIDENED: exception scenarios across domains; the correct branch differs.
-      const exc = [
-        ["Im Normalfall läuft die Ware zum Versand. Was gilt bei STORNIERUNG durch den Kunden?", "Ware zurück ins Lager einbuchen", "Ausnahmezweig führt zurück ins Lager."],
-        ["Normalerweise wird die Lieferung eingelagert. Was gilt bei TRANSPORTSCHADEN?", "Schaden dokumentieren und Annahme verweigern", "Ausnahmezweig stoppt die Annahme."],
-        ["Normalerweise wird das Gericht serviert. Was gilt bei FALSCHER BESTELLUNG?", "Gericht neu zubereiten", "Ausnahmezweig führt zurück in die Zubereitung."],
-        ["Normalerweise wird die Rechnung bezahlt. Was gilt bei PREISABWEICHUNG?", "Rechnung zurück zur Prüfung geben", "Ausnahmezweig führt zurück in die Prüfung."],
-        ["Normalerweise wird das Teil verbaut. Was gilt bei MASSABWEICHUNG?", "Teil aussortieren und nachfertigen", "Ausnahmezweig führt zurück in die Fertigung."],
-      ];
-      const ex = pick(r, exc);
+      const ex = pick(r, EXCEPTIONS); // WIDENED: 14 authored exception branches
       return pl("exception-path", ex[0], ex[1], ex[2], undefined, 2, 1, 3, "normal-path-forced");
     }
     case 18: { // role handoff: who does the next step?
       // WIDENED (also a correctness fix): previously the prompt was fixed while
       // the answer varied with an unused pick -> the answer could contradict the
       // question. Now the handoff pair drives both.
-      const hand: [string, string, string][] = [
-        ["Kommissionierung", "Lagermitarbeiter", "Spediteur"],
-        ["Wareneingang", "Lagermitarbeiter", "Qualitätsprüfer"],
-        ["Vorprüfung", "Sachbearbeiter", "Teamleiter"],
-        ["Posteingang", "Empfang", "Poststelle"],
-        ["Zubereitung", "Koch", "Service"],
-        ["Reparatur", "Mechaniker", "Kundendienst"],
-      ];
+      const hand = HANDOFFS; // WIDENED: 16 authored handoff stations
       const h = pick(r, hand);
       return pl("role-handoff", `Nach der Station „${h[0]}“ übergibt ${h[1]} an wen?`, h[2],
         "Übergabepunkt im Prozess.", dedupeOptions(shuffle([h[2], h[1], ...hand.filter(x => x[2] !== h[2]).slice(0, 2).map(x => x[2])], r)), 2, 0, 2, "wrong-role");
@@ -1052,16 +1044,27 @@ function genProzess(r: () => number, d: number, structIndex = -1): Question {
         "Cutoff-Zeit als Tor im Prozess.", dedupeOptions(shuffle([g[1], "die Reihenfolge im Stapel", "die Grösse der Sendung", "der Wunsch des Kunden"], r)), 2, 1, 2, "no-gate");
     }
     case 20: { // count steps needed to reach a state
-      const n = ri(r, 3, 6);
-      return pl("count-steps-to-goal", `Jede Stufe senkt den Fehlbestand um 1. Wie viele Kontrollläufe braucht es von ${n} Fehlern auf 0?`, String(n),
-        `${n} × 1 Fehler = ${n} Läufe.`, undefined, n, 1, 3, "off-by-one-count");
+      // WIDENED: the reduction per run and the start count both vary, so the
+      // student must divide rather than recall "answer == start".
+      const per = pick(r, [1, 2, 3]);
+      const runs = ri(r, 3, 12);
+      const start = per * runs;
+      const unit = pick(r, ["Fehlbestand", "Restposten", "offene Meldungen", "Rückstände", "Altbestand"]);
+      // stepCount is part of the structural SIGNATURE, so it must NOT vary with
+      // the rendered numbers — passing `runs` here split one struct into six
+      // signatures and pushed hashU 25 -> 31, violating the anti-gaming
+      // invariant. The signature stays fixed; only the render varies.
+      return pl("count-steps-to-goal", `Jede Stufe senkt den ${unit} um ${per}. Wie viele Kontrollläufe braucht es von ${start} auf 0?`, String(runs),
+        `${start} ÷ ${per} = ${runs} Läufe.`, undefined, 4, 1, 3, "off-by-one-count");
     }
     default: { // 21: reverse-engineer the previous step
-      const t = pick(r, [
-        ["Versand", "Verpackung"], ["Rechnung", "Versand"], ["Trocknen", "Kleben"],
-      ]);
-      return pl("backward-step-inference", `Im Prozess kommt „${t[0]}“ gerade abgeschlossen wurde. Was war der unmittelbare VORHERIGGE Schritt?`, t[1],
-        `Vor „${t[0]}“ kommt „${t[1]}“.`, undefined, 2, 1, 2, "forward-confusion");
+      // WIDENED + TWO GRAMMAR FIXES found by reading the output:
+      //   1. "Im Prozess kommt „X“ gerade abgeschlossen wurde" was ungrammatical.
+      //   2. "VORHERIGGE" was a typo for "VORHERIGE".
+      const ps = pick(r, PREV_STEP);
+      const otherPrev = PREV_STEP.filter((x) => x[1] !== ps[1]).map((x) => x[1]);
+      return pl("backward-step-inference", `„${ps[0]}“ wurde gerade abgeschlossen. Was war der unmittelbar VORHERIGE Schritt?`, ps[1],
+        `Vor „${ps[0]}“ kommt „${ps[1]}“.`, dedupeOptions(shuffle([ps[1], ...shuffle(otherPrev, r).slice(0, 2)], r)), 2, 1, 2, "forward-confusion");
     }
   }
 }

@@ -54,15 +54,15 @@
   "prozesslogik": {
     "served": 33.6,
     "exactDupRate": 0,
-    "structDupRate50": 0.3438,
-    "structDupRate200": 0.3438,
-    "structDupRateAll": 0.3438,
-    "surfaceDupRate200": 0.0198,
-    "uniqueStruct": 19.6,
-    "structHHI": 0.0748,
-    "topFamilyShare": 0.093,
+    "structDupRate50": 0.3636,
+    "structDupRate200": 0.3636,
+    "structDupRateAll": 0.3636,
+    "surfaceDupRate200": 0.0047,
+    "uniqueStruct": 18.8,
+    "structHHI": 0.0712,
+    "topFamilyShare": 0.0732,
     "medianRepeatGap": 17.4,
-    "capacityRatio": 0.6564
+    "capacityRatio": 0.6366
   },
   "wortgruppen": {
     "served": 38.2,
