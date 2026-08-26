@@ -432,6 +432,14 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
   const AKKV = VERBS.filter((v: any) => v.aux === "haben" && v.valency === "ack" && !v.separable);
   const SEPV = VERBS.filter((v: any) => v.separable);
   const AGENTS = NOUNS.filter((n: any) => ["Mitarbeiter", "Kollegin", "Chef", "Kunde"].includes(n.lemma));
+  // Concrete workplace objects only. The full NOUNS list contains abstract/spatial
+  // entries (Anfang, Ende, Mitte, Konto, Schweiz) that produce semantic nonsense in
+  // object slots ("den Anfang bezahlen", "das Konto schreiben") — 30-sample finding.
+  const OBJS = NOUNS.filter((n: any) => ["Rechnung", "Ware", "Paket", "Bericht", "Liste", "Material",
+    "Formular", "Mail", "Sendung", "Buch", "Blatt", "Schere", "Bleistift", "Kugelschreiber",
+    "Regal", "Tisch", "Stuhl"].includes(n.lemma));
+  // Static (wo?) vs directional (wohin?) place adverbials must not be mixed.
+  const PLACE_STATIC = ["im Büro", "im Lager", "in der Werkstatt", "in der Halle", "am Arbeitsplatz"];
   const sb = (opSeq: string, prompt: string, ans: string, expl: string, steps: number, cons: number, wml: number, dk: string) =>
     mk("deutsch", "satzbau", opSeq, d, prompt, undefined, ans, expl, "Achte auf die Satzbaumuster.", 20, 4, dk, "sort", opSeq,
       { opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "sequence", answerCardinality: 1 }, false);
@@ -440,7 +448,7 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
   if (path >= 1 && path <= 10) {
     const n = pick(r, LEX.SB_NOUNS as any[]);
     const verb = pick(r, LEX.SB_VERBS as any[]);
-    const obj = pick(r, LEX.SB_NOUNS as any[]);
+    const obj = pick(r, OBJS);
     const subj = n.gender === "der" ? "er" : n.gender === "die" ? "sie" : "es";
     const pres = verb.pres[subj === "es" ? "er" : subj];
     const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -631,7 +639,7 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       const gov = pick(r, [["versuchen", "versucht"], ["vergessen", "vergisst"], ["beginnen", "beginnt"],
         ["planen", "plant"], ["vorhaben", "hat vor"], ["hoffen", "hofft"], ["beschliessen", "beschliesst"]]);
       const v = pick(r, AKKV);
-      const o = pick(r, NOUNS);
+      const o = pick(r, OBJS);
       const subj = pick(r, ["Er", "Sie", "Der Chef", "Die Kollegin"]);
       return sb("zu-infinitive", `Infinitivsatz: „${subj} ${gov[1]}, ${o.ack} ___“ (Verb: ${v.inf})`,
         `zu ${v.inf}`, `Nach „${gov[0]}“ folgt Infinitiv mit „zu“ am Satzende: zu ${v.inf}.`, 2, 1, 3, "bare-infinitive");
@@ -639,7 +647,7 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
     case 21: { // relative pronoun agrees with antecedent gender
       const n = pick(r, NOUNS);
       const v = pick(r, AKKV);
-      const o = pick(r, NOUNS);
+      const o = pick(r, OBJS);
       const rel = n.gender === "der" ? "der" : n.gender === "die" ? "die" : "das";
       return sb("relative-pronoun", `Relativpronomen: „${n.nom}, ___ ${o.ack} ${v.pres["er"]} …“`, rel,
         `Relativpronomen folgt dem Genus von „${n.lemma}“ (${n.gender}) im Nominativ: ${rel}.`, 2, 1, 3, "wrong-relative");
@@ -647,14 +655,14 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
     case 22: { // passive: werden + Partizip II
       const ag = pick(r, AGENTS);
       const v = pick(r, AKKV);
-      const o = pick(r, NOUNS);
+      const o = pick(r, OBJS);
       const active = `${ag.nom} ${v.pres["er"]} ${o.ack}.`;
       return sb("passive-werden", `Passiv: „${active}“`, `${o.nom} wird ${v.participle}.`,
         "Objekt wird Subjekt; werden + Partizip II.", 2, 1, 3, "wrong-auxiliary");
     }
     case 23: { // Konjunktiv II: polite request from a blunt imperative
       const v = pick(r, SB_REG);
-      const o = pick(r, NOUNS);
+      const o = pick(r, OBJS);
       const modal = pick(r, [["könnten", "Könnten Sie"], ["würden", "Würden Sie"]]);
       const blunt = `${v.replace(/n$/, "")} Sie ${o.ack}!`;
       return sb("konjunktiv-request", `Höfliche Bitte (Konjunktiv II): „${blunt}“ — mit „${modal[0]}“`,
@@ -690,7 +698,7 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       return sb("adj-ending-indef-article", `Adjektivendung: „${t[0]}“`, t[1], "Nach unbestimmtem Artikel zeigt die Endung das Genus.", 1, 1, 3, "wrong-ending");
     }
     case 27: { // Präteritum of sein/haben
-      const o = pick(r, NOUNS);
+      const o = pick(r, OBJS);
       const pl = pick(r, LEX.SB_PLACE_ADVERBIALS as string[]);
       const t = pick(r, LEX.SB_TIME_ADVERBIALS as string[]);
       const useSein = r() < 0.5;
@@ -704,7 +712,7 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
     case 28: { // Futur I: werden + Infinitiv at end
       const t = pick(r, LEX.SB_TIME_ADVERBIALS as string[]);
       const v = pick(r, AKKV);
-      const o = pick(r, NOUNS);
+      const o = pick(r, OBJS);
       const subj = pick(r, ["Ich", "Wir", "Er", "Sie"]);
       const key = subj === "Ich" ? "ich" : subj === "Wir" || subj === "Sie" ? "wir" : "er";
       const werden = key === "ich" ? "werde" : key === "wir" ? "werden" : "wird";
@@ -724,20 +732,25 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
     }
     case 30: { // verb 'lassen' + Objekt + Infinitiv
       const v = pick(r, AKKV);
-      const o = pick(r, NOUNS);
+      const o = pick(r, OBJS);
       const subj = pick(r, ["Ich", "Wir", "Er", "Sie"]);
       const lassen = subj === "Ich" ? "lasse" : subj === "Wir" || subj === "Sie" ? "lassen" : "lässt";
       return sb("lassen-construction", `lassen-Konstruktion: „${subj} ${lassen} ${o.ack} ___ (${v.inf}).“`, v.inf,
         "lassen + Objekt + Infinitiv am Satzende.", 2, 1, 3, "participle-with-lassen");
     }
-    default: { // 31: um...zu vs damit
-      const b = pick(r, [
-        ["Ich komme früh, ___ ich habe Zeit.", "weil"],
-        ["Ich lerne Deutsch, ___ ich in der Schweiz arbeite.", "weil"],
-        ["Ich spare Geld, ___ ein Auto zu kaufen.", "um"],
-      ]);
-      return sb("um-zu-vs-damit", `„${b[0]}“ (Zwecksatz mit gleichem Subjekt)`, b[1],
-        "gleiches Subjekt: um…zu; verschiedenes: damit.", 1, 1, 3, "damit-for-same-subject");
+    default: { // 31: um...zu (same subject) vs damit (different subject)
+      const v = pick(r, AKKV);
+      const o = pick(r, OBJS);
+      const same = r() < 0.5;
+      const main = pick(r, [["Ich komme früh", "ich"], ["Wir bleiben länger", "wir"],
+        ["Der Chef ruft an", "er"], ["Die Kollegin prüft alles", "sie"]]);
+      const other = pick(r, ["der Kunde", "das Lager", "die Kollegin", "der Chef"]);
+      const purpose = same
+        ? `um ${o.ack} zu ${v.inf}`
+        : `damit ${other} ${o.ack} ${v.pres["er"]}`;
+      const ask = same ? "gleiches Subjekt" : "verschiedenes Subjekt";
+      return sb("um-zu-vs-damit", `Zwecksatz (${ask}): „${main[0]}, ___“ — Ziel: ${o.ack} ${v.inf}${same ? "" : " (" + other + ")"}`,
+        purpose, `${ask}: ${same ? "um…zu + Infinitiv" : "damit + Nebensatz mit Verb am Ende"}.`, 3, 2, 3, "damit-for-same-subject");
     }
     // --- additional rule-level grammar paths (32..49) to exceed 50 distinct structs ---
     case 32: { // article + noun in GENITIVE case (der/die/das → des/der/des)
@@ -782,13 +795,20 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       const s = pick(r, [["Ich", "mein"], ["du", "dein"], ["er", "sein"], ["sie", "ihr"], ["wir", "unser"]]);
       return sb("possessive", `Zugehörigkeit von „${s[0]}“?`, s[1], "Possessivpronomen nach Person.", 1, 0, 2, "wrong-possessive");
     }
-    case 39: { // separable verb prefix
-      const s = pick(r, [["auf|stehen", "Ich stehe um 7 Uhr ___.", "auf"], ["ein|kaufen", "Wir kaufen Brot ___.", "ein"], ["an|rufen", "Er ruft mich ___.", "an"]]);
-      return sb("separable-verb", `Trennbares Verb: „${s[0]}“ → ${s[1]}`, s[2], "Präfix ans Ende bei Konjugation.", 1, 1, 2, "prefix-dropped");
+    case 39: { // separable verb: prefix detaches to the sentence end
+      const v = pick(r, SEPV);
+      const o = pick(r, OBJS);
+      const p = pick(r, [["ich", "ich"], ["du", "du"], ["er", "er"], ["wir", "wir"]]);
+      const form = v.pres[p[0]];
+      // Prefix comes from the known separable-prefix set; SEPV only holds verbs
+      // whose infinitive starts with one of these, so the lookup always resolves.
+      const pfx = ["an", "ab", "auf", "ein", "um", "vor", "mit", "nach"].find((x) => v.inf.startsWith(x)) || "an";
+      return sb("separable-verb", `Trennbares Verb „${v.inf}“: „${cw(p[1])} ${form} ${o.ack} ___.“`, pfx,
+        `Das Präfix „${pfx}“ steht bei konjugiertem Verb am Satzende.`, 2, 1, 3, "prefix-dropped");
     }
     case 40: { // imperative form by addressee (du / ihr / Sie)
       const v = pick(r, SB_REG);
-      const o = pick(r, NOUNS);
+      const o = pick(r, OBJS);
       const who = pick(r, [["du", ""], ["ihr", "t"], ["Sie", "en Sie"]]);
       const stem = v.replace(/n$/, "").replace(/e$/, "");
       const form = who[0] === "du" ? stem + "!" : who[0] === "ihr" ? stem + "t!" : v + " Sie!";
@@ -803,9 +823,17 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       const s = pick(r, [["Ich komme, ___ ich habe Zeit.", "weil"], ["Er ist müde, ___ er arbeitet.", "aber"], ["Nicht rot, ___ blau.", "sondern"]]);
       return sb("conjunction-meaning", `Passende Konjunktion: „${s[0]}“`, s[1], "Satzsinn bestimmt Konjunktion.", 1, 1, 2, "wrong-conjunction");
     }
-    case 43: { // word order: verb-second in main clause
-      const s = pick(r, [["Heute", "komme", "ich"], ["Morgen", "gehe", "wir"], ["Gestern", "kam", "er"]]);
-      return sb("verb-second", `Satzbau: „${s[0]} ... ${s[2]} ${s[1]} ...“ — Verb an Position 2?`, s[1], "In Hauptsatz steht das Verb an Position 2.", 1, 1, 3, "verb-first");
+    case 43: { // verb-second: fronting an element pushes the subject after the verb
+      // Static place only: a directional phrase ("in die Schweiz") with a static
+      // verb produced nonsense ("In die Schweiz sieht er das Velo") — 30-sample finding.
+      const front = pick(r, [...(LEX.SB_TIME_ADVERBIALS as string[]), ...PLACE_STATIC]);
+      const v = pick(r, AKKV);
+      const o = pick(r, OBJS);
+      const p = pick(r, [["ich", "ich"], ["wir", "wir"], ["er", "er"], ["sie", "sie"]]);
+      const form = v.pres[p[0] === "ich" ? "ich" : p[0] === "wir" || p[0] === "sie" ? "wir" : "er"];
+      return sb("verb-second", `Vorfeld besetzt: „${cw(front)} … ${p[1]} … ${o.ack}“ — bilde den Satz (Verb: ${form})`,
+        `${cw(front)} ${form} ${p[1]} ${o.ack}.`,
+        "Vorfeld + Verb (Position 2) + Subjekt: Inversion nach vorangestellter Angabe.", 3, 2, 3, "verb-first");
     }
     case 44: { // pronoun case decided by VERB GOVERNMENT (dative vs accusative)
       const p = pick(r, SB_PRON_CASE);
