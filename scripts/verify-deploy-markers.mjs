@@ -8,19 +8,25 @@ const BASE = "https://multicheck-one.vercel.app";
 // drop non-ASCII candidates at runtime instead of hardcoding them wrong
 function isAscii(s){ return /^[\x20-\x7E]+$/.test(s); }
 
-const html = execSync(`curl -s --max-time 30 "${BASE}/"`, {encoding:"utf8", maxBuffer: 20e6});
-const chunks = [...new Set([...html.matchAll(/\/_next\/static\/[^"']+\.js/g)].map(m => m[0]))];
-console.log("homepage ok, chunks referenced:", chunks.length);
-
-let fetched = 0, scanned = "";
-for (const c of chunks) {
-  try {
-    const js = execSync(`curl -s --max-time 25 "${BASE}${c}"`, {encoding:"utf8", maxBuffer: 30e6});
-    scanned += `\n/* ${c} */\n` + js;
-    fetched++;
-  } catch { console.log("fetch failed:", c); }
+// Scan every routable page's chunks: lib modules imported only by /pruefung or
+// /training land in chunks the homepage never references (memwindow lesson).
+let scanned = "";
+for (const route of ["/", "/pruefung", "/training", "/fortschritt"]) {
+  const html = execSync(`curl -s --max-time 30 "${BASE}${route}"`, {encoding:"utf8", maxBuffer: 20e6});
+  const chunks = [...new Set([...html.matchAll(/\/_next\/static\/[^"']+\.js/g)].map(m => m[0]))];
+  console.log(`${route}: ${chunks.length} chunks`);
+  let fetched = 0;
+  for (const c of chunks) {
+    try {
+      const js = execSync(`curl -s --max-time 25 "${BASE}${c}"`, {encoding:"utf8", maxBuffer: 30e6});
+      scanned += `\n/* ${route} ${c} */\n` + js;
+      fetched++;
+    } catch { console.log("fetch failed:", c); }
+  }
 }
-console.log("chunks fetched:", fetched, "bytes:", scanned.length);
+var scanned1 = scanned;
+
+
 
 const found = [];
 for (const s of ["Kartonstapel","Gewinde schneiden","Schreiben lesen","Ader crimpen",
