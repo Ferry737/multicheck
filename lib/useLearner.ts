@@ -33,10 +33,51 @@ export function useLearner() {
           m.subs = { ...base.subs, ...(m.subs || {}) };
           m.fehler = Array.isArray(m.fehler) ? m.fehler : [];
           m.history = Array.isArray(m.history) ? m.history : [];
-          m.exposure = m.exposure || {};
+          m.exposure = (m.exposure && typeof m.exposure === "object" && !Array.isArray(m.exposure))
+            ? m.exposure : {};
           m.calibrationPool = m.calibrationPool || {};
           m.lessonsSeen = Array.isArray(m.lessonsSeen) ? m.lessonsSeen : [];
           if (typeof m.examDate !== "string") m.examDate = base.examDate;
+
+          // MIGRATION GUARD (schema v3 -> current engine). The composer reads
+          // exposure[id] / [id+":p"] / [id+":pa"] as string[] and [id+":rr"] /
+          // [id+":rescueCount"] as number. Storage written by an older build can
+          // hold other types; a non-array there throws on .slice(). Coerce, and
+          // drop legacy seed-key entries ("t12345") which are not structHashes.
+          {
+            const exp = m.exposure as Record<string, unknown>;
+            let repaired = 0;
+            for (const k of Object.keys(exp)) {
+              const v = exp[k];
+              const isCounter = k.endsWith(":rr") || k.endsWith(":rescueCount") ||
+                k.endsWith(":lastSi") || k.includes(":rescueFrom:");
+              if (isCounter) {
+                const n = Number(v);
+                if (!Number.isFinite(n)) { delete exp[k]; repaired++; }
+                continue;
+              }
+              if (!Array.isArray(v)) { delete exp[k]; repaired++; continue; }
+              const cleaned = (v as unknown[]).filter((x) => typeof x === "string");
+              if (cleaned.length !== (v as unknown[]).length) { exp[k] = cleaned; repaired++; }
+            }
+            // Numeric learner metrics must never surface as NaN in the UI.
+            const NUM_FIELDS = ["mastery","accuracy","speed","retention","consistency",
+              "difficulty","attempts","sessions","daysActive","unseenPerf","simPerf","confidence"] as const;
+            for (const sid of Object.keys(m.subs)) {
+              const st = (m.subs as unknown as Record<string, Record<string, unknown>>)[sid];
+              const fresh = (base.subs as unknown as Record<string, Record<string, unknown>>)[sid];
+              if (!st || !fresh) continue;
+              for (const f of NUM_FIELDS) {
+                const n = Number(st[f]);
+                if (!Number.isFinite(n)) { st[f] = fresh[f]; repaired++; }
+              }
+              if (!Array.isArray(st.recent)) { st.recent = []; repaired++; }
+            }
+            if (repaired > 0) {
+              console.warn(`[multicheck] storage migration repaired ${repaired} field(s) from an older schema.`);
+            }
+          }
+
           if (m.version !== SCHEMA) m.version = SCHEMA;
         }
       } else {

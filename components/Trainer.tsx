@@ -135,8 +135,27 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
   }
 
   const q = qs[i];
-  const norm = (s: string) => s.replace(/\s/g, "").replace(",", ".").toLowerCase();
-  const isCorrect = norm(input) === norm(q.answer) || (q.kind === "choice" && input === q.answer);
+  // Text normalization: strip whitespace, ALL commas -> dots (global), lowercase.
+  const norm = (s: string) => s.replace(/\s/g, "").replace(/,/g, ".").toLowerCase();
+  // Numeric tolerance: a mathematically correct answer must never be marked wrong
+  // on formatting alone (1 vs 1.0 vs 1,0 vs 1'234). Parses Swiss/German forms:
+  // apostrophe/space thousands separators and comma decimals.
+  const asNumber = (s: string): number | null => {
+    const cleaned = s.trim().replace(/['\u2019\s]/g, "").replace(/,/g, ".");
+    if (!/^[+-]?\d*\.?\d+$/.test(cleaned)) return null;
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : null;
+  };
+  const numericMatch = (a: string, b: string): boolean => {
+    const na = asNumber(a), nb = asNumber(b);
+    if (na === null || nb === null) return false;
+    // exact for integers; tolerance for float representation only
+    return Math.abs(na - nb) < 1e-9;
+  };
+  const isCorrect =
+    norm(input) === norm(q.answer) ||
+    (q.kind === "choice" && input === q.answer) ||
+    (q.kind !== "choice" && numericMatch(input, q.answer));
   const SPEED_TARGET = 12000;
 
   function submit() {

@@ -237,10 +237,24 @@ function recordOne(m: CoachModel, a: Attempt, dayKey: string): CoachModel {
     mistakeTypes[et] = (mistakeTypes[et] ?? 0) + 1;
   }
 
+  // NaN GUARD: a corrupt value in loaded storage must never propagate into a
+  // displayed metric. Any non-finite result falls back to the prior value, then 0.
+  const fin = (v: number, prev: number, dflt = 0) =>
+    Number.isFinite(v) ? v : (Number.isFinite(prev) ? prev : dflt);
+
   const updated: SubModel = {
-    ...st, mastery, accuracy, speed, retention, consistency, difficulty,
-    attempts, lastSeen: a.ts, nextReview, mistakeTypes, recent,
-    unseenPerf, simPerf, confidence,
+    ...st,
+    mastery: fin(mastery, st.mastery),
+    accuracy: fin(accuracy, st.accuracy),
+    speed: fin(speed, st.speed),
+    retention: fin(retention, st.retention),
+    consistency: fin(consistency, st.consistency),
+    difficulty: fin(difficulty, st.difficulty, 30),
+    attempts: fin(attempts, st.attempts),
+    lastSeen: a.ts, nextReview, mistakeTypes, recent,
+    unseenPerf: fin(unseenPerf, st.unseenPerf),
+    simPerf: fin(simPerf, st.simPerf),
+    confidence: fin(confidence, st.confidence),
   };
 
   // exposure tracking (structural anti-memorization): store structHash (solution-path fingerprint)
@@ -353,9 +367,14 @@ export function composeSubskillQuestions(
   //  - prompt ring  (m.exposure[id+":p"])  : exact rendered prompt+options,  window = PROMPT_CD
   const PROMPT_CD = 200; // Gate G1: exact prompt never repeats within a long window
   // Per-subskill struct cooldown window: STRUCT_CD_i = authoredU_i - 1 (never global, never >= U).
+  // DEFENSIVE: exposure values can come from older storage schemas where a key held a
+  // non-array (or a legacy seed-key list). A non-array here would throw on .slice(),
+  // blanking the screen for that student, so coerce at the point of use.
+  const asStrArr = (v: unknown): string[] =>
+    Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === "string") : [];
   const structCdWindow = Math.max(1, (GENERATORS[id] ?? []).length - 1);
-  const structRing = ((m.exposure[id] ?? []) as string[]).slice(-structCdWindow);
-  const promptRing = ((m.exposure[id + ":p"] ?? []) as string[]).slice(-PROMPT_CD);
+  const structRing = asStrArr(m.exposure[id]).slice(-structCdWindow);
+  const promptRing = asStrArr(m.exposure[id + ":p"]).slice(-PROMPT_CD);
   let capacityWarning = false;
   for (let i = 0; i < count; i++) {
     // ===== SELECTION (composer's job) =====
@@ -365,7 +384,7 @@ export function composeSubskillQuestions(
     // sequence as one count=50 call.
     const gens: ((r: () => number, d: number, si: number) => Question)[] = GENERATORS[id] ?? [];
     const U = gens.length;
-    let rr = (((m.exposure[id + ":rr"] as unknown as number | undefined) ?? 0) >>> 0);
+    let rr = ((Number(m.exposure[id + ":rr"]) || 0) >>> 0);
     const structSet = new Set(structRing);
     const promptSet = new Set(promptRing);
     // Round-robin probe: try consecutive struct indices starting at the persisted cursor.
@@ -397,7 +416,7 @@ export function composeSubskillQuestions(
         const ph = promptHash(item);
         // LIVE checks: read current rings from the model every sweep (no stale snapshots).
         const ringNow = ((m.exposure[id + ":p"] ?? []) as string[]);
-        const paNow = ((m.exposure[id + ":pa"] ?? []) as string[]);
+        const paNow = asStrArr(m.exposure[id + ":pa"]);
         if (!promptSet.has(ph) && !ringNow.includes(ph) && !paNow.includes(ph)) return item;
         item = generate(id, targetDiff, nextSeed() + sweep * 7919, si);
         if (item && item.heldOut) return null;
@@ -444,7 +463,7 @@ export function composeSubskillQuestions(
         const cand2 = generate(id, targetDiff, nextSeed(), si2);
         if (!cand2 || cand2.heldOut) continue;
         const ph2 = promptHash(cand2);
-        const paNow2 = ((m.exposure[id + ":pa"] ?? []) as string[]);
+        const paNow2 = asStrArr(m.exposure[id + ":pa"]);
         if (!paNow2.includes(ph2) && !promptRing.includes(ph2)) {
           m.exposure[id + ":lastSi"] = si2 as unknown as string[];
           admitted = cand2;
@@ -468,7 +487,7 @@ export function composeSubskillQuestions(
     const ph = promptHash(q);
     // G1 ASSERTION (dev/test): an ADMITTED item must never be in history. The flagged
     // render-space-exhaustion path is excluded — it is counted in g1Violations instead.
-    if (!degradedFlag && (promptRing.includes(ph) || (((m.exposure[id + ":pa"] ?? []) as string[])).includes(ph))) {
+    if (!degradedFlag && (promptRing.includes(ph) || asStrArr(m.exposure[id + ":pa"]).includes(ph))) {
       throw new Error(`G1 ASSERTION FAILED: ${id} emitted an exact duplicate prompt (${ph.slice(0, 10)})`);
     }
     // Update rings IMMEDIATELY so the next item in this same batch sees it.
@@ -476,7 +495,7 @@ export function composeSubskillQuestions(
     promptRing.push(ph); if (promptRing.length > PROMPT_CD) promptRing.shift();
     m.exposure[id] = structRing.slice();
     m.exposure[id + ":p"] = promptRing.slice();
-    m.exposure[id + ":pa"] = ((m.exposure[id + ":pa"] ?? []) as string[]).concat(ph).slice(-4000);
+    m.exposure[id + ":pa"] = asStrArr(m.exposure[id + ":pa"]).concat(ph).slice(-4000);
     promptSet.add(ph);
     structSet.add(sh);
     out.push({ ...q, meta: { capacityWarning: capacityWarning && i === 0 } } as Question);

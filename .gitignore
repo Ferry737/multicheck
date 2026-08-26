@@ -1,6 +1,9 @@
 .next
 node_modules
-.env*.local
+# Secrets: ignore ALL .env variants except the documented example.
+.env
+.env.*
+!.env.example
 
 # QA / crash artifacts
 core
