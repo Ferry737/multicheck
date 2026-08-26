@@ -1071,18 +1071,11 @@ function genWortgruppen(r: () => number, d: number, structIndex = -1): Question 
   const wg = (opSeq: string, prompt: string, ans: string, expl: string, optsIn: string[] | undefined, steps: number, cons: number, wml: number, dk: string) =>
     mk("logik", "wortgruppen", opSeq, d, prompt, optsIn, ans, expl, "Finde die logische Beziehung.", 18, 3, dk, "choice", opSeq,
       { opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "choice", answerCardinality: 1 }, false);
-  const sets: [string[], string][] = [
-    [["Apfel", "Birne", "Banane"], "Traktor"],
-    [["Auto", "Bus", "Zug"], "Stift"],
-    [["Tisch", "Stuhl", "Regal"], "Hund"],
-    [["Hund", "Katze", "Maus"], "Brille"],
-    [["Rot", "Blau", "Grün"], "Teller"],
-    [["Hammer", "Schraubenzieher", "Zange"], "Gabel"],
-    [["Rose", "Tulpe", "Lilie"], "Kartoffel"],
-    [["Montag", "Dienstag", "Mittwoch"], "Juli"],
-    [["Löwe", "Tiger", "Bär"], "Lachs"],
-    [["Brot", "Käse", "Joghurt"], "Hammer"],
-  ];
+  // WIDENED: typed pool with an HONEST category label per set. The label powers
+  // the rewritten case 5, whose old code drew the asked-for category independently
+  // of the word set and hardcoded the answer "2" — producing wrong answers for
+  // every set/category mismatch (e.g. [Löwe, Tiger, Bär]+Lachs asked as "Obst").
+  const sets = POOLS.WG_SETS as [string[], string, string][];
   const path = structIndex >= 0 ? structIndex : ri(r, 0, 17);
   const [group, odd] = pick(r, sets);
   switch (path) {
@@ -1098,100 +1091,220 @@ function genWortgruppen(r: () => number, d: number, structIndex = -1): Question 
         dedupeOptions(shuffle([two.join(" + "), odd + " + " + group[0], group[1] + " + " + odd], r)), 1, 0, 2, "cross-category-pair");
     }
     case 2: {
-      const analog = pick(r, [
-        ["Apfel", "Obst", "Rose", "Blume"], ["Auto", "Fahrzeug", "Fahrrad", "Fahrzeug"],
-        ["Hund", "Tier", "Löwe", "Tier"], ["Hammer", "Werkzeug", "Nagel", "Werkzeug"],
-      ]);
-      void analog;
-      const a = pick(r, [["Hund : Welpe", "Katze : Kätzchen"], ["Vogel : Nest", "Biene : Bienenstock"], ["Fisch : Wasser", "Maulwurf : Erde"]]);
-      return wg("analogy-relationship-transfer", `${a[0]} wie?`, a[1], "Beziehung übertragen.", dedupeOptions(shuffle([a[1], "Pflanze", "Stein"], r)), 1, 0, 3, "surface-match");
+      // WIDENED (was registered dead-pool): consumes the analogy pool; third
+      // distractor is drawn from OTHER analogies so options stay single-answer.
+      const an = pick(r, POOLS.WG_ANALOGIES as [string, string, string, string][]);
+      const foreign = (POOLS.WG_ANALOGIES as [string, string, string, string][]).filter((x) => x[0] !== an[0]);
+      const d3 = pick(r, foreign)[3];
+      return wg("analogy-relationship-transfer", `${an[0]} : ${an[1]} wie ${an[2]} : ?`, `${an[2]} : ${an[3]}`,
+        `Beziehung übertragen: ${an[0]} : ${an[1]} = ${an[2]} : ${an[3]}.`,
+        dedupeOptions(shuffle([`${an[2]} : ${an[3]}`, `${an[2]} : ${d3}`, `${an[0]} : ${pick(r, sets)[1]}`], r)), 1, 0, 3, "surface-match");
     }
     case 3: {
-      const cat = pick(r, [
-        ["Zitrone, Orange, Mandarine", "Zitrusfrüchte"], ["Auto, Bus, Zug", "Fahrzeuge"], ["Hund, Katze, Maus", "Tiere"], ["Rot, Blau, Grün", "Farben"],
-        ["Hammer, Zange, Schraubenzieher", "Werkzeuge"], ["Montag, Dienstag, Mittwoch", "Wochentage"],
-      ]);
-      return wg("name-superordinate", `Wie heisst der Oberbegriff für: ${cat[0]}?`, cat[1], "Oberbegriff: " + cat[1] + ".", undefined, 1, 0, 2, "hyponym-instead");
+      // WIDENED x2 DIRECTIONS: forward asks the Oberbegriff, reverse asks which
+      // word belongs to the named category (foreign words drawn from OTHER rows'
+      // member lists -> still exactly one defensible answer).
+      const cats = POOLS.WG_SUPERORDINATES as [string, string][];
+      const cat = pick(r, cats);
+      if (r() < 0.5) {
+        return wg("name-superordinate", `Wie heisst der Oberbegriff für: ${cat[0]}?`, cat[1], "Oberbegriff: " + cat[1] + ".", undefined, 1, 0, 2, "hyponym-instead");
+      }
+      const members = cat[0].split(", ");
+      const otherRows = cats.filter((x) => x[1] !== cat[1]);
+      const fRow1 = pick(r, otherRows);
+      const f1 = pick(r, fRow1[0].split(", "));
+      let f2 = pick(r, pick(r, otherRows.filter((x) => !x[0].includes(f1)))[0].split(", "));
+      if (f2 === f1) f2 = pick(r, pick(r, otherRows)[0].split(", "));
+      const shown = shuffle([members[0], f1, f2], r);
+      return wg("name-superordinate",
+        `Welches dieser Wörter ist: ${cat[1]}? ${shown.join(", ")}`,
+        members[0],
+        `${members[0]} gehört zu ${cat[1]}; ${f1} und ${f2} nicht.`,
+        dedupeOptions(shuffle([members[0], f1, f2], r)), 1, 0, 2, "hyponym-instead");
     }
     case 4: {
       return wg("least-similar-pair", `Welches Paar ist am wenigsten ähnlich? ${group[0]} & ${group[1]} oder ${group[0]} & ${odd}?`, `${group[0]} & ${odd}`,
         `${odd} gehört nicht zur Gruppe.`, undefined, 1, 0, 2, "in-group-pair");
     }
     case 5: {
-      return wg("count-category-members", `Wie viele dieser Wörter sind ${pick(r, ["Tiere", "Obst"])}? ${group.slice(0, 2).join(", ")}, ${odd}`, String(2),
-        "Nur zwei gehören zur Kategorie.", undefined, 1, 1, 2, "included-outlier");
+      // WRONG-ANSWER FIX + WIDENED: category now comes from the SET ITSELF
+      // (honest label), so the count is derived, never hardcoded. The answer is
+      // computed from which members actually belong. Input-mode keeps "choice"
+      // with distinct numeric options.
+      // Asked-for category comes from the SET ITSELF (honest authored label);
+      // displayed trio = two members + one word from a DIFFERENT set; the answer
+      // is DERIVED by counting real membership — never hardcoded.
+      const askCat = group[2];
+      const mixedSet = pick(r, (POOLS.WG_SETS as [string[], string, string][]).filter((x) => x[2] !== askCat));
+      const shown: Array<[string, string]> = [
+        [group[0], askCat], [group[1], askCat], [mixedSet[1], mixedSet[2]],
+      ];
+      const nCat = shown.filter(([, lab]) => lab === askCat).length;
+      return wg("count-category-members",
+        `Wie viele dieser Wörter sind ${askCat}? ${shown.map((x) => x[0]).join(", ")}`,
+        String(nCat),
+        shown.map(([w, lab]) => `${w}: ${lab}`).join("; ") + ".",
+        undefined, 1, 1, 2, "included-outlier");
     }
     case 6: {
-      const hier = pick(r, [["Birne", "Obst", "Ja"], ["Traktor", "Obst", "Nein"], ["Rose", "Tier", "Nein"], ["Hund", "Tier", "Ja"]]);
+      // WIDENED: 16 authored membership rows, balanced Ja/Nein.
+      const hier = pick(r, POOLS.WG_HIERARCHY as [string, string, string][]);
       return wg("hierarchy-membership", `Ist „${hier[0]}“ eine Art von ${hier[1]}?`, hier[2],
-        `${hier[0]}: ${hier[2]}.`, undefined, 1, 0, 2, "wrong-membership");
+        `${hier[0]}: ${hier[2]}.`, dedupeOptions(shuffle(["Ja", "Nein"], r)), 1, 0, 2, "wrong-membership");
     }
-    case 7: { // part-whole relation
-      const pw = pick(r, [
-        ["Rad", "Fahrrad", "Ja"], ["Blatt", "Baum", "Ja"], ["Fenster", "Haus", "Ja"], ["Rad", "Brötchen", "Nein"],
-      ]);
-      return wg("part-whole-relation", `Ist „${pw[0]}“ ein TEIL von „${pw[1]}“?`, pw[2], "Teil-Ganzes-Beziehung prüfen.", undefined, 1, 0, 2, "whole-part-confusion");
+    case 7: {
+      // WIDENED: 16 authored part-whole rows, balanced Ja/Nein.
+      const pw = pick(r, POOLS.WG_PART_WHOLE as [string, string, string][]);
+      return wg("part-whole-relation", `Ist „${pw[0]}“ ein TEIL von „${pw[1]}“?`, pw[2],
+        "Teil-Ganzes-Beziehung prüfen.", dedupeOptions(shuffle(["Ja", "Nein"], r)), 1, 0, 2, "whole-part-confusion");
     }
-    case 8: { // opposite pairs (antonyms)
-      const ant = pick(r, [["gross", "klein"], ["heiss", "kalt"], ["schnell", "langsam"], ["voll", "leer"], ["hell", "dunkel"]]);
-      const wrong = pick(r, [["warm"], ["laut"], ["neu"], ["bunt"]]);
-      return wg("antonym-matching", `Welches Wort ist das GEGENTEIL von „${ant[0]}“?`, ant[1],
-        `${ant[0]} ↔ ${ant[1]}.`, dedupeOptions(shuffle([ant[1], wrong[0], "ähnlich", "gleich"], r)), 1, 0, 2, "synonym-chosen");
+    case 8: {
+      // WIDENED: pool of 18 antonym pairs; the authored third word is a
+      // plausible near-property distractor, plus two constant relation words.
+      // WIDENED x2 DIRECTIONS: asked word may be either pole of the pair.
+      const ant = pick(r, POOLS.WG_ANTONYMS as [string, string, string][]);
+      const flip8 = r() < 0.5;
+      const word8 = flip8 ? ant[1] : ant[0];
+      const ans8 = flip8 ? ant[0] : ant[1];
+      return wg("antonym-matching", `Welches Wort ist das GEGENTEIL von „${word8}“?`, ans8,
+        `${word8} ↔ ${ans8}.`, dedupeOptions(shuffle([ans8, ant[2], "ähnlich", "gleich"], r)), 1, 0, 2, "synonym-chosen");
     }
-    case 9: { // synonym matching
-      const syn = pick(r, [["schnell", "rasch"], ["gross", "riesig"], ["klug", "gescheit"], ["schön", "hübsch"]]);
+    case 9: {
+      // WIDENED: 12-pair synonym pool; distractor is another pair's synonym.
+      const syn = pick(r, POOLS.WG_SYNONYMS as [string, string, string][]);
+      const foreign = (POOLS.WG_SYNONYMS as [string, string, string][]).filter((x) => x[1] !== syn[1]);
       return wg("synonym-matching", `Welches Wort bedeutet etwa das GLEICHE wie „${syn[0]}“?`, syn[1],
-        `${syn[0]} ≈ ${syn[1]}.`, dedupeOptions(shuffle([syn[1], "entgegengesetzt", "selten", "falsch"], r)), 1, 0, 2, "antonym-chosen");
+        `${syn[0]} ≈ ${syn[1]}.`, dedupeOptions(shuffle([syn[1], pick(r, foreign)[2], "entgegengesetzt", "falsch"], r)), 1, 0, 2, "antonym-chosen");
     }
-    case 10: { // function/purpose of an object
-      const fn = pick(r, [
-        ["Hammer", "nageln"], ["Besen", "kehren"], ["Schere", "schneiden"], ["Kanne", "einschenken"],
-      ]);
-      return wg("object-function", `Wozu dient eine/ein „${fn[0]}“ am ehesten?`, "zum " + fn[1],
-        `Ein ${fn[0]} dient zum ${fn[1]}.`, undefined, 1, 0, 2, "decorative-purpose");
+    case 10: {
+      // WIDENED: purpose phrases from the pool; options are OTHER objects'
+      // purposes, so only one describes this object. Input-mode with options
+      // would leave several defensible answers — hence fixed option set per draw.
+      const fn = pick(r, POOLS.WG_FUNCTIONS as [string, string][]);
+      const foreign = (POOLS.WG_FUNCTIONS as [string, string][]).filter((x) => x[0] !== fn[0]);
+      const f1 = pick(r, foreign)[1];
+      const f2 = pick(r, foreign.filter((x) => x[1] !== f1))[1];
+      return wg("object-function", `Wozu dient eine/ein „${fn[0]}“ am ehesten?`, fn[1],
+        `Ein ${fn[0]} dient zum ${fn[1]}.`,
+        dedupeOptions(shuffle([fn[1], f1, f2], r)), 1, 0, 2, "decorative-purpose");
     }
-    case 11: { // which word does NOT fit a given property
-      const prop = pick(r, [
-        ["essbar", group[0][0], odd], ["fahrbar", "Bus", odd], ["farbig", "Grün", odd],
-      ]);
-      void prop;
-      return wg("property-violation", `Welches Wort passt nicht zu den anderen (Eigenschaft)? ${["Banane", "Birne", "Stuhl"].join(", ")}`, "Stuhl",
-        "Stuhl ist nicht essbar.", dedupeOptions(shuffle(["Banane", "Birne", "Stuhl"], r)), 1, 1, 2, "category-instead-property");
+    case 11: {
+      // WIDENED (was registered dead-pool + CONSTANT render): every set from the
+      // typed pool works here — the two in-group words share the property, the
+      // odd word violates it. Answer and explanation are derived, not hardcoded.
+      return wg("property-violation",
+        `Welches Wort passt NICHT zu den anderen? ${group[0]}, ${group[1]}, ${odd}`,
+        odd,
+        `${group[0]} und ${group[1]} sind ${group[2].replace(/e$/, "")}artig; ${odd} nicht.`,
+        dedupeOptions(shuffle([group[0], group[1], odd], r)), 1, 1, 2, "category-instead-property");
     }
-    case 12: { // sequence words (first/next/last in a canonical order)
-      const seq = pick(r, [
-        ["Montag, Mittwoch, Freitag", "Mittwoch"], ["Januar, Februar, März", "Februar"], ["erster, zweiter, dritter", "zweiter"],
-      ]);
-      return wg("canonical-sequence-middle", `Welches Wort steht in der üblichen Reihenfolge IN DER MITTE? ${seq[0]}`, seq[1],
-        "Reihenfolge kennen.", undefined, 1, 1, 2, "endpoints-chosen");
+    case 12: {
+      // WIDENED x3 POSITIONS: asked position varies (erste Stelle/Mitte/letzte
+      // Stelle); the answer is DERIVED by splitting the canonical sequence.
+      const seq = pick(r, POOLS.WG_SEQUENCES as [string, string][]);
+      const words12 = seq[0].split(", ");
+      const pos12 = Math.floor(r() * 3);
+      const posLabel = pos12 === 0 ? "AN ERSTER STELLE" : pos12 === 1 ? "IN DER MITTE" : "AN LETZTER STELLE";
+      const ans12 = words12[pos12];
+      return wg("canonical-sequence-middle", `Welches Wort steht in der üblichen Reihenfolge ${posLabel}? ${seq[0]}`, ans12,
+        `${ans12} steht ${posLabel === "AN ERSTER STELLE" ? "vorne" : pos12 === 1 ? "in der Mitte" : "am Ende"}.`,
+        undefined, 1, 1, 2, "endpoints-chosen");
     }
-    case 13: { // collective noun / grouping label
-      const col = pick(r, [["Rudel", "Wölfe"], ["Schwarm", "Fische"], ["Herde", "Kühe"], ["Haufen", "Steine"]]);
-      return wg("collective-noun", `Wie nennt man eine Gruppe von ${col[1]}?`, col[0],
-        `Eine Gruppe: ${col[0]}.`, dedupeOptions(shuffle([col[0], "Sippe", "Gewässer", "Kiste"], r)), 1, 0, 2, "random-collective");
+    case 13: {
+      // WIDENED: 10-row collective-noun pool (was inline 4).
+      // WIDENED x2 DIRECTIONS: collective->members or members->collective.
+      const col = pick(r, POOLS.WG_COLLECTIVES as [string, string][]);
+      if (r() < 0.5) {
+        return wg("collective-noun", `Wie nennt man eine Gruppe von ${col[1]}?`, col[0],
+          `Eine Gruppe: ${col[0]}.`, dedupeOptions(shuffle([col[0], "Sippe", "Gewässer", "Kiste"], r)), 1, 0, 2, "random-collective");
+      }
+      // Reverse: ONE member-word + TWO plain singular nouns (NON-collectives —
+      // other collectives would make several answers defensible).
+      const nonCol = POOLS.WG_NON_COLLECTIVES;
+      const nc1 = pick(r, nonCol);
+      const nc2 = pick(r, nonCol.filter((x) => x !== nc1));
+      const shown13 = shuffle([col[1], nc1, nc2], r);
+      return wg("collective-noun",
+        `Welches dieser Wörter benennt eine GRUPPE von Tieren oder Dingen? ${shown13.join(", ")}`,
+        col[1],
+        `${col[0]} = eine Gruppe von ${col[1]}; ${nc1} und ${nc2} sind Einzeldinge.`,
+        dedupeOptions(shuffle([col[1], nc1, nc2], r)), 1, 0, 2, "random-collective");
     }
-    case 14: { // category boundary: which belongs to TWO categories?
-      const two = pick(r, [["Tomate", "Obst und Gemüse"], ["Lachs", "Tier und Lebensmittel"], ["Gold", "Metall und Farbe"]]);
-      return wg("dual-category-member", `Welches Wort gehört zu ZWEI Kategorien gleichzeitig?`, two[0],
-        `${two[0]}: ${two[1]}.`, undefined, 1, 1, 3, "single-category-only");
+    case 14: {
+      // WIDENED + RENDER-VARIATION FIX: candidates go IN THE PROMPT (was a
+      // constant prompt hiding pool variation). Dual word + three single-category
+      // words drawn from other sets -> many honest renders, one defensible answer.
+      const two = pick(r, POOLS.WG_DUAL_CATEGORY as [string, string][]);
+      const singlesPool = (POOLS.WG_SETS as [string[], string, string][]).filter((x) => !x.flat().includes(two[0]));
+      const picks: string[] = [];
+      let guard14 = 0;
+      while (picks.length < 3 && guard14++ < 100) {
+        const cand = pick(r, singlesPool)[1];
+        if (!picks.includes(cand)) picks.push(cand);
+      }
+      return wg("dual-category-member",
+        `Welches Wort gehört zu ZWEI Kategorien gleichzeitig? ${[two[0], ...picks].join(", ")}`,
+        two[0],
+        `${two[0]}: ${two[1]}. Die anderen gehören je nur EINER Kategorie an.`,
+        undefined, 1, 1, 3, "single-category-only");
     }
-    case 15: { // degree/intensity ordering
-      const deg = pick(r, [["warm", "heiss", "lauwarm"], ["gross", "riesig", "mittel"], ["gut", "sehr gut", "befriedigend"]]);
-      return wg("intensity-ordering", `Ordne nach Intensität (schwächste zuerst): „${deg[0]}, ${deg[1]}, ${deg[2]}“ — welches ist am SCHWÄCHSTEN?`,
-        deg[2].includes("lau") ? "lauwarm" : deg[2] === "mittel" ? "mittel" : "befriedigend",
-        "Abstufungen vergleichen.", undefined, 1, 1, 3, "strongest-chosen");
+    case 15: {
+      // WIDENED + PROMPT-INTEGRITY FIX: the old text claimed "schwächste zuerst"
+      // while every row renders strongest-first — a contradiction. Now the display
+      // order is genuinely shuffled and the asked POLE selects the answer:
+      // am STÄRKSTEN -> row[1] (sehr X), am SCHWÄCHSTEN -> row[2] (weniger X).
+      // Answer stays derived from authored schema; no string ternaries.
+      const deg = pick(r, POOLS.WG_DEGREE as [string, string, string][]);
+      const askStrong15 = r() < 0.5;
+      const shown15 = shuffle([deg[0], deg[1], deg[2]], r);
+      const ans15 = askStrong15 ? deg[1] : deg[2];
+      return wg("intensity-ordering",
+        `Von „${shown15.join("“, „")}“ — welches Wort drückt die EIGENSCHAFT am ${askStrong15 ? "STÄRKSTEN" : "SCHWÄCHSTEN"} aus?`,
+        ans15,
+        `Stufen: ${deg[2]} < ${deg[0]} < ${deg[1]}.`,
+        undefined, 1, 1, 3, "strongest-chosen");
     }
-    case 16: { // which pair shares the same relation as model pair
-      const rel = pick(r, [
-        [["Vogel : fliegen", "Fisch : schwimmen"], ["Kind : Eltern", "Pferd : Fohlen"]],
-      ])[0];
+    case 16: {
+      // WIDENED: was wrapped in a single-element array (one render). Model pair +
+      // correct analogue from the row; distractors are cross-relation pairs.
+      // WIDENED: 13-row relation pool (was inline 6); distractors remain
+      // cross-relation pairs so exactly one analogue matches the model relation.
+      const rel = pick(r, POOLS.WG_RELATION_PAIRS as [string, string][]);
+      const foreign = POOLS.WG_RELATION_DISTRACTORS as string[];
+      const d1 = pick(r, foreign);
+      const d2 = pick(r, foreign.filter((x) => x !== d1));
       return wg("relation-pattern-match", `Welches Paar zeigt dieselbe BEZIEHUNG wie „${rel[0]}“?`, rel[1],
-        "Relation identifizieren und übertragen.", dedupeOptions(shuffle([rel[1], "Haus : Dachziegel", "Buch : lesen"], r)), 1, 0, 3, "surface-word-match");
+        "Relation identifizieren und übertragen.", dedupeOptions(shuffle([rel[1], d1, d2], r)), 1, 0, 3, "surface-word-match");
     }
     default: { // 17: exclude by negation (all are X except one that is NOT-X)
-      const neg = pick(r, [["nicht lebendig", "Stein", ["Rose", "Ameise", "Stein"]], ["kein Werkzeug", "Gabel", ["Hammer", "Zange", "Gabel"]]]);
-      return wg("negated-grouping", `Welches Wort ist ${neg[0]}?`, String(neg[1]),
-        `${neg[1]} erfüllt das Kriterium.`, dedupeOptions(shuffle(neg[2] as string[], r)), 1, 1, 2, "positive-match-chosen");
+      // WIDENED: two fixed rows -> ten.
+      // WIDENED: 20-row negation pool — the 10 original rows stay byte-identical,
+      // 10 new authored rows added (each: NOT-X criterion, exception, 2 in-group).
+      const neg = pick(r, [
+        ["nicht lebendig", "Stein", ["Rose", "Ameise", "Stein"]],
+        ["kein Werkzeug", "Gabel", ["Hammer", "Zange", "Gabel"]],
+        ["kein Tier", "Rose", ["Löwe", "Ameise", "Rose"]],
+        ["nicht essbar", "Tulpe", ["Apfel", "Birne", "Tulpe"]],
+        ["kein Fahrzeug", "Stuhl", ["Auto", "Bus", "Stuhl"]],
+        ["kein Möbelstück", "Banane", ["Tisch", "Regal", "Banane"]],
+        ["kein Instrument", "Hammer", ["Violine", "Flöte", "Hammer"]],
+        ["kein Monat", "Dienstag", ["Januar", "August", "Dienstag"]],
+        ["kein Vogel", "Lachs", ["Ente", "Spatz", "Lachs"]],
+        ["kein Kleidungsstück", "Kelle", ["Mütze", "Rock", "Kelle"]],
+        ...POOLS.WG_NEGATION_ROWS_NEW,
+      ]);
+      // WIDENED x2 POLES: ask for the NOT-X word, or invert and ask which word
+      // does NOT satisfy the negation (i.e. the in-group X word).
+      if (r() < 0.5) {
+        return wg("negated-grouping", `Welches Wort ist ${neg[0]}?`, String(neg[1]),
+          `${neg[1]} erfüllt das Kriterium.`, dedupeOptions(shuffle(neg[2] as string[], r)), 1, 1, 2, "positive-match-chosen");
+      }
+      const opts17 = neg[2] as string[];
+      const crit17 = neg[0] as string;
+      const inWord17 = opts17.find((w) => w !== (neg[1] as string)) as string;
+      return wg("negated-grouping", `Welches Wort ist NICHT ${crit17}?`, inWord17,
+        `${inWord17} erfüllt das Kriterium NICHT.`,
+        dedupeOptions(shuffle(opts17, r)), 1, 1, 2, "positive-match-chosen");
     }
   }
 }
