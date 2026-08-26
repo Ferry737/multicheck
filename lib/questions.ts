@@ -404,6 +404,12 @@ const SB_VERB = ["prüft", "bestellt", "verschickt", "kontrolliert", "liest"];
 const SB_OBJ_AKK = ["die Rechnung", "die Ware", "das Paket", "den Bericht", "die Liste"];
 function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
   const ph = (arr: string[]) => pick(r, arr);
+  const cw = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  const NOUNS = LEX.SB_NOUNS as any[];
+  const VERBS = LEX.SB_VERBS as any[];
+  const AKKV = VERBS.filter((v: any) => v.aux === "haben" && v.valency === "ack" && !v.separable);
+  const SEPV = VERBS.filter((v: any) => v.separable);
+  const AGENTS = NOUNS.filter((n: any) => ["Mitarbeiter", "Kollegin", "Chef", "Kunde"].includes(n.lemma));
   const sb = (opSeq: string, prompt: string, ans: string, expl: string, steps: number, cons: number, wml: number, dk: string) =>
     mk("deutsch", "satzbau", opSeq, d, prompt, undefined, ans, expl, "Achte auf die Satzbaumuster.", 20, 4, dk, "sort", opSeq,
       { opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "sequence", answerCardinality: 1 }, false);
@@ -552,13 +558,15 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       ]);
       return sb("in-dative-vs-accusative", `Richtige Form: „${b[0]}“`, b[1], "wo? → Dativ; wohin? → Akkusativ.", 1, 1, 3, "case-confusion");
     }
-    case 18: { // word order: TeKaMoLo (time-causal-manner-place)
-      const ans = pick(r, [
-        ["Ich fahre morgen nach Bern.", "Zeit vor Ort"],
-        ["Wir treffen uns heute im Büro.", "Zeit vor Ort"],
-      ]);
-      return sb("wordorder-tekamolo", `Reihenfolge der Angaben: Zeit, Ort — „${ans[0]}“, kombiniert?`, ans[1],
-        "Temporale Angabe vor lokaler.", 2, 1, 3, "place-before-time");
+    case 18: { // word order: TeKaMoLo (time before place)
+      const t = pick(r, LEX.SB_TIME_ADVERBIALS as string[]);
+      const p = pick(r, LEX.SB_PLACE_ADVERBIALS as string[]);
+      const v = pick(r, VERBS.filter((x: any) => x.valency === "dat"));
+      const s = pick(r, ["Ich", "Wir", "Er", "Sie"]);
+      const key = s === "Ich" ? "ich" : s === "Wir" ? "wir" : "er";
+      const form = v.pres[key];
+      return sb("wordorder-tekamolo", `Ordne die Angaben: „${s} ${form} (${p})(${t})“ — richtige Reihenfolge?`,
+        `${s} ${form} ${t} ${p}.`, "Temporale Angabe steht vor lokaler (Te-Ka-Mo-Lo).", 2, 1, 3, "place-before-time");
     }
     case 19: { // connector meaning choice
       const c = pick(r, [
@@ -574,20 +582,21 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       return sb("zu-infinitive", `Richtig: „Er versucht, pünktlich ___“ (${b[0]} + Infinitiv mit zu)`, "zu kommen",
         "Infinitiv mit „zu“ nach bestimmten Verben.", 1, 1, 3, "bare-infinitive");
     }
-    case 21: { // relative pronoun agreement
-      const b = pick(r, [
-        ["Der Mann, ___ das Paket bringt", "der"],
-        ["Die Frau, ___ die Kasse bedient", "die"],
-        ["Das Kind, ___ dort spielt", "das"],
-      ]);
-      return sb("relative-pronoun", `Relativpronomen: „${b[0]} …“`, b[1], "Relativpronomen = Genus des Bezugswords.", 1, 1, 3, "wrong-relative");
+    case 21: { // relative pronoun agrees with antecedent gender
+      const n = pick(r, NOUNS);
+      const v = pick(r, AKKV);
+      const o = pick(r, NOUNS);
+      const rel = n.gender === "der" ? "der" : n.gender === "die" ? "die" : "das";
+      return sb("relative-pronoun", `Relativpronomen: „${n.nom}, ___ ${o.ack} ${v.pres["er"]} …“`, rel,
+        `Relativpronomen folgt dem Genus von „${n.lemma}“ (${n.gender}) im Nominativ: ${rel}.`, 2, 1, 3, "wrong-relative");
     }
-    case 22: { // passive werden + Partizip
-      const b = pick(r, [
-        ["Der Chef liest den Bericht.", "Der Bericht wird gelesen."],
-        ["Wir laden die Ware.", "Die Ware wird geladen."],
-      ]);
-      return sb("passive-werden", `Passiv: „${b[0]}“`, b[1], "werden + Partizip II.", 2, 1, 3, "wrong-auxiliary");
+    case 22: { // passive: werden + Partizip II
+      const ag = pick(r, AGENTS);
+      const v = pick(r, AKKV);
+      const o = pick(r, NOUNS);
+      const active = `${ag.nom} ${v.pres["er"]} ${o.ack}.`;
+      return sb("passive-werden", `Passiv: „${active}“`, `${o.nom} wird ${v.participle}.`,
+        "Objekt wird Subjekt; werden + Partizip II.", 2, 1, 3, "wrong-auxiliary");
     }
     case 23: { // Konjunktiv II polite request
       const b = pick(r, [
@@ -614,27 +623,40 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       const t = pick(r, [["ein groß__ Tisch", "großer"], ["eine klein__ Schachtel", "kleine"], ["ein neu__ Regal", "neues"]]);
       return sb("adj-ending-indef-article", `Adjektivendung: „${t[0]}“`, t[1], "Nach unbestimmtem Artikel zeigt die Endung das Genus.", 1, 1, 3, "wrong-ending");
     }
-    case 27: { // Präteritum of sein/haben (common in writing)
-      const b = pick(r, [["Ich ___ gestern im Lager.", "war"], ["Wir ___ keine Zeit.", "hatten"]]);
-      return sb("praeteritum-sein-haben", `Präteritum: „${b[0]}“`, b[1], "war / hatten.", 1, 0, 2, "perfect-used-in-writing");
+    case 27: { // Präteritum of sein/haben
+      const o = pick(r, NOUNS);
+      const pl = pick(r, LEX.SB_PLACE_ADVERBIALS as string[]);
+      const t = pick(r, LEX.SB_TIME_ADVERBIALS as string[]);
+      const useSein = r() < 0.5;
+      const subj = pick(r, ["Ich", "Wir", "Er", "Sie"]);
+      const sein = subj === "Ich" ? "war" : subj === "Wir" || subj === "Sie" ? "waren" : "war";
+      const haben = subj === "Ich" ? "hatte" : subj === "Wir" || subj === "Sie" ? "hatten" : "hatte";
+      const prompt = useSein ? `Präteritum: „${subj} ___ ${t} ${pl}“ (sein)` : `Präteritum: „${subj} ___ ${o.ack} (haben)“`;
+      return sb("praeteritum-sein-haben", prompt, useSein ? sein : haben,
+        "sein → war/waren; haben → hatte/hatten.", 1, 0, 2, "perfect-used-in-writing");
     }
-    case 28: { // Futur I
-      const b = pick(r, [
-        ["Morgen besuche ich den Kunden.", "Ich werde morgen den Kunden besuchen."],
-        ["Wir liefern nächste Woche.", "Wir werden nächste Woche liefern."],
-      ]);
-      return sb("futur-i", `Futur I: „${b[0]}“`, b[1], "werden + Infinitiv am Ende.", 1, 0, 3, "present-only");
+    case 28: { // Futur I: werden + Infinitiv at end
+      const t = pick(r, LEX.SB_TIME_ADVERBIALS as string[]);
+      const v = pick(r, AKKV);
+      const o = pick(r, NOUNS);
+      const subj = pick(r, ["Ich", "Wir", "Er", "Sie"]);
+      const key = subj === "Ich" ? "ich" : subj === "Wir" || subj === "Sie" ? "wir" : "er";
+      const werden = key === "ich" ? "werde" : key === "wir" ? "werden" : "wird";
+      const present = `${t.charAt(0).toUpperCase() + t.slice(1)} ${v.pres[key]} ${subj.toLowerCase()} ${o.ack}.`;
+      return sb("futur-i", `Futur I: „${present}“`, `${subj} ${werden} ${t} ${o.ack} ${v.inf}.`,
+        "werden (Position 2) + Infinitiv am Satzende.", 2, 0, 3, "present-only");
     }
     case 29: { // n-Deklination (weak nouns)
       const b = pick(r, [["der Junge (Akk.)", "den Jungen"], ["der Kollege (Dat.)", "dem Kollegen"], ["der Kunde (Akk.)", "den Kunden"]]);
       return sb("n-declension", `n-Deklination: „${b[0]}“`, b[1], "Schwache Nomen bekommen -n(en).", 1, 1, 3, "regular-declension");
     }
-    case 30: { // verb 'lassen'
-      const b = pick(r, [
-        ["Ich lasse das Paket ___ (bringen).", "bringen"],
-        ["Er lässt das Auto ___ (reparieren).", "reparieren"],
-      ]);
-      return sb("lassen-construction", `lassen-Konstruktion: „${b[0]}“`, b[1], "lassen + Objekt + Infinitiv am Ende.", 2, 1, 3, "participle-with-lassen");
+    case 30: { // verb 'lassen' + Objekt + Infinitiv
+      const v = pick(r, AKKV);
+      const o = pick(r, NOUNS);
+      const subj = pick(r, ["Ich", "Wir", "Er", "Sie"]);
+      const lassen = subj === "Ich" ? "lasse" : subj === "Wir" || subj === "Sie" ? "lassen" : "lässt";
+      return sb("lassen-construction", `lassen-Konstruktion: „${subj} ${lassen} ${o.ack} ___ (${v.inf}).“`, v.inf,
+        "lassen + Objekt + Infinitiv am Satzende.", 2, 1, 3, "participle-with-lassen");
     }
     default: { // 31: um...zu vs damit
       const b = pick(r, [
