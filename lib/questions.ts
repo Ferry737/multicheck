@@ -567,18 +567,28 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       return sb("imperative-form", `Imperativ (${b[0]}): „${pick(r, ["hier bleiben", "das Formular ausfüllen", "auf mich warten", "langsam fahren"])}“ — richtige Form für die Anweisung mit derselben Regel wählen`, b[1],
         "Imperativbildung nach Adressat.", 1, 1, 2, "infinitive-as-imperative");
     }
-    case 16: { // possessive articles
-      const who = pick(r, [["ich", "mein Handy", "mein"], ["du", "dein Handy", "dein"], ["er", "sein Handy", "sein"]]);
-      return sb("possessive-declension", `Possessivartikel im Akkusativ: „Ich sehe ___“ (ausgangend von ${who[0]} + ${who[1]})`, who[2],
-        "Endung nach Genus im Akkusativ: ich → mein, du → dein, er → sein.", 1, 1, 2, "missing-ending");
+    case 16: { // possessive article: owner person x noun gender x case
+      const own = pick(r, SB_POSS);
+      const n = pick(r, NOUNS);
+      const isAkk = r() < 0.5;
+      // Akkusativ masculine takes -en; feminine/neuter unchanged from nominative.
+      const suffix = isAkk && n.gender === "der" ? "en" : n.gender === "die" ? "e" : "";
+      const form = own[1] + suffix;
+      const frame = isAkk ? `Ich sehe ___ ${n.lemma}` : `___ ${n.lemma} ist neu`;
+      return sb("possessive-declension", `Possessivartikel (${isAkk ? "Akkusativ" : "Nominativ"}): „${frame}“ — Besitzer: ${own[0]}`,
+        `${form} ${n.lemma}`,
+        `${own[0]} → Stamm „${own[1]}“; ${n.gender} ${n.lemma} im ${isAkk ? "Akkusativ" : "Nominativ"} → ${form}.`, 2, 2, 3, "missing-ending");
     }
-    case 17: { // preposition 'in' + Dativ (location) vs Akkusativ (direction)
-      const b = pick(r, [
-        ["in + Lager (wo?)", "im Lager"],
-        ["in + Büro (wo?)", "im Büro"],
-        ["in + Küche (wohin?)", "in die Küche"],
-      ]);
-      return sb("in-dative-vs-accusative", `Richtige Form: „${b[0]}“`, b[1], "wo? → Dativ; wohin? → Akkusativ.", 1, 1, 3, "case-confusion");
+    case 17: { // two-way preposition: wo? -> Dativ vs wohin? -> Akkusativ
+      const n = pick(r, NOUNS.filter((x: any) => ["Lager", "Büro", "Küche", "Regal", "Werkstatt", "Halle"].includes(x.lemma)));
+      const prep = pick(r, ["in", "auf", "an", "unter", "neben", "hinter", "vor", "zwischen"]);
+      const isWo = r() < 0.5;
+      const dat = n.dat;
+      const akk = n.gender === "die" ? `die ${n.lemma}` : n.gender === "der" ? `den ${n.lemma}` : `das ${n.lemma}`;
+      const contracted = prep === "in" && isWo && n.gender !== "die" ? `im ${n.lemma}` : `${prep} ${isWo ? dat : akk}`;
+      return sb("in-dative-vs-accusative", `Wechselpräposition „${prep}“ + ${n.nom} — Frage: ${isWo ? "wo? (Ort)" : "wohin? (Richtung)"}`,
+        contracted,
+        `${isWo ? "wo? → Dativ" : "wohin? → Akkusativ"}: ${contracted}.`, 2, 2, 3, "case-confusion");
     }
     case 18: { // word order: TeKaMoLo (time before place)
       const t = pick(r, LEX.SB_TIME_ADVERBIALS as string[]);
@@ -590,19 +600,41 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       return sb("wordorder-tekamolo", `Ordne die Angaben: „${s} ${form} (${p})(${t})“ — richtige Reihenfolge?`,
         `${s} ${form} ${t} ${p}.`, "Temporale Angabe steht vor lokaler (Te-Ka-Mo-Lo).", 2, 1, 3, "place-before-time");
     }
-    case 19: { // connector meaning choice
-      const c = pick(r, [
-        ["Die Lieferung ist spät, ______ rufen wir den Kunden an.", "deshalb"],
-        ["Das Material fehlt, ______ bestellen wir neu.", "deshalb"],
-        ["Es regnet, ______ spielen wir drinnen.", "trotzdem"],
+    case 19: { // connector by logical relation — exactly ONE defensible answer
+      // Ambiguity control (30-sample read finding): the consequence set
+      // {deshalb, darum, folglich} is mutually substitutable, so offering the
+      // relation alone admits 3 correct answers. Each relation therefore pins ONE
+      // canonical connector and the prompt names it as the required form.
+      // "weil/da" excluded: they force verb-final order (effect clause is verb-second).
+      const rel = pick(r, [
+        ["Folge", "deshalb", "Folge (Konsequenz)"],
+        ["Gegensatz", "trotzdem", "Gegensatz (unerwartete Folge)"],
+        ["Grund", "denn", "Grund (Hauptsatz-Konnektor)"],
       ]);
-      return sb("connector-meaning", `Verbinde logisch: „${c[0]}“ (Folge)`, c[1],
-        "Folge: deshalb; Grund: denn/weil.", 1, 1, 2, "weil-for-consequence");
+      // Semantically matched cause pairs (no "das Konto ist beschädigt").
+      const cause = pick(r, [
+        ["Die Lieferung", "ist verspätet"], ["Das Material", "fehlt"],
+        ["Die Rechnung", "ist nicht bezahlt"], ["Das Paket", "ist beschädigt"],
+        ["Der Termin", "ist abgesagt"], ["Die Maschine", "steht still"],
+        ["Die Liste", "ist unvollständig"], ["Der Bericht", "fehlt noch"],
+      ]);
+      const effect = pick(r, ["rufen wir den Kunden an", "bestellen wir neu", "informieren wir den Chef",
+        "prüfen wir die Liste", "melden wir es dem Lager", "verschieben wir den Termin"]);
+      // Only the ARTICLE lowercases mid-sentence; the German noun keeps its capital.
+      const lowerArt = (s: string) => s.replace(/^(Die|Der|Das) /, (m) => m.toLowerCase());
+      const tail = rel[0] === "Grund" ? `${lowerArt(cause[0])} ${cause[1]}` : effect;
+      const head = rel[0] === "Grund" ? "Wir handeln sofort" : `${cause[0]} ${cause[1]}`;
+      return sb("connector-meaning", `Verbinde logisch — ${rel[2]}: „${head}, ___ ${tail}.“`, rel[1],
+        `${rel[2]} → „${rel[1]}“; das Verb bleibt an Position 2.`, 2, 2, 3, "weil-for-consequence");
     }
-    case 20: { // zu + infinitive after verbs like versuchen/vorhaben
-      const b = pick(r, [["versuchen", "zu kommen"], ["vergessen", "zu schreiben"], ["beginnen", "zu lesen"]]);
-      return sb("zu-infinitive", `Richtig: „Er versucht, pünktlich ___“ (${b[0]} + Infinitiv mit zu)`, "zu kommen",
-        "Infinitiv mit „zu“ nach bestimmten Verben.", 1, 1, 3, "bare-infinitive");
+    case 20: { // zu + Infinitiv after specific governing verbs
+      const gov = pick(r, [["versuchen", "versucht"], ["vergessen", "vergisst"], ["beginnen", "beginnt"],
+        ["planen", "plant"], ["vorhaben", "hat vor"], ["hoffen", "hofft"], ["beschliessen", "beschliesst"]]);
+      const v = pick(r, AKKV);
+      const o = pick(r, NOUNS);
+      const subj = pick(r, ["Er", "Sie", "Der Chef", "Die Kollegin"]);
+      return sb("zu-infinitive", `Infinitivsatz: „${subj} ${gov[1]}, ${o.ack} ___“ (Verb: ${v.inf})`,
+        `zu ${v.inf}`, `Nach „${gov[0]}“ folgt Infinitiv mit „zu“ am Satzende: zu ${v.inf}.`, 2, 1, 3, "bare-infinitive");
     }
     case 21: { // relative pronoun agrees with antecedent gender
       const n = pick(r, NOUNS);
@@ -730,9 +762,21 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
       const q = pick(r, [["Wer", "eine Person"], ["Was", "eine Sache"], ["Wo", "ein Ort"], ["Wann", "eine Zeit"]]);
       return sb("question-word", `Fragewort für ${q[1]}?`, q[0], "Fragewort nach Bedeutung.", 1, 0, 2, "wrong-question-word");
     }
-    case 37: { // negation nicht vs kein
-      const s = pick(r, [["Ich habe ___ Zeit.", "keine"], ["Er kommt ___ morgen.", "nicht"], ["Wir sehen ___ Film.", "keinen"]]);
-      return sb("negation-kein-nicht", `Ergänze: „${s[0]}“`, s[1], "kein bei Nomen ohne Artikel, nicht bei Verben.", 1, 0, 2, "nicht-for-kein");
+    case 37: { // negation: kein (nouns) vs nicht (verbs/adverbs)
+      const n = pick(r, NOUNS);
+      const v = pick(r, AKKV);
+      const t = pick(r, LEX.SB_TIME_ADVERBIALS as string[]);
+      const subj = pick(r, ["Ich", "Er", "Wir", "Sie"]);
+      const useKein = r() < 0.5;
+      // kein agrees like the indefinite article: masc-akk "keinen", fem "keine", neut "kein".
+      const kein = n.gender === "der" ? "keinen" : n.gender === "die" ? "keine" : "kein";
+      const form = subj === "Ich" ? v.pres["ich"] : subj === "Wir" || subj === "Sie" ? v.pres["wir"] : v.pres["er"];
+      const prompt = useKein
+        ? `Ergänze die Negation: „${subj} ${form} ___ ${n.lemma}.“ (Nomen negieren)`
+        : `Ergänze die Negation: „${subj} ${form} ${n.ack} ___ ${t}.“ (Angabe negieren)`;
+      return sb("negation-kein-nicht", prompt, useKein ? kein : "nicht",
+        useKein ? `Nomen ohne bestimmten Artikel → kein-: ${n.gender} → ${kein}.` : "Verb/Angabe negieren → nicht.",
+        2, 1, 3, "nicht-for-kein");
     }
     case 38: { // possessive pronoun
       const s = pick(r, [["Ich", "mein"], ["du", "dein"], ["er", "sein"], ["sie", "ihr"], ["wir", "unser"]]);
