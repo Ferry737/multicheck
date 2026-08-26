@@ -95,6 +95,7 @@ function rng(seed: number) {
 // resolves under plain node too (validate-all.mjs), which a ".ts" specifier
 // cannot do (TS5097).
 import POOLS from "./pools.json" with { type: "json" };
+import LEX from "./satzbau-lexicon.json" with { type: "json" };
 
 interface ProcessScenario { domain: string; steps: string[]; intruder: string; }
 interface ConstraintScenario { domain: string; steps: string[]; rule: string; }
@@ -381,6 +382,27 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
     mk("deutsch", "satzbau", opSeq, d, prompt, undefined, ans, expl, "Achte auf die Satzbaumuster.", 20, 4, dk, "sort", opSeq,
       { opSequence: opSeq, stepCount: steps, constraintCount: cons, distractorKind: dk, workingMemoryLoad: wml, inputModality: "sequence", answerCardinality: 1 }, false);
   const path = structIndex >= 0 ? structIndex : ri(r, 0, 51);
+  // satzbau lexicon composition (cases 1-10): answer computed from the same lexicon row as the prompt
+  if (path >= 1 && path <= 10) {
+    const n = pick(r, LEX.SB_NOUNS as any[]);
+    const verb = pick(r, LEX.SB_VERBS as any[]);
+    const obj = pick(r, LEX.SB_NOUNS as any[]);
+    const subj = n.gender === "der" ? "er" : n.gender === "die" ? "sie" : "es";
+    const pres = verb.pres[subj === "es" ? "er" : subj];
+    const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+    switch (path) {
+      case 1: { const konj = pick(r, LEX.SB_CONNECTORS_REASON as any[]); const reason = pick(r, ["die Frist kurz ist", "das Lager voll ist", "der Kunde wartet", "die Zahlung fehlt", "die Bestellung verspätet sich"]); return sb("subordinate-verb-final", `Bilde: „${cap(subj)} ${pres} ${obj.ack}“ + „${konj} ${reason}“`, `${cap(subj)} ${pres} ${obj.ack}, ${konj} ${reason}.`, "Im Nebensatz steht das Verb am Ende.", 3, 1, 3, "verb-in-wrong-position"); }
+      case 2: return sb("question-inversion", `Verwandle in eine Ja/Nein-Frage: „${cap(subj)} ${pres} ${obj.ack}“`, `${cap(pres)} ${subj} ${obj.ack}?`, "Bei Ja/Nein-Fragen steht das Verb an Position 1, das Subjekt danach.", 2, 0, 2, "no-inversion");
+      case 3: { const qw = pick(r, ["Was", "Wo", "Wann", "Wie lange"]); return sb("wquestion-fronting", `Bilde die W-Frage: „${cap(subj)} ${pres} ${obj.ack}“ → Fragewort: „${qw}“`, `${qw} ${pres} ${subj} ${obj.ack}?`, "Fragewort + Verb + Subjekt (W-Frage).", 2, 0, 2, "statement-instead-of-question"); }
+      case 4: return sb("negation-nicht-placement", `Setze „nicht“ richtig ein: „${cap(subj)} ${pres} ${obj.ack}“ (Perfekt)`, `${cap(subj)} hat ${obj.ack} nicht ${verb.participle}.`, "„nicht“ steht vor dem Partizip II.", 2, 0, 2, "negation-wrong-slot");
+      case 5: { const k = n.gender === "der" ? "m" : n.gender === "die" ? "f" : "n"; const art = k === "m" ? LEX.SB_DEF_ARTICLE_FORMS.m_nom : k === "f" ? LEX.SB_DEF_ARTICLE_FORMS.f_nom : LEX.SB_DEF_ARTICLE_FORMS.n_nom; return sb("article-gender-nominativ", `Setze den bestimmten Artikel (Nominativ): „___ ${n.lemma}“`, `${art} ${n.lemma}`, `Genus ${n.gender === "der" ? "maskulin" : n.gender === "die" ? "feminin" : "sächlich"}: ${art}.`, 1, 0, 2, "wrong-gender-article"); }
+      case 6: return sb("akkusative-masculine", `Akkusativ: „Ich sehe ___“ (${n.nom} im Nominativ)`, `Ich sehe ${n.ack}.`, n.gender === "der" ? "Maskulin Akk.: der → den." : "Akkusativform verwenden.", 1, 1, 2, "nominative-in-accusative");
+      case 7: return sb("dative-after-mit", `Mit wem? Setze richtig: „Ich spreche mit ___“ (${n.nom} im Nominativ)`, `Ich spreche mit ${n.dat}.`, "Nach „mit“ steht Dativ.", 1, 1, 2, "accusative-after-preposition");
+      case 8: return sb("perfect-haben", `Perfekt: „${cap(subj)} ${pres} ${obj.ack}“`, `${cap(subj)} hat ${obj.ack} ${verb.participle}.`, "haben + Partizip II am Satzende.", 2, 0, 3, "wrong-participle");
+      case 9: { const place = pick(r, LEX.SB_PLACE_ADVERBIALS as any[]); return sb("perfect-sein", `Perfekt: „${cap(subj)} ${pres} ${place}“`, `${cap(subj)} ist ${place} ${verb.participle}.`, "Bewegung: sein + Partizip II am Satzende.", 2, 1, 3, "haben-with-motion-verb"); }
+      case 10: { const modal = pick(r, LEX.SB_MODAL_VERBS as any[]); const mp = modal.pres[subj === "es" ? "er" : subj]; return sb("modal-infinitive-end", `Welches Muster gilt: „${cap(subj)} ${mp} ${verb.inf}“?`, `${cap(subj)} ${mp} ${verb.inf} (Infinitiv am Ende).`, "Modalverb Stellung 2; Infinitiv ganz am Satzende.", 2, 1, 3, "double-conjugated"); }
+    }
+  }
   switch (path) {
     case 0: { // verb-second statement order
       const parts = pick(r, SENTENCES);
@@ -596,9 +618,11 @@ function genSatzbau(r: () => number, d: number, structIndex = -1): Question {
         "gleiches Subjekt: um…zu; verschiedenes: damit.", 1, 1, 3, "damit-for-same-subject");
     }
     // --- additional rule-level grammar paths (32..49) to exceed 50 distinct structs ---
-    case 32: { // article der/die/das by gender
-      const w = pick(r, [["der", "Mann"], ["die", "Frau"], ["das", "Kind"], ["der", "Tisch"], ["die", "Tür"], ["das", "Haus"]]);
-      return sb("article-gender-nominativ", `Wähle den Artikel: „___ ${w[1]}“`, w[0], "Artikel nach Geschlecht.", 1, 0, 2, "wrong-gender-article");
+    case 32: { // article + noun in GENITIVE case (der/die/das → des/der/des)
+      const n = pick(r, LEX.SB_NOUNS as any[]);
+      const art = n.gender === "der" ? "des" : n.gender === "die" ? "der" : "des";
+      return sb("article-gender-genitiv", `Setze den Artikel (Genitiv): „___ ${n.lemma}“`, `${art} ${n.lemma}`,
+        "Genitiv: maskulin/sächlich → des; feminin → der.", 1, 0, 2, "wrong-gender-article-genitiv");
     }
     case 33: { // plural formation
       const w = pick(r, [["der Hund", "die Hunde"], ["die Katze", "die Katzen"], ["das Buch", "die Bücher"], ["der Baum", "die Bäume"]]);

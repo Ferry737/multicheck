@@ -1,0 +1,161 @@
+{
+  "_doc": "Satzbau shared typed lexicon. Nouns carry full declension (gender, plural, ack/dat/nomPl/ackPl/datPl per case). Verbs carry present-tense forms per subject pronoun + participle + auxiliary + separable flag + valency. Each satzbau case composes from these rather than authoring inline rows. Anti-overclaim rule: any case needing a field NOT present here must not slot-fill it — report capacity honestly.",
+
+  "SB_SUBJECTS": [
+    {"pronoun": "ich", "article": "", "noun": "Mitarbeiter"},
+    {"pronoun": "du", "article": "", "noun": "Kollegin"},
+    {"pronoun": "er", "article": "der", "noun": "Chef"},
+    {"pronoun": "sie", "article": "die", "noun": "Redakteurin"},
+    {"pronoun": "wir", "article": "unser", "noun": "Team"},
+    {"pronoun": "ihr", "article": "", "noun": "Kunde"},
+    {"pronoun": "sie", "article": "die", "noun": "Kundschaft"}
+  ],
+
+  "SB_NOUNS": [
+    {"lemma": "Mitarbeiter", "gender": "der", "plural": "Mitarbeiter", "nom": "der Mitarbeiter", "ack": "den Mitarbeiter", "dat": "dem Mitarbeiter", "gen": "des Mitarbeiters", "nomPl": "die Mitarbeiter", "ackPl": "die Mitarbeiter", "datPl": "den Mitarbeitern", "genPl": "der Mitarbeiter"},
+    {"lemma": "Kollegin", "gender": "die", "plural": "Kolleginnen", "nom": "die Kollegin", "ack": "die Kollegin", "dat": "der Kollegin", "gen": "der Kollegin", "nomPl": "die Kolleginnen", "ackPl": "die Kolleginnen", "datPl": "den Kolleginnen", "genPl": "der Kolleginnen"},
+    {"lemma": "Chef", "gender": "der", "plural": "Chefs", "nom": "der Chef", "ack": "den Chef", "dat": "dem Chef", "gen": "des Chefs", "nomPl": "die Chefs", "ackPl": "die Chefs", "datPl": "den Chefs", "genPl": "der Chefs"},
+    {"lemma": "Rechnung", "gender": "die", "plural": "Rechnungen", "nom": "die Rechnung", "ack": "die Rechnung", "dat": "der Rechnung", "gen": "der Rechnung", "nomPl": "die Rechnungen", "ackPl": "die Rechnungen", "datPl": "den Rechnungen", "genPl": "der Rechnungen"},
+    {"lemma": "Ware", "gender": "die", "plural": "Waren", "nom": "die Ware", "ack": "die Ware", "dat": "der Waren", "gen": "der Waren", "nomPl": "die Waren", "ackPl": "die Waren", "datPl": "den Waren", "genPl": "der Waren"},
+    {"lemma": "Paket", "gender": "das", "plural": "Pakete", "nom": "das Paket", "ack": "das Paket", "dat": "dem Paket", "gen": "des Pakets", "nomPl": "die Pakete", "ackPl": "die Pakete", "datPl": "den Paketen", "genPl": "der Pakete"},
+    {"lemma": "Bericht", "gender": "der", "plural": "Berichte", "nom": "der Bericht", "ack": "den Bericht", "dat": "dem Bericht", "gen": "des Berichts", "nomPl": "die Berichte", "ackPl": "die Berichte", "datPl": "den Berichten", "genPl": "der Berichte"},
+    {"lemma": "Liste", "gender": "die", "plural": "Listen", "nom": "die Liste", "ack": "die Liste", "dat": "der Liste", "gen": "der Liste", "nomPl": "die Listen", "ackPl": "die Listen", "datPl": "den Listen", "genPl": "der Listen"},
+    {"lemma": "Kunde", "gender": "der", "plural": "Kunden", "nom": "der Kunde", "ack": "den Kunden", "dat": "dem Kunden", "gen": "des Kunden", "nomPl": "die Kunden", "ackPl": "die Kunden", "datPl": "den Kunden", "genPl": "der Kunden"},
+    {"lemma": "Material", "gender": "das", "plural": "Materialien", "nom": "das Material", "ack": "das Material", "dat": "dem Material", "gen": "des Materials", "nomPl": "die Materialien", "ackPl": "die Materialien", "datPl": "den Materialien", "genPl": "der Materialien"},
+    {"lemma": "Formular", "gender": "das", "plural": "Formulare", "nom": "das Formular", "ack": "das Formular", "dat": "dem Formular", "gen": "des Formulars", "nomPl": "die Formulare", "ackPl": "die Formulare", "datPl": "den Formularen", "genPl": "der Formulare"},
+    {"lemma": "Lager", "gender": "das", "plural": "Lager", "nom": "das Lager", "ack": "das Lager", "dat": "dem Lager", "gen": "des Lagers", "nomPl": "die Lager", "ackPl": "die Lager", "datPl": "den Lagern", "genPl": "der Lager"},
+    {"lemma": "Team", "gender": "das", "plural": "Teams", "nom": "das Team", "ack": "das Team", "dat": "dem Team", "gen": "des Teams", "nomPl": "die Teams", "ackPl": "die Teams", "datPl": "den Teams", "genPl": "der Teams"},
+    {"lemma": "Konto", "gender": "das", "plural": "Konten", "nom": "das Konto", "ack": "das Konto", "dat": "dem Konto", "gen": "des Kontos", "nomPl": "die Konten", "ackPl": "die Konten", "datPl": "den Konten", "genPl": "der Konten"},
+    {"lemma": "Sessel", "gender": "der", "plural": "Sessel", "nom": "der Sessel", "ack": "den Sessel", "dat": "dem Sessel", "gen": "des Sessels", "nomPl": "die Sessel", "ackPl": "die Sessel", "datPl": "den Sesseln", "genPl": "der Sessel"},
+    {"lemma": "Stuhl", "gender": "der", "plural": "Stühle", "nom": "der Stuhl", "ack": "den Stuhl", "dat": "dem Stuhl", "gen": "des Stuhls", "nomPl": "die Stühle", "ackPl": "die Stühle", "datPl": "den Stühlen", "genPl": "der Stühle"},
+    {"lemma": "Tür", "gender": "die", "plural": "Türen", "nom": "die Tür", "ack": "die Tür", "dat": "der Tür", "gen": "der Tür", "nomPl": "die Türen", "ackPl": "die Türen", "datPl": "den Türen", "genPl": "der Türen"},
+    {"lemma": "Tisch", "gender": "der", "plural": "Tische", "nom": "der Tisch", "ack": "den Tisch", "dat": "dem Tisch", "gen": "des Tisches", "nomPl": "die Tische", "ackPl": "die Tische", "datPl": "den Tischen", "genPl": "der Tische"},
+    {"lemma": "Kugelschreiber", "gender": "der", "plural": "Kugelschreiber", "nom": "der Kugelschreiber", "ack": "den Kugelschreiber", "dat": "dem Kugelschreiber", "gen": "des Kugelschreibers", "nomPl": "die Kugelschreiber", "ackPl": "die Kugelschreiber", "datPl": "den Kugelschreibern", "genPl": "der Kugelschreiber"},
+    {"lemma": "Bleistift", "gender": "der", "plural": "Bleistifte", "nom": "der Bleistift", "ack": "den Bleistift", "dat": "dem Bleistift", "gen": "des Bleistifts", "nomPl": "die Bleistifte", "ackPl": "die Bleistifte", "datPl": "den Bleistiften", "genPl": "der Bleistifte"},
+    {"lemma": "Papier", "gender": "das", "plural": "Papier", "nom": "das Papier", "ack": "das Papier", "dat": "dem Papier", "gen": "des Papiers", "nomPl": "die Papiere", "ackPl": "die Papiere", "datPl": "den Papieren", "genPl": "der Papier"},
+    {"lemma": "Schere", "gender": "die", "plural": "Scheren", "nom": "die Schere", "ack": "die Schere", "dat": "der Schere", "gen": "der Schere", "nomPl": "die Scheren", "ackPl": "die Scheren", "datPl": "den Scheren", "genPl": "der Scheren"},
+    {"lemma": "Buch", "gender": "das", "plural": "Bücher", "nom": "das Buch", "ack": "das Buch", "dat": "dem Buch", "gen": "des Buches", "nomPl": "die Bücher", "ackPl": "die Bücher", "datPl": "den Büchern", "genPl": "der Bücher"},
+    {"lemma": "Blatt", "gender": "das", "plural": "Blätter", "nom": "das Blatt", "ack": "das Blatt", "dat": "dem Blatt", "gen": "des Blatts", "nomPl": "die Blätter", "ackPl": "die Blätter", "datPl": "den Blättern", "genPl": "der Blätter"},
+    {"lemma": "Seite", "gender": "die", "plural": "Seiten", "nom": "die Seite", "ack": "die Seite", "dat": "der Seite", "gen": "der Seite", "nomPl": "die Seiten", "ackPl": "die Seiten", "datPl": "den Seiten", "genPl": "der Seiten"},
+    {"lemma": "Kante", "gender": "die", "plural": "Kanten", "nom": "die Kante", "ack": "die Kante", "dat": "der Kante", "gen": "der Kante", "nomPl": "die Kanten", "ackPl": "die Kanten", "datPl": "den Kanten", "genPl": "der Kanten"},
+    {"lemma": "Fläche", "gender": "die", "plural": "Flächen", "nom": "die Fläche", "ack": "die Fläche", "dat": "der Fläche", "gen": "der Fläche", "nomPl": "die Flächen", "ackPl": "die Flächen", "datPl": "den Flächen", "genPl": "der Flächen"},
+    {"lemma": "Rand", "gender": "der", "plural": "Ränder", "nom": "der Rand", "ack": "den Rand", "dat": "dem Rand", "gen": "des Randes", "nomPl": "die Ränder", "ackPl": "die Ränder", "datPl": "den Rändern", "genPl": "der Ränder"},
+    {"lemma": "Ende", "gender": "das", "plural": "Enden", "nom": "das Ende", "ack": "das Ende", "dat": "dem Ende", "gen": "des Endes", "nomPl": "die Enden", "ackPl": "die Enden", "datPl": "den Enden", "genPl": "der Enden"},
+    {"lemma": "Anfang", "gender": "der", "plural": "Anfänge", "nom": "der Anfang", "ack": "den Anfang", "dat": "dem Anfang", "gen": "des Anfangs", "nomPl": "die Anfänge", "ackPl": "die Anfänge", "datPl": "den Anfängen", "genPl": "der Anfänge"},
+    {"lemma": "Büro", "gender": "das", "plural": "Büros", "nom": "das Büro", "ack": "das Büro", "dat": "dem Büro", "gen": "des Büros", "nomPl": "die Büros", "ackPl": "die Büros", "datPl": "den Büros", "genPl": "der Büros"},
+    {"lemma": "Küche", "gender": "die", "plural": "Küchen", "nom": "die Küche", "ack": "die Küche", "dat": "der Küche", "gen": "der Küche", "nomPl": "die Küchen", "ackPl": "die Küchen", "datPl": "den Küchen", "genPl": "der Küchen"},
+    {"lemma": "Auto", "gender": "das", "plural": "Autos", "nom": "das Auto", "ack": "das Auto", "dat": "dem Auto", "gen": "des Autos", "nomPl": "die Autos", "ackPl": "die Autos", "datPl": "den Autos", "genPl": "der Autos"},
+    {"lemma": "Velo", "gender": "das", "plural": "Velos", "nom": "das Velo", "ack": "das Velo", "dat": "dem Velo", "gen": "des Velos", "nomPl": "die Velos", "ackPl": "die Velos", "datPl": "den Velos", "genPl": "der Velos"},
+    {"lemma": "Schweiz", "gender": "die", "plural": "Schweizerland", "nom": "die Schweiz", "ack": "die Schweiz", "dat": "der Schweiz", "gen": "der Schweiz", "nomPl": "die Schweizerland", "ackPl": "die Schweizerland", "datPl": "den Schweizern", "genPl": "der Schweiz"}
+  ],
+
+  "SB_VERBS": [
+    {"inf": "prüfen", "pres": {"ich": "prüfe", "du": "prüfst", "er": "prüft", "sie": "prüft", "wir": "prüfen", "ihr": "prüft", "sie_pl": "prüfen"}, "participle": "geprüft", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "bestellen", "pres": {"ich": "bestelle", "du": "bestellst", "er": "bestellt", "sie": "bestellt", "wir": "bestellen", "ihr": "bestellt", "sie_pl": "bestellen"}, "participle": "bestellt", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "verschicken", "pres": {"ich": "verschicke", "du": "verschickst", "er": "verschickt", "sie": "verschickt", "wir": "verschicken", "ihr": "verschickt", "sie_pl": "verschicken"}, "participle": "verschickt", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "lesen", "pres": {"ich": "lese", "du": "liest", "er": "liest", "sie": "liest", "wir": "lesen", "ihr": "lesen", "sie_pl": "lesen"}, "participle": "gelesen", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "kontrollieren", "pres": {"ich": "kontoliere", "du": "kontrollierst", "er": "kontrolliert", "sie": "kontoliert", "wir": "kontrollieren", "ihr": "kontrolliert", "sie_pl": "kontrollieren"}, "participle": "kontrolliert", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "schreiben", "pres": {"ich": "schreibe", "du": "schreibst", "er": "schreibt", "sie": "schreibt", "wir": "schreiben", "ihr": "schreibt", "sie_pl": "schreiben"}, "participle": "geschrieben", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "kaufen", "pres": {"ich": "kaufe", "du": "kaufst", "er": "kauft", "sie": "kauft", "wir": "kaufen", "ihr": "kauft", "sie_pl": "kaufen"}, "participle": "gekauft", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "gehen", "pres": {"ich": "gehe", "du": "gehst", "er": "geht", "sie": "geht", "wir": "gehen", "ihr": "geht", "sie_pl": "gehen"}, "participle": "gegangen", "aux": "sein", "separable": false, "valency": "dat"},
+    {"inf": "kommen", "pres": {"ich": "komme", "du": "kommst", "er": "kommt", "sie": "kommt", "wir": "kommen", "ihr": "kommt", "sie_pl": "kommen"}, "participle": "gekommen", "aux": "sein", "separable": false, "valency": "dat"},
+    {"inf": "fahren", "pres": {"ich": "fahre", "du": "fährst", "er": "fährt", "sie": "fährt", "wir": "fahren", "ihr": "fahren", "sie_pl": "fahren"}, "participle": "gefahren", "aux": "sein", "separable": false, "valency": "dat"},
+    {"inf": "sprechen", "pres": {"ich": "spreche", "du": "sprichst", "er": "spricht", "sie": "spricht", "wir": "sprechen", "ihr": "sprecht", "sie_pl": "sprechen"}, "participle": "gesprochen", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "machen", "pres": {"ich": "mache", "du": "machst", "er": "macht", "sie": "macht", "wir": "machen", "ihr": "macht", "sie_pl": "machen"}, "participle": "gemacht", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "treffen", "pres": {"ich": "treffe", "du": "triffst", "er": "trifft", "sie": "trifft", "wir": "treffen", "ihr": "trefft", "sie_pl": "treffen"}, "participle": "getroffen", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "liegen", "pres": {"ich": "liege", "du": "liegst", "er": "liegt", "sie": "liegt", "wir": "liegen", "ihr": "liegen", "sie_pl": "liegen"}, "participle": "gelegen", "aux": "haben", "separable": false, "valency": "dat"},
+    {"inf": "rufen", "pres": {"ich": "rufe", "du": "rührst", "er": "ruft", "sie": "ruft", "wir": "rufen", "ihr": "ruft", "sie_pl": "rufen"}, "participle": "gerufen", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "anrufen", "pres": {"ich": "rufe", "du": "rührst", "er": "ruft", "sie": "ruft", "wir": "rufen", "ihr": "ruft", "sie_pl": "rufen"}, "participle": "angerufen", "aux": "haben", "separable": true, "valency": "ack"},
+    {"inf": "abgeben", "pres": {"ich": "gebe", "du": "gibst", "er": "gibt", "sie": "gibt", "wir": "geben", "ihr": "gebt", "sie_pl": "geben"}, "participle": "abgegeben", "aux": "haben", "separable": true, "valency": "ack"},
+    {"inf": "einsehen", "pres": {"ich": "sehe", "du": "siehst", "er": "sieht", "sie": "sieht", "wir": "sehen", "ihr": "seht", "sie_pl": "sehen"}, "participle": "eingesehen", "aux": "haben", "separable": true, "valency": "ack"},
+    {"inf": "umstellen", "pres": {"ich": "stelle", "du": "stellst", "er": "stellt", "sie": "stellt", "wir": "stellen", "ihr": "stellt", "sie_pl": "stellen"}, "participle": "umgestellt", "aux": "haben", "separable": true, "valency": "ack"},
+    {"inf": "beginnen", "pres": {"ich": "beginne", "du": "beginnst", "er": "beginnt", "sie": "beginnt", "wir": "beginnen", "ihr": "beginnt", "sie_pl": "beginnen"}, "participle": "begonnen", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "versuchen", "pres": {"ich": "versuche", "du": "versuchst", "er": "versucht", "sie": "versucht", "wir": "versuchen", "ihr": "versucht", "sie_pl": "versuchen"}, "participle": "versucht", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "vergessen", "pres": {"ich": "vergess", "du": "vergisst", "er": "vergisst", "sie": "vergessen", "wir": "vergessen", "ihr": "vergessen", "sie_pl": "vergessen"}, "participle": "vergessen", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "warten", "pres": {"ich": "warte", "du": "wartest", "er": "wartet", "sie": "wartet", "wir": "warten", "ihr": "wartet", "sie_pl": "warten"}, "participle": "geachtet", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "bezahlen", "pres": {"ich": "bezahle", "du": "bezahlst", "er": "bezahlt", "sie": "bezahlt", "wir": "bezahlen", "ihr": "bezahlt", "sie_pl": "bezahlen"}, "participle": "bezahlt", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "sehen", "pres": {"ich": "sehe", "du": "siehst", "er": "sieht", "sie": "sieht", "wir": "sehen", "ihr": "seht", "sie_pl": "sehen"}, "participle": "gesehen", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "spielen", "pres": {"ich": "spiele", "du": "spielst", "er": "spielt", "sie": "spielt", "wir": "spielen", "ihr": "spielt", "sie_pl": "spielen"}, "participle": "gespielt", "aux": "haben", "separable": false, "valency": "dat"},
+    {"inf": "liefern", "pres": {"ich": "liefere", "du": "lieferst", "er": "liefert", "sie": "liefert", "wir": "liefern", "ihr": "liefert", "sie_pl": "liefern"}, "participle": "geliefert", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "kommen", "pres": {"ich": "komme", "du": "kommst", "er": "kommt", "sie": "kommt", "wir": "kommen", "ihr": "kommt", "sie_pl": "kommen"}, "participle": "gekommen", "aux": "sein", "separable": false, "valency": "dat"},
+    {"inf": "holen", "pres": {"ich": "hole", "du": "holst", "er": "holt", "sie": "holt", "wir": "holen", "ihr": "holt", "sie_pl": "holen"}, "participle": "geholt", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "packen", "pres": {"ich": "packe", "du": "packst", "er": "packt", "sie": "packt", "wir": "packen", "ihr": "packt", "sie_pl": "packen"}, "participle": "gepackt", "aux": "haben", "separable": false, "valency": "ack"},
+    {"inf": "bringen", "pres": {"ich": "bringe", "du": "bringst", "er": "bringt", "sie": "bringt", "wir": "bringen", "ihr": "bringt", "sie_pl": "bringen"}, "participle": "gebracht", "aux": "haben", "separable": false, "valency": "ack"}
+  ],
+
+  "SB_MODAL_VERBS": [
+    {"inf": "können", "pres": {"ich": "kann", "du": "kannst", "er": "kann", "sie": "kann", "wir": "können", "ihr": "könnt", "sie_pl": "können"}, "participle": "gekonnt", "aux": "haben", "valency": "inf"},
+    {"inf": "müssen", "pres": {"ich": "muss", "du": "musst", "er": "muss", "sie": "muss", "wir": "müssen", "ihr": "müsst", "sie_pl": "müssen"}, "participle": "gemusst", "aux": "haben", "valency": "inf"},
+    {"inf": "wollen", "pres": {"ich": "will", "du": "willst", "er": "will", "sie": "will", "wir": "wollen", "ihr": "wollt", "sie_pl": "wollen"}, "participle": "gewollt", "aux": "haben", "valency": "inf"},
+    {"inf": "sollen", "pres": {"ich": "soll", "du": "sollst", "er": "soll", "sie": "soll", "wir": "sollen", "ihr": "sollt", "sie_pl": "sollen"}, "participle": "gesollt", "aux": "haben", "valency": "inf"},
+    {"inf": "dürfen", "pres": {"ich": "darf", "du": "darfst", "er": "darf", "sie": "darf", "wir": "dürfen", "ihr": "dürft", "sie_pl": "dürfen"}, "participle": "gedurft", "aux": "haben", "valency": "inf"}
+  ],
+
+  "SB_PRONOUNS_REFL": [
+    {"pronoun": "mich", "case": "ack", "subject": "ich"},
+    {"pronoun": "dich", "case": "ack", "subject": "du"},
+    {"pronoun": "sich", "case": "ack", "subject": "er"},
+    {"pronoun": "uns", "case": "ack", "subject": "wir"},
+    {"pronoun": "euch", "case": "ack", "subject": "ihr"},
+    {"pronoun": "sich", "case": "ack", "subject": "sie"}
+  ],
+
+  "SB_TIME_ADVERBIALS": ["heute", "morgen", "gestern", "nächste Woche", "heute Morgen", "um acht Uhr"],
+  "SB_PLACE_ADVERBIALS": ["ins Büro", "nach Bern", "nach Zürich", "in die Schweiz", "zur Party", "zur Arbeit"],
+  "SB_MANNER_ADVERBIALS": ["schnell", "langsam", "vorsichtig", "richtig", "ordentlich"],
+  "SB_SENTENCE_STARTERS": ["Ich", "Du", "Er", "Wir", "Ihr", "Sie"],
+  "SB_SENTENCE_PARTS": ["prüft", "bestellt", "liest", "kommt", "fährt", "wird", "hat", "ist", "wird"],
+  "SB_CONNECTORS_REASON": ["weil", "da", "denn"],
+  "SB_CONNECTORS_CONSEQUENCE": ["deshalb", "darum", "folglich"],
+  "SB_CONNECTORS_CONTRAST": ["trotzdem", "dennoch", "allerdings"],
+  "SB_COMPARISONS": [
+    {"word": "schnell", "comp": "schneller", "sup": "schnellsten"},
+    {"word": "groß", "comp": "größer", "sup": "größten"},
+    {"word": "billig", "comp": "billiger", "sup": "billigsten"},
+    {"word": "teuer", "comp": "teurer", "sup": "teuersten"},
+    {"word": "gut", "comp": "besser", "sup": "besten"},
+    {"word": "viel", "comp": "mehr", "sup": "meisten"},
+    {"word": "schlecht", "comp": "schlechter", "sup": "schlechtesten"},
+    {"word": "leicht", "comp": "leichter", "sup": "leichtesten"}
+  ],
+  "SB_SUPERLATIVE_FORMS": ["am schnellsten", "am größten", "am billigsten", "am teuersten", "am besten", "am meisten", "am schlechtesten", "am leichtesten"],
+  "SB_ADJECTIVES_STRONG": [
+    {"word": "schnell", "forms": {"m": "schnell", "f": "schnelle", "n": "schnell", "pl": "schnelle"}},
+    {"word": "groß", "forms": {"m": "groß", "f": "große", "n": "groß", "pl": "große"}},
+    {"word": "neu", "forms": {"m": "neu", "f": "neue", "n": "neu", "pl": "neue"}},
+    {"word": "alt", "forms": {"m": "alt", "f": "alte", "n": "alt", "pl": "alte"}},
+    {"word": "klein", "forms": {"m": "klein", "f": "kleine", "n": "klein", "pl": "kleine"}},
+    {"word": "gut", "forms": {"m": "gut", "f": "gute", "n": "gut", "pl": "gute"}},
+    {"word": "teuer", "forms": {"m": "teuer", "f": "teure", "n": "teuer", "pl": "teure"}},
+    {"word": "schlecht", "forms": {"m": "schlecht", "f": "schlechte", "n": "schlecht", "pl": "schlechte"}}
+  ],
+  "SB_INDEFINITE_ARTICLE_FORMS": {
+    "m_nom": "ein", "m_ack": "einen", "m_dat": "einem",
+    "f_nom": "eine", "f_ack": "eine", "f_dat": "einer",
+    "n_nom": "ein", "n_ack": "ein", "n_dat": "einem",
+    "pl_nom": "keine", "pl_ack": "keine", "pl_dat": "keinen"
+  },
+  "SB_DEF_ARTICLE_FORMS": {
+    "m_nom": "der", "m_ack": "den", "m_dat": "dem", "m_gen": "des",
+    "f_nom": "die", "f_ack": "die", "f_dat": "der", "f_gen": "der",
+    "n_nom": "das", "n_ack": "das", "n_dat": "dem", "n_gen": "des",
+    "pl_nom": "die", "pl_ack": "die", "pl_dat": "den", "pl_gen": "der"
+  },
+  "SB_PAST_TENSES": [
+    {"word": "sein", "preterite": "war", "perf": "gewesen"},
+    {"word": "haben", "preterite": "hatten", "perf": "gehabt"},
+    {"word": "werden", "preterite": "wurden", "perf": "geworden"},
+    {"word": "können", "preterite": "konnten", "perf": "gekonnt"},
+    {"word": "müssen", "preterite": "mussten", "perf": "gemusst"},
+    {"word": "sollen", "preterite": "sollten", "perf": "gesollt"},
+    {"word": "dürfen", "preterite": "durften", "perf": "gedurft"},
+    {"word": "wollen", "preterite": "wollten", "perf": "gewollt"},
+    {"word": "mögen", "preterite": "mögen", "perf": "gemocht"},
+    {"word": "geben", "preterite": "gaben", "perf": "gegeben"}
+  ],
+  "_defect_watch": [
+    "two defensible answers — ensure exactly one computed from lexicon data",
+    "wrong answer key — answer derived from same row as prompt, never hardcoded",
+    "computed-then-discarded — any pick() result must reach the render or answer"
+  ]
+}
