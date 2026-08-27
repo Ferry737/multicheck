@@ -10,8 +10,13 @@ snap() {
   timeout 60 "$B" js "(()=>{const t=document.body.innerText.replace(/\s+/g,' ');
     const m=JSON.parse(localStorage.getItem('multicheck-coach-v3')||'{}');const s=m.subs||{};
     const mast=(k)=>s[k]?Math.round((s[k].mastery||0)*100):null;
-    return JSON.stringify({plan:(t.match(/Dein täglicher Plan.{0,120}/)||[''])[0].slice(0,120),
-      cards:(t.match(/·\s*\d+\s*·\s*(adaptive|spaced|speed|sim)/g)||[]).join(','),
+    // Capture the plan block NAMES (header is upper-case in the DOM), not just counts:
+    // the earlier version only read counts/modes and so could not show reordering.
+    const names=['Satzbau','Textverständnis','Textaufgaben','Kopfrechnen','Prozesslogik','Wortgruppen','Bilder','Symbole','Schilder','Sortierverfahren','Alltagswissen'];
+    const i=t.indexOf('· 2 ·'); const seg=i>=0?t.slice(Math.max(0,i-200),i+220):'';
+    const order=[]; const re=/(Satzbau|Textverständnis|Textaufgaben|Kopfrechnen[^·]*|Prozesslogik|Wortgruppen|Bilder[^·]*|Symbole[^·]*|Schilder[^·]*|Sortierverfahren|Praktisches Alltagswissen)\s*·\s*(\d+)\s*·\s*(adaptive|spaced|speed|mixed|maintenance)/g;
+    let mm; while((mm=re.exec(t))!==null){order.push(mm[1].trim()+':'+mm[3]);}
+    return JSON.stringify({planOrder:order,
       kopf:mast('kopfrechnen'),textauf:mast('textaufgaben'),satzbau:mast('satzbau'),
       hist:(m.history||[]).length});})()" 2>/dev/null | tail -1
 }
