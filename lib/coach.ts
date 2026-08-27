@@ -542,7 +542,31 @@ export function composeSession(m: CoachModel, totalMinutes = 22): SessionPlan {
 function distribute(blocks: SessionBlock[], subs: Subskill[], n: number, m: CoachModel, mode: SessionMode, why: string) {
   if (n <= 0 || subs.length === 0) return;
   const per = Math.max(2, Math.ceil(n / subs.length));
-  for (const s of subs.slice(0, Math.ceil(n / per))) {
+  // R7 DEFECT FIX: this used to iterate `subs` in fixed DRILL declaration order and
+  // then truncate, so only the FIRST few DRILL entries were ever scheduled. A learner
+  // failing kopfrechnen 32 times (mastery 0, difficulty floored at 10) never received
+  // it, because it sits later in DRILL — the plan looked identical for every learner.
+  //
+  // Ordering by mastery alone is NOT enough: a subskill with 32 recorded failures and
+  // one that was never attempted BOTH read mastery 0, so they are indistinguishable.
+  // PROVEN weakness must outrank UNKNOWN. Priority, highest first:
+  //   1. evidence of struggle: attempts > 0 with low mastery  (worst mastery first)
+  //   2. overdue review
+  //   3. never attempted (genuine unknown — still needs a baseline)
+  const need = (s: Subskill) => {
+    const st = m.subs[s.id];
+    const attempts = st?.attempts ?? 0;
+    const mastery = st?.mastery ?? 0;
+    const overdue = st?.nextReview ? Math.max(0, Date.now() - st.nextReview) : 0;
+    if (attempts > 0) {
+      // proven: -1 .. 0 band, weakest first
+      return -1 + mastery - Math.min(0.15, overdue / (14 * 86400000));
+    }
+    // unknown: 0 .. 1 band, ordered after every proven-weak subskill
+    return 0.5;
+  };
+  const ordered = [...subs].sort((a, b) => need(a) - need(b));
+  for (const s of ordered.slice(0, Math.ceil(n / per))) {
     const st = m.subs[s.id];
     // EVIDENCE GATE: speed=0 means "never timed", so a fresh student must not be
     // pushed into speed drills before an accuracy baseline exists.
