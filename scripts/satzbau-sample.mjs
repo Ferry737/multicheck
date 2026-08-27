@@ -4,7 +4,7 @@ import { GENERATORS } from "../lib/questions.ts";
 function h(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
 const si = Number(process.argv[2]);
 const n = Number(process.argv[3] || 30);
-const gen = GENERATORS.satzbau[si];
+const gen = GENERATORS[process.env.SUB||'satzbau'][si];
 const seen = new Set();
 let i = 0, shown = 0;
 while (shown < n && i < 20000) {

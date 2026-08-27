@@ -1920,15 +1920,26 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
         [s[1], "Weiterarbeiten und abwarten", "Die Person allein hochziehen", "Erst einen Kaffee holen"],
         "Notruf vor Selbsthilfe.", 2, 1, 3, "wrong-priority");
     }
-    case 1: { // immediate danger
+    case 1: { // immediate danger — each row is a DIFFERENT hazard + correct first action
       const s = pick(r, [
         ["Du siehst Rauch im Lager.", "Alarm auslösen und Bereich verlassen"],
         ["Es riecht nach Gas.", "Lüften, keine Zündquellen, melden"],
         ["Du hörst lautes Zischen an einer Druckleitung.", "Abstand halten und melden"],
+        ["Aus einem Gerät kommen Funken.", "Gerät spannungsfrei machen und melden"],
+        ["Eine Chemikalie ist auf den Boden ausgelaufen.", "Bereich absperren und Sicherheitsblatt beachten"],
+        ["Ein Kabel liegt blank im Durchgang.", "Stelle sichern und Elektriker informieren"],
+        ["Wasser läuft aus einer Leitung auf den Boden.", "Rutschgefahr markieren und Haupthahn melden"],
+        ["Ein Regal steht sichtbar schief und ist schwer beladen.", "Bereich sperren und niemanden darunter arbeiten lassen"],
+        ["Der Notausgang ist mit Paletten zugestellt.", "Weg sofort frei machen und melden"],
+        ["Eine Schutzabdeckung an der Maschine fehlt.", "Maschine nicht starten und melden"],
+        ["Es hängt Brandgeruch im Treppenhaus.", "Fluchtweg nutzen und Alarm auslösen"],
+        ["Ein Gabelstapler fährt mit unsicherer Last.", "Fahrer stoppen lassen und Abstand halten"],
+        ["Aus einem Fass tritt Dampf aus.", "Abstand halten, nicht einatmen, melden"],
+        ["Der Boden ist mit Öl verschmiert.", "Rutschstelle sichern und reinigen lassen"],
       ]);
       return aw("immediate-danger-action", s[0] + " Was tust du ZUERST?",
         [s[1], "weiterarbeiten", "Fenster schliessen und warten", "erst die Arbeit beenden"],
-        "Gefahr → Alarm + Abstand.", 1, 1, 2, "delay-action");
+        "Bei Gefahr gilt: sichern, Abstand halten, melden — nicht weiterarbeiten.", 1, 1, 2, "delay-action");
     }
     case 2: { // prohibition
       const s = pick(r, [
@@ -1941,25 +1952,45 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
         [s[1], "Die Brille tragen", "Pausen einhalten", "Hände waschen"],
         "Verbotsregeln kennen.", 1, 0, 2, "allowed-picked");
     }
-    case 3: { // reporting chain
+    case 3: { // reporting chain — who is the correct first point of contact?
       const s = pick(r, [
         ["Wen informierst du zuerst bei einem Datenleck?", "IT-Sicherheit"],
         ["Wohin meldest du einen Arbeitsunfall?", "Vorgesetzte/SUVA"],
         ["Wen rufst du bei Verdacht auf Unterschlagung?", "Vorgesetzte/Management"],
+        ["Wem meldest du einen defekten Not-Aus-Schalter?", "Vorgesetzte und Technik sofort"],
+        ["Wen informierst du bei einer falsch gelieferten Sendung?", "Einkauf bzw. Lieferant"],
+        ["Wem meldest du eine Beinahe-Unfall-Situation?", "Sicherheitsbeauftragte Person"],
+        ["Wen kontaktierst du bei einer Kundenreklamation?", "Kundendienst bzw. Vorgesetzte"],
+        ["Wem meldest du ein beschädigtes Sicherheitsschild?", "Vorgesetzte, damit es ersetzt wird"],
+        ["Wen informierst du, wenn du eine Frist nicht halten kannst?", "Vorgesetzte, frühzeitig"],
+        ["Wem meldest du fehlende Schutzausrüstung?", "Vorgesetzte vor Arbeitsbeginn"],
+        ["Wen informierst du bei einem Stromausfall in der Halle?", "Technik bzw. Hausdienst"],
+        ["Wem meldest du eine verdächtige E-Mail?", "IT-Sicherheit, ohne Anhang zu öffnen"],
+        ["Wen informierst du, wenn du krank zur Arbeit nicht kommst?", "Vorgesetzte am Morgen"],
       ]);
       return aw("reporting-chain", s[0],
         [s[1], "einen Kollegen", "niemanden", "erst die Familie"],
-        "Zuständige Stelle zuerst.", 1, 0, 2, "wrong-recipient");
+        "Immer die zuständige Stelle zuerst — nicht informell weitergeben.", 1, 0, 2, "wrong-recipient");
     }
-    case 4: { // PPE
+    case 4: { // PPE — which protective equipment is mandatory for this task?
       const s = pick(r, [
         ["Du betrittst die Werkstatt.", "Sicherheitsschuhe und Schutzbrille"],
         ["Du arbeitest mit Chemikalien.", "Handschuhe und Schutzbrille"],
         ["Du fährst Gabelstapler.", "Gurt anlegen und Schutzschuhe"],
+        ["Du schleifst ein Metallteil.", "Schutzbrille und Gehörschutz"],
+        ["Du arbeitest an einer lauten Maschine.", "Gehörschutz"],
+        ["Du hebst schwere Kisten.", "Sicherheitsschuhe und rückenschonende Technik"],
+        ["Du reinigst mit Reinigungsmittel.", "Schutzhandschuhe"],
+        ["Du arbeitest auf einer Leiter.", "festes Schuhwerk und gesicherte Leiter"],
+        ["Du schweisst ein Werkstück.", "Schweisserschirm und Schutzkleidung"],
+        ["Du hantierst mit heissem Material.", "hitzefeste Handschuhe"],
+        ["Du arbeitest im Aussenbereich im Verkehr.", "Warnweste"],
+        ["Du schneidest mit dem Cutter zu.", "Schnittschutzhandschuhe"],
+        ["Du arbeitest bei Staubentwicklung.", "Staubmaske und Schutzbrille"],
       ]);
-      return aw("personal-protective-equipment", s[0] + " Was gehört MANDATORILY dazu?",
-        [s[1], "Kopfhörer", "kurze Ärmel für Bewegungsfreiheit", "eine Uhr"],
-        "Schutzausrüstung nach Vorschrift.", 1, 0, 2, "comfort-first");
+      return aw("personal-protective-equipment", s[0] + " Was ist dabei VORGESCHRIEBEN?",
+        [s[1], "Kopfhörer mit Musik", "kurze Ärmel für Bewegungsfreiheit", "eine Uhr"],
+        "Schutzausrüstung richtet sich nach der Gefährdung der Tätigkeit, nicht nach Bequemlichkeit.", 1, 0, 2, "comfort-first");
     }
     case 5: { // food hygiene
       const s = pick(r, [
@@ -2019,16 +2050,27 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
         [s[1], "in den Kehricht", "in das Aluglas-Recycling", "in die Biotonne"],
         "Abfalltrennung korrekt zuordnen.", 1, 0, 2, "wrong-stream");
     }
-    case 11: { // evacuation
+    case 11: { // evacuation — distinct alarm situations, each with one correct route rule
+      // ("evacuieren" was a spelling defect found in the 30-sample read -> "evakuieren")
       const s = pick(r, [
         ["Der Feueralarm ertönt.", "markierter Fluchtweg, Lift NICHT benutzen"],
-        ["Es gibt Brandgeruch im Stockwerk.", "über Treppe evacuieren"],
+        ["Es gibt Brandgeruch im Stockwerk.", "über die Treppe evakuieren"],
+        ["Der nächste Fluchtweg ist verraucht.", "zweiten markierten Fluchtweg nehmen"],
+        ["Die Fluchttür ist blockiert.", "Alternativweg nutzen und Blockade melden"],
+        ["Du bist mit einem Besucher im Gebäude.", "Besucher mitnehmen und zum Sammelplatz führen"],
+        ["Du hörst den Alarm im Untergeschoss.", "nach oben ins Freie über die Treppe"],
+        ["Nach dem Verlassen fehlt eine Kollegin.", "am Sammelplatz melden, nicht zurückgehen"],
+        ["Der Alarm geht während einer Maschinenarbeit los.", "Maschine sicher stoppen, dann Fluchtweg"],
+        ["Du bist im Lift, als der Alarm ertönt.", "im nächsten Stock aussteigen und Treppe nehmen"],
+        ["Du willst noch die Jacke aus dem Büro holen.", "nichts holen, sofort hinausgehen"],
+        ["Rauch zieht dem Boden entlang.", "tief halten und zügig zum Ausgang"],
+        ["Am Sammelplatz willst du wieder ins Haus.", "erst nach Freigabe der Einsatzkräfte"],
       ]);
       return aw("fire-evacuation-route", s[0] + " Welcher Weg ist richtig?",
-        [s[1], "schnell mit dem Lift nach unten", "im Büro warten", "zum Fenster hinaus"],
-        "Fluchtwegregeln: Treppe statt Lift.", 1, 1, 2, "lift-used");
+        [s[1], "mit dem Lift nach unten", "im Raum bleiben und warten", "durch das Fenster klettern"],
+        "Markierter Fluchtweg, kein Lift, zum Sammelplatz — und nichts zurückholen.", 1, 1, 2, "elevator-in-fire");
     }
-    case 12: { // first aid
+    case 12: { // first aid minor cut
       const s = pick(r, [
         ["Du schneidest dir leicht in den Finger.", "Wunde reinigen und verbinden"],
         ["Du verbrennst dich an heissem Wasser.", "kühlen und abdecken"],
@@ -2038,14 +2080,24 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
         [s[1], "weiterarbeiten ohne Verbindung", "Hand in heisses Wasser halten", "draufhauen"],
         "Standard-Erste-Hilfe.", 1, 0, 2, "neglect");
     }
-    case 13: { // stranger at door
+    case 13: { // access control / social engineering — each row a distinct pressure tactic
       const s = pick(r, [
         ["Eine unbekannte Person bittet um Einlass ins Lager „nur kurz schauen“.", "höflich ablehnen und Vorgesetzte informieren"],
-        ["Jemand gibt sich am Telefon als IT-Support aus und will Passwort.", "ablehnen, echte IT selbst anrufen"],
+        ["Jemand gibt sich am Telefon als IT-Support aus und will das Passwort.", "ablehnen, echte IT selbst anrufen"],
+        ["Ein Fremder folgt dir dicht durch die Badge-Tür.", "Tür nicht offen halten und Empfang informieren"],
+        ["Eine Person ohne Badge sagt, sie sei neu und habe ihn vergessen.", "zum Empfang begleiten statt selbst hineinlassen"],
+        ["Am Telefon fordert jemand dringend Kundendaten per Mail.", "keine Daten senden, Rückruf über offizielle Nummer"],
+        ["Ein „Techniker“ ohne Termin will in den Serverraum.", "Auftrag prüfen lassen, Zutritt verweigern"],
+        ["Du findest einen fremden USB-Stick im Eingang.", "nicht einstecken, bei der IT abgeben"],
+        ["Eine Mail bittet um sofortige Zahlung mit geänderter Kontonummer.", "Zahlung stoppen und telefonisch verifizieren"],
+        ["Jemand fotografiert im Lager ohne Erlaubnis.", "ansprechen und Vorgesetzte informieren"],
+        ["Ein Anrufer verlangt unter Zeitdruck deine Zugangsdaten.", "Zugangsdaten nie weitergeben, Vorfall melden"],
+        ["Eine Person will ein Paket ohne Abgabeschein mitnehmen.", "Herausgabe verweigern und Beleg verlangen"],
+        ["Ein Besucher läuft unbegleitet in die Werkstatt.", "begleiten und Besucherregel durchsetzen"],
       ]);
       return aw("stranger-at-door", s[0] + " Richtig:",
         [s[1], "mitnehmen, ist ja nur kurz", "allein durch das Lager laufen lassen", "das Passwort geben"],
-        "Zutrittskontrolle beachten.", 1, 1, 2, "compliance-pressure");
+        "Zutrittskontrolle und Rückfrage über offizielle Wege — Zeitdruck ist kein Grund für Ausnahmen.", 1, 1, 2, "compliance-pressure");
     }
     case 14: { // password hygiene
       const s = pick(r, [

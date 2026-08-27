@@ -2,7 +2,7 @@
 // Capacity = distinct (prompt|sorted-options|answer) triples over N seeds at fixed si.
 import { GENERATORS } from "../lib/questions.ts";
 
-const FLOOR = 13;
+const FLOOR = Number(process.env.FLOOR || 13);
 const SEEDS = Number(process.argv[3] || 4000);
 const sub = process.argv[2] || "satzbau";
 
