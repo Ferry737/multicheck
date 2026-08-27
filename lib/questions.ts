@@ -1915,6 +1915,15 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
         ["Jemand liegt mit Kopfverletzung am Boden.", "Erst Hilfe rufen, dann Stillhalten"],
         ["Eine Person verschluckt sich und wird blau.", "Sofort Heimlich-Griff, parallel Hilfe rufen"],
         ["Im Büro bricht jemand mit Brustschmerz zusammen.", "Notruf 144, ruhig lassen, nicht allein lassen"],
+        ["Ein Kollege hat sich stark an der Hand geschnitten und blutet.", "Blutung stillen, dann Hilfe holen"],
+        ["Jemand ist von der Leiter gestürzt und klagt über Rückenschmerz.", "Nicht bewegen, Notruf 144"],
+        ["Eine Person hat eine Chemikalie ins Auge bekommen.", "Auge lange mit Wasser spülen, dann Notruf"],
+        ["Ein Kollege bekommt einen Stromschlag und liegt am Boden.", "Strom abschalten, erst dann helfen"],
+        ["Jemand hat sich schwer verbrannt.", "Kühlen, nicht öffnen, Notruf 144"],
+        ["Eine Person wirkt verwirrt und spricht undeutlich.", "Notruf 144, Verdacht auf Schlaganfall"],
+        ["Ein Kollege klemmt sich die Hand in einer Maschine ein.", "Maschine sofort stoppen, dann Hilfe rufen"],
+        ["Jemand hat sich an einer Nadel gestochen.", "Wunde spülen und sofort melden"],
+        ["Eine Person atmet schwer und bekommt Panik.", "Ruhig ansprechen, aufrecht setzen, Notruf"],
       ]);
       return aw("priority-sequence-emergency", s[0] + " Was ZUERST?",
         [s[1], "Weiterarbeiten und abwarten", "Die Person allein hochziehen", "Erst einen Kaffee holen"],
@@ -1941,16 +1950,25 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
         [s[1], "weiterarbeiten", "Fenster schliessen und warten", "erst die Arbeit beenden"],
         "Bei Gefahr gilt: sichern, Abstand halten, melden — nicht weiterarbeiten.", 1, 1, 2, "delay-action");
     }
-    case 2: { // prohibition
+    case 2: { // prohibition — identify the forbidden action in a given context
       const s = pick(r, [
         ["Was ist am Arbeitsplatz verboten?", "Mit unbekanntem USB-Stick den PC nutzen"],
         ["Was darfst du NICHT tun, wenn die Brandmeldeanlage läutet?", "Den Aufzug benutzen"],
         ["Was ist im Labor verboten?", "Essen und Trinken"],
         ["Was gilt im Lager als verboten?", "Rauchen bei Lagergut"],
+        ["Was ist beim Gabelstapler verboten?", "Personen auf der Gabel mitfahren lassen"],
+        ["Was darfst du an einer laufenden Maschine NICHT tun?", "Schutzabdeckung entfernen"],
+        ["Was ist mit dem Notausgang verboten?", "Ihn mit Material zustellen"],
+        ["Was darfst du mit Firmendaten NICHT tun?", "Sie privat weiterleiten"],
+        ["Was ist beim Umgang mit Chemikalien verboten?", "Sie in unbeschriftete Flaschen umfüllen"],
+        ["Was darfst du bei einem Arbeitsunfall NICHT tun?", "Ihn nicht melden"],
+        ["Was ist auf der Leiter verboten?", "Auf die oberste Sprosse steigen"],
+        ["Was darfst du mit einem defekten Werkzeug NICHT tun?", "Es trotzdem weiterverwenden"],
+        ["Was ist beim Passwort verboten?", "Es an Kollegen weitergeben"],
       ]);
       return aw("identify-prohibition", s[0],
-        [s[1], "Die Brille tragen", "Pausen einhalten", "Hände waschen"],
-        "Verbotsregeln kennen.", 1, 0, 2, "allowed-picked");
+        [s[1], "Die Schutzbrille tragen", "Pausen einhalten", "Hände waschen"],
+        "Verbote schützen vor Gefahr — die erlaubten Handlungen sind die sicheren.", 1, 0, 2, "allowed-picked");
     }
     case 3: { // reporting chain — who is the correct first point of contact?
       const s = pick(r, [
@@ -1992,8 +2010,18 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
         [s[1], "Kopfhörer mit Musik", "kurze Ärmel für Bewegungsfreiheit", "eine Uhr"],
         "Schutzausrüstung richtet sich nach der Gefährdung der Tätigkeit, nicht nach Bequemlichkeit.", 1, 0, 2, "comfort-first");
     }
-    case 5: { // food hygiene
+    case 5: { // hygiene when handling food — one correct hygienic action per case
       const s = pick(r, [
+        ["Du beginnst mit der Lebensmittelarbeit.", "Hände waschen und desinfizieren"],
+        ["Du wechselst von rohem Fleisch zu Salat.", "Brett und Messer vorher wechseln"],
+        ["Ein Lebensmittel ist über dem Datum.", "Nicht verwenden und entsorgen"],
+        ["Die Kühlkette war zu lange unterbrochen.", "Ware nicht mehr verwenden"],
+        ["Du hast eine Wunde am Finger.", "Wasserfestes Pflaster und Handschuh"],
+        ["Du bist erkältet und arbeitest mit Essen.", "Vorgesetzte informieren, Hygieneregeln beachten"],
+        ["Der Arbeitstisch war mit rohem Ei in Kontakt.", "Fläche reinigen und desinfizieren"],
+        ["Du trägst Schmuck an den Händen.", "Schmuck vor der Arbeit ablegen"],
+        ["Ein Produkt riecht ungewöhnlich.", "Nicht verwenden und melden"],
+        ["Du hast eben den Abfall angefasst.", "Hände waschen vor der Weiterarbeit"],
         ["In der Küche fällt rohes Hühnfleisch auf den Boden.", "entsorgen — nicht weiterverarbeiten"],
         ["Rohmilch riecht sauer.", "nicht verwenden, wegkippen"],
         ["Brot liegt seit gestern offen herum.", "prüfen, bei Zweifel wegwerfen"],
@@ -2005,8 +2033,17 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
     case 6: { // public transport etiquette
       const s = pick(r, [
         ["In einem vollen Zug steht eine schwangere Frau.", "Platz anbieten"],
-        ["Im Bus sitzt ein gebrechlicher Senior.", "Platz anbieten"],
-        ["Jemand mit Krücken steht im Waggon.", "Platz machen"],
+        ["Du willst im Zug ein längeres Telefonat führen.", "Leise sprechen oder Bereich wechseln"],
+        ["Dein Rucksack blockiert den Gang.", "Rucksack abnehmen und eng halten"],
+        ["Die Türen schliessen gerade.", "Warten, nicht dazwischen greifen"],
+        ["Du möchtest im Bus Musik hören.", "Kopfhörer benutzen"],
+        ["Beim Halt drängen Leute herein, du willst aussteigen.", "Erst aussteigen lassen"],
+        ["Du merkst, dass du kein gültiges Ticket hast.", "Beim Kontrollpersonal selbst melden"],
+        ["Ein Kinderwagen braucht Platz an der Tür.", "Platz machen und helfen"],
+        ["Dein Gepäck liegt auf einem Sitz und Leute stehen.", "Gepäck wegnehmen, Platz freigeben"],
+        ["Du hast starken Husten im vollen Wagen.", "Abstand halten und in den Ellbogen husten"],
+        ["Du sitzt auf dem Behindertenplatz, jemand braucht ihn.", "Platz sofort freigeben"],
+        ["Du willst aussteigen, der Gang ist blockiert.", "Freundlich um Durchlass bitten"],
       ]);
       return aw("public-transport-etiquette", s[0] + " Was ist angemessen?",
         [s[1], "wegschauen", "laut telefonieren", "sich weiter in die Ecke drücken"],
@@ -2014,11 +2051,20 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
     }
     case 7: { // formal writing
       const s = pick(r, [
-        ["Du schreibst zum ersten Mal an einen offiziellen Behördenkontakt.", "Sehr geehrte Damen und Herren"],
-        ["Du mailst eine Rechnung an einen Kunden.", "Guten Tag / Sehr geehrte Damen und Herren"],
-        ["Du schreibst deinem Chef.", "Guten Morgen / Hallo"],
+        ["Du schreibst an einen unbekannten Behördenkontakt.", "Sehr geehrte Damen und Herren"],
+        ["Du kennst den Namen der Empfängerin.", "Sehr geehrte Frau Meier"],
+        ["Du beendest eine formelle Mail.", "Freundliche Grüsse"],
+        ["Du hängst ein Dokument an.", "Im Text auf den Anhang hinweisen"],
+        ["Die Mail betrifft eine Reklamation.", "Sachlich bleiben und Fakten nennen"],
+        ["Du brauchst eine Antwort bis Freitag.", "Frist höflich und klar nennen"],
+        ["Der Betreff fehlt noch.", "Kurzen, konkreten Betreff setzen"],
+        ["Du schreibst an mehrere externe Firmen gleichzeitig.", "Adressen ins BCC setzen"],
+        ["Du hast einen Fehler in der gesendeten Mail entdeckt.", "Kurze Korrektur-Mail nachsenden"],
+        ["Du antwortest auf eine lange Mail-Kette.", "Nur nötige Empfänger behalten"],
+        ["Die Mail enthält vertrauliche Kundendaten.", "Verschlüsselt senden oder Link mit Zugriff"],
+        ["Du bist im Urlaub nicht erreichbar.", "Abwesenheitsnotiz mit Vertretung setzen"],
       ]);
-      return aw("mail-formal-writing", s[0] + " Wie beginnst du?",
+      return aw("mail-formal-writing", s[0] + " Was ist richtig?",
         [s[1], "Hey!", "Na, wie geht's?", "Was geht?"],
         "Formelle Anrede wählen.", 1, 0, 2, "informal-register");
     }
@@ -2033,7 +2079,17 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
     case 9: { // rescheduling
       const s = pick(r, [
         ["Du kannst deinen Termin nicht wahrnehmen.", "frühzeitig absagen und neuen Termin vereinbaren"],
-        ["Du bist krank zur Prüfung angemeldet.", "rechtzeitig abmelden und verschieben"],
+        ["Du bist krank und zur Prüfung angemeldet.", "rechtzeitig abmelden und verschieben"],
+        ["Du merkst am Morgen, dass du 30 Minuten zu spät kommst.", "sofort anrufen und Bescheid geben"],
+        ["Zwei Termine überschneiden sich.", "einen Termin frühzeitig verschieben"],
+        ["Der Zug fällt aus und du verpasst den Termin.", "unterwegs anrufen und informieren"],
+        ["Du brauchst Unterlagen, die noch fehlen.", "Termin verschieben und Unterlagen nachreichen"],
+        ["Der Kunde sagt kurzfristig ab.", "neuen Termin anbieten und notieren"],
+        ["Du hast den Termin schlicht vergessen.", "sofort melden, entschuldigen, neu vereinbaren"],
+        ["Ein wichtigerer Notfall kommt dazwischen.", "Termin absagen und Grund nennen"],
+        ["Du willst den Termin nur um eine Stunde schieben.", "früh anfragen, ob es möglich ist"],
+        ["Die Einladung nennt keinen Ort.", "vor dem Termin nachfragen"],
+        ["Du bist unsicher, ob der Termin noch gilt.", "kurz vorher bestätigen lassen"],
       ]);
       return aw("appointment-rescheduling", s[0] + " Was macht man ZUERST?",
         [s[1], "einfach nicht erscheinen", "erst am Tag danach Bescheid geben", "jemand anders schicken"],
@@ -2044,7 +2100,17 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
         ["Wohin gehört eine leere PET-Flasche?", "in die PET-Sammelstelle"],
         ["Wohin gehört eine Glasflasche?", "in den Glascontainer"],
         ["Wohin gehört eine alte Zeitung?", "ins Altpapier"],
-        ["Wohin gehört ein Altbatterie?", "zur Sammelstelle/Batteriebox"],
+        ["Wohin gehört eine Altbatterie?", "zur Sammelstelle/Batteriebox"],
+        ["Wohin gehört ein defektes Elektrogerät?", "zur Elektro-Rücknahmestelle"],
+        ["Wohin gehört ein Kartonstapel?", "ins Kartonsammeln"],
+        ["Wohin gehört eine Alu-Dose?", "in die Alu-Sammlung"],
+        ["Wohin gehört eine leere Farbdose mit Resten?", "zur Sondermüll-Sammelstelle"],
+        ["Wohin gehören Rüstabfälle aus der Küche?", "in die Biosammlung"],
+        ["Wohin gehört eine kaputte Leuchtstoffröhre?", "zur Sonderentsorgung"],
+        ["Wohin gehört ein benutztes Papiertaschentuch?", "in den Kehricht"],
+        ["Wohin gehört Altöl aus der Werkstatt?", "in den Altöl-Behälter"],
+        ["Wohin gehört eine Plastikfolie von der Palette?", "in die Folien-Sammlung"],
+        ["Wohin gehört ein leerer Toner-Cartridge?", "zur Rücknahme beim Lieferanten"],
       ]);
       return aw("waste-separation", s[0],
         [s[1], "in den Kehricht", "in das Aluglas-Recycling", "in die Biotonne"],
@@ -2070,8 +2136,18 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
         [s[1], "mit dem Lift nach unten", "im Raum bleiben und warten", "durch das Fenster klettern"],
         "Markierter Fluchtweg, kein Lift, zum Sammelplatz — und nichts zurückholen.", 1, 1, 2, "elevator-in-fire");
     }
-    case 12: { // first aid minor cut
+    case 12: { // first aid for minor injuries — one correct immediate measure
       const s = pick(r, [
+        ["Du schneidest dir leicht in den Finger.", "Wunde reinigen und verbinden"],
+        ["Ein Splitter steckt oberflächlich in der Haut.", "Mit desinfizierter Pinzette entfernen"],
+        ["Du hast eine Schürfwunde am Knie.", "Reinigen, desinfizieren, abdecken"],
+        ["Deine Nase blutet.", "Vorbeugen und Nasenflügel drücken"],
+        ["Du hast dir den Knöchel verstaucht.", "Kühlen und hochlagern"],
+        ["Etwas Staub ist ins Auge geraten.", "Mit klarem Wasser ausspülen"],
+        ["Du hast eine kleine Brandblase.", "Kühlen und nicht aufstechen"],
+        ["Eine Wunde ist stark verschmutzt.", "Spülen und Wundversorgung holen"],
+        ["Du hast dir den Finger geklemmt.", "Kühlen und Beweglichkeit prüfen"],
+        ["Ein Insektenstich schwillt leicht an.", "Kühlen und beobachten"],
         ["Du schneidest dir leicht in den Finger.", "Wunde reinigen und verbinden"],
         ["Du verbrennst dich an heissem Wasser.", "kühlen und abdecken"],
         ["Du stolperst und knickst um.", "kühlen und hochlagern"],
@@ -2099,8 +2175,18 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
         [s[1], "mitnehmen, ist ja nur kurz", "allein durch das Lager laufen lassen", "das Passwort geben"],
         "Zutrittskontrolle und Rückfrage über offizielle Wege — Zeitdruck ist kein Grund für Ausnahmen.", 1, 1, 2, "compliance-pressure");
     }
-    case 14: { // password hygiene
+    case 14: { // account and password hygiene — one correct secure practice
       const s = pick(r, [
+        ["Du brauchst ein neues Arbeitspasswort.", "Lang, einmalig, nicht wiederverwendet"],
+        ["Ein Kollege bittet um dein Passwort für eine Datei.", "Nicht weitergeben, Zugriff sauber freigeben"],
+        ["Du arbeitest kurz am gemeinsamen PC und gehst weg.", "Bildschirm sperren"],
+        ["Du willst dir viele Passwörter merken.", "Passwortmanager verwenden"],
+        ["Ein Dienst bietet Zwei-Faktor-Authentifizierung an.", "Aktivieren"],
+        ["Du hast dasselbe Passwort privat und geschäftlich.", "Unterschiedliche Passwörter verwenden"],
+        ["Du vermutest, dein Passwort ist bekannt geworden.", "Sofort ändern und IT melden"],
+        ["Du willst das Passwort notieren.", "Nicht offen notieren, Manager nutzen"],
+        ["Eine Mail verlangt Login über einen Link.", "Link nicht nutzen, Seite selbst aufrufen"],
+        ["Du richtest ein Konto für eine neue Kollegin ein.", "Eigenes Konto, kein geteiltes Login"],
         ["Wie gehst du mit deinem Arbeitspasswort um?", "niemandem verraten, auch nicht Kollegen"],
         ["Wie verwahrst du ein generiertes Passwort?", "in einem Passwort-Manager"],
         ["Was tust du nach Verdacht auf Leak?", "Passwort sofort ändern"],
@@ -2114,6 +2200,15 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
         ["Bei −5 °C und Schneefall arbeitest du draussen.", "gefütterte, wasserdichte Winterkleidung"],
         ["Bei 32 °C im Sommer arbeitest du draussen.", "helle, luftige Kleidung und Hut"],
         ["Bei Regen und Wind im Freien.", "wasserdichte Jacke und festes Schuhwerk"],
+        ["Bei Glatteis auf dem Arbeitsweg.", "Schuhe mit gutem Profil und mehr Zeit"],
+        ["Du arbeitest früh morgens im Dunkeln draussen.", "Warnweste und Licht"],
+        ["Bei Nebel auf dem Aussenplatz.", "gut sichtbare, helle Kleidung"],
+        ["Der Hallenboden ist nass.", "rutschfeste Schuhe"],
+        ["Bei Hitze und körperlicher Arbeit.", "regelmässig trinken und Pausen"],
+        ["Ein Gewitter zieht auf, du bist im Freien.", "Arbeit unterbrechen und Schutz suchen"],
+        ["Bei starkem Wind auf dem Gerüst.", "Arbeit einstellen und sichern"],
+        ["Bei starker Sonne am Mittag draussen.", "Sonnenschutz und Kopfbedeckung"],
+        ["Bei Dauerregen im Aussenlager.", "wasserdichte Kleidung und Ware abdecken"],
       ]);
       return aw("weather-appropriate-clothing", s[0] + " Was ziehst du an?",
         [s[1], "leichte Sommerhose", "normale Turnschuhe", "ein T-Shirt"],
