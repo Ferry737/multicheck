@@ -2401,6 +2401,36 @@ export function generate(subskillId: string, difficulty: number, seed = Date.now
   return q;
 }
 
+// Cross-call recent-item memory. generateBatch dedupes WITHIN one call, but a long
+// adaptive session issues many calls, so the same item could reappear in a later
+// batch — measured as 2 exact repeats per 120 served questions, which is exactly the
+// "it keeps asking the same thing" feeling. This bounded FIFO makes recent items
+// unavailable across calls too.
+//
+// CRITICAL: the window must scale to the pool. A fixed 60 starved the tiny pools
+// (bilder_zaehlen / symbole_entdecken have a true ceiling of ~86, so holding 60 back
+// left too few to serve and duplicates reappeared while unique items were reachable).
+// The window is therefore capped at a fraction of the subskill's struct count, and
+// is never allowed to swallow the pool.
+const recentBySub = new Map<string, string[]>();
+function recentLimitFor(sub: string): number {
+  const structs = countStructs(sub);
+  // Roughly one recent item per struct, clamped: enough to stop back-to-back repeats
+  // in large pools, small enough that a 4-struct pool stays fully servable.
+  return Math.max(6, Math.min(60, structs * 2));
+}
+function recentSet(sub: string): Set<string> {
+  return new Set(recentBySub.get(sub) || []);
+}
+function rememberServed(sub: string, keys: string[]): void {
+  const list = recentBySub.get(sub) || [];
+  for (const k of keys) list.push(k);
+  const limit = recentLimitFor(sub);
+  while (list.length > limit) list.shift();
+  recentBySub.set(sub, list);
+}
+export function resetRecentServed(): void { recentBySub.clear(); }
+
 export function generateBatch(subskillId: string, difficulty: number, n = 6, baseSeed = Date.now()): Question[] {
   const out: Question[] = [];
   // Duplicate rejection with bounded retry. Previously this loop pushed whatever
@@ -2408,7 +2438,8 @@ export function generateBatch(subskillId: string, difficulty: number, n = 6, bas
   // collision once the struct pool saturated (measured: 1 exact dup at 6x, 2 at 10x,
   // 11 near-dups at 10x). We now reject exact repeats AND prefer an unused struct
   // signature, with a hard attempt ceiling so the loop can never spin forever.
-  const seenExact = new Set<string>();
+  const seenExact = new Set<string>(recentSet(subskillId));
+  const servedKeys: string[] = [];
   const seenSig = new Set<string>();
   const maxAttempts = Math.max(n * 12, 240);
   let attempts = 0;
@@ -2424,6 +2455,7 @@ export function generateBatch(subskillId: string, difficulty: number, n = 6, bas
     // spreads coverage across grammar families instead of hammering a few.
     if (seenSig.has(sig) && seenSig.size < countStructs(subskillId) && out.length < n - 1 && attempts < maxAttempts - n) continue;
     seenExact.add(key);
+    servedKeys.push(key);
     seenSig.add(sig);
     out.push(q);
   }
@@ -2443,6 +2475,7 @@ export function generateBatch(subskillId: string, difficulty: number, n = 6, bas
     const key = q.prompt + "|" + String(q.answer);
     if (seenExact.has(key)) continue;
     seenExact.add(key);
+    servedKeys.push(key);
     out.push(q);
   }
   // Only now, with the unique space drained, accept repeats to satisfy the count.
@@ -2452,6 +2485,7 @@ export function generateBatch(subskillId: string, difficulty: number, n = 6, bas
     filler++;
     if (q) out.push(q);
   }
+  rememberServed(subskillId, servedKeys);
   return out;
 }
 function countStructs(subskillId: string): number {

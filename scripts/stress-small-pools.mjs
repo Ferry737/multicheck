@@ -2,7 +2,7 @@
 // ceiling before it starts repeating? For tiny pools (bilder_zaehlen: 92 items total)
 // requesting 80 unique is near-exhaustion; the correct behaviour is to exhaust the
 // space first and only then repeat, never to repeat while unseen items remain.
-import { generateBatch, GENERATORS } from "../lib/questions.ts";
+import { generateBatch, GENERATORS, resetRecentServed } from "../lib/questions.ts";
 
 const SUB = process.argv[2];
 const WANT = Number(process.argv[3] || 80);
@@ -25,6 +25,10 @@ function ceiling(sub) {
 const cap = ceiling(SUB);
 let worstDupWhileRoom = 0;
 for (const seed of [11, 22, 33, 44, 55]) {
+  // Each seed models a FRESH session, so the cross-call recent window is cleared.
+  // Without this the window (correctly) holds a few items back and the test would
+  // read that deliberate anti-repetition behaviour as a defect.
+  resetRecentServed();
   const items = generateBatch(SUB, 50, WANT, seed);
   const keys = items.map((q) => q.prompt + "|" + String(q.answer));
   const uniq = new Set(keys);
