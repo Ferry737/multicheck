@@ -10,7 +10,11 @@ core
 core.*
 *.core
 .gstack/
-scripts/qa-*.sh
+# Throwaway QA scratch scripts only. NOT the committed release-gate scripts:
+# this pattern silently swallowed scripts/qa-equivalent.sh (the PRODUCTION QA
+# EQUIVALENT gate), which must be tracked and re-runnable.
+scripts/qa-scratch-*.sh
+scripts/qa-tmp-*.sh
 tsconfig.tsbuildinfo
 
 # Build / test output (reproducible)
