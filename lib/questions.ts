@@ -2181,7 +2181,7 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
         ["Eine Person will ein Paket ohne Abgabeschein mitnehmen.", "Herausgabe verweigern und Beleg verlangen"],
         ["Ein Besucher läuft unbegleitet in die Werkstatt.", "begleiten und Besucherregel durchsetzen"],
       ]);
-      return aw("stranger-at-door", s[0] + " Richtig:",
+      return aw("stranger-at-door", s[0] + " Was ist korrekt?",
         [s[1], "mitnehmen, ist ja nur kurz", "allein durch das Lager laufen lassen", "das Passwort geben"],
         "Zutrittskontrolle und Rückfrage über offizielle Wege — Zeitdruck ist kein Grund für Ausnahmen.", 1, 1, 2, "compliance-pressure");
     }

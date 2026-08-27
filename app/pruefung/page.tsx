@@ -34,6 +34,9 @@ export default function Pruefung() {
   const [resume, setResume] = useState<ExamSnapshot | null>(null);
   const [now, setNow] = useState(Date.now());
   const [input, setInput] = useState("");
+  // Idempotency latch for onAnswer(): holds "section:index" of the position already
+  // answered, so a double-click cannot advance twice and skip an item (R12.4).
+  const answeringRef = useRef<string | null>(null);
   const [writing, setWriting] = useState("");
   const [result, setResult] = useState<null | { overall: any; areas: any[]; subs: any[]; fatigue: any; plan: AutoPlan }>(null);
 
@@ -95,6 +98,12 @@ export default function Pruefung() {
 
   const begin = () => set(enterActive({ ...snap, phase: "active" }, Date.now()));
   const onAnswer = (v: string) => {
+    // IDEMPOTENCY GUARD (R12.4): this advances on every call, so a rapid double-click
+    // (or held Enter) would answer the NEXT question with the same value and silently
+    // skip an item. The latch is keyed to the exact position being answered.
+    const posKey = `${snap.currentSection}:${snap.currentIndex}`;
+    if (answeringRef.current === posKey) return;
+    answeringRef.current = posKey;
     setInput(""); // never carry an answer into the next question
     // compute answer + advance from the SAME snapshot synchronously — a deferred
     // next() would close over the stale snap and overwrite the recorded answer.

@@ -41,6 +41,9 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
 
   const loadedRef = useRef(false);
   const qStartRef = useRef(0); // per-question start (Phase 5-A: correct timing)
+  // Idempotency latch for submit(): holds the key of the item already recorded, so a
+  // double/triple click or held Enter cannot write the same attempt twice (R12.4).
+  const submittedForRef = useRef<string | null>(null);
   const doneRef = useRef(false); // guard against duplicate completion side effects (Phase 5-I)
   useEffect(() => {
     let cancelled = false;
@@ -170,6 +173,15 @@ export function Trainer({ getQuestions, title, showTimer, noImmediateFeedback, o
   const SPEED_TARGET = 12000;
 
   function submit() {
+    // IDEMPOTENCY GUARD (R12.4): the button was only disabled={!input}, so a rapid
+    // double/triple click (or held Enter) called submit() repeatedly and record()
+    // wrote one attempt per click — measured as history +3 for one triple-click,
+    // silently corrupting the learner model. The latch is keyed to the question that
+    // is being answered, so it blocks repeats for THIS item but never the next one.
+    if (revealed) return;
+    const itemKey = `${q.id ?? ""}|${q.prompt}`;
+    if (submittedForRef.current === itemKey) return;
+    submittedForRef.current = itemKey;
     const c = isCorrect;
     const ms = performance.now() - qStartRef.current; // per-question timing (Phase 5-A)
     const attempt: any = {
