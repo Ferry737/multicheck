@@ -1056,18 +1056,22 @@ function genTextverst(r: () => number, d: number, structIndex = -1): Question {
   switch (path) {
     case 0: { // read-locate-fact: many notice texts + conditions
       const facts = [
-        ["Achtung: Die Lieferung erfolgt nur nach Voranmeldung.", "eine Voranmeldung"],
-        ["Zutritt nur mit gültigem Ausweis.", "ein gültiger Ausweis"],
-        ["Rückgabe nur mit Originalbeleg.", "der Originalbeleg"],
-        ["Der Aufzug ist wegen Wartung ausser Betrieb.", "eine Wartung"],
-        ["Hunde müssen an der Leine geführt werden.", "eine Leine"],
-        ["Bezahlung ausschliesslich bar oder mit Karte.", "bar oder mit Karte"],
-        ["Umkleiden vor Betreten der Halle Pflicht.", "ein Umkleiden"],
-        ["Rauchen ist auf dem ganzen Gelände verboten.", "überall verboten"],
+        ["Achtung: Die Lieferung erfolgt nur nach Voranmeldung.", "eine Voranmeldung", "Was ist nötig?"],
+        ["Zutritt nur mit gültigem Ausweis.", "ein gültiger Ausweis", "Was ist nötig?"],
+        ["Rückgabe nur mit Originalbeleg.", "der Originalbeleg", "Was wird verlangt?"],
+        ["Der Aufzug ist wegen Wartung ausser Betrieb.", "eine Wartung", "Was ist der Grund?"],
+        ["Hunde müssen an der Leine geführt werden.", "eine Leine", "Was ist nötig?"],
+        ["Bezahlung ausschliesslich bar oder mit Karte.", "bar oder mit Karte", "Welche Bedingung gilt hier?"],
+        ["Umkleiden vor Betreten der Halle Pflicht.", "ein Umkleiden", "Was wird verlangt?"],
+        ["Rauchen ist auf dem ganzen Gelände verboten.", "überall verboten", "Wo gilt das Rauchverbot?"],
       ];
       const f = pick(r, facts);
-      return tv("read-locate-fact", f[0],
-        pick(r, ["Was ist nötig?", "Welche Bedingung gilt hier?", "Was wird verlangt?"]),
+      // The question wording used to be picked INDEPENDENTLY of the fact, which
+      // paired a prohibition ("Rauchen ist verboten") with "Was ist nötig?" — the
+      // question then did not match the text (stratified audit item #29).
+      // Each fact now carries the question form that actually fits it.
+      const qForm = f[2] || "Welche Bedingung gilt hier?";
+      return tv("read-locate-fact", f[0], qForm,
         [f[1], "eine Zahlung", "keine Angabe", "eine schriftliche Erlaubnis"],
         "Im Text steht die Bedingung direkt.", 1, 0, 2, "plausible-but-unstated");
     }
@@ -2022,7 +2026,7 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
         ["Du trägst Schmuck an den Händen.", "Schmuck vor der Arbeit ablegen"],
         ["Ein Produkt riecht ungewöhnlich.", "Nicht verwenden und melden"],
         ["Du hast eben den Abfall angefasst.", "Hände waschen vor der Weiterarbeit"],
-        ["In der Küche fällt rohes Hühnfleisch auf den Boden.", "entsorgen — nicht weiterverarbeiten"],
+        ["In der Küche fällt rohes Hühnerfleisch auf den Boden.", "entsorgen — nicht weiterverarbeiten"],
         ["Rohmilch riecht sauer.", "nicht verwenden, wegkippen"],
         ["Brot liegt seit gestern offen herum.", "prüfen, bei Zweifel wegwerfen"],
       ]);
@@ -2073,7 +2077,13 @@ function genAlltag(r: () => number, d: number, structIndex = -1): Question {
       const back = (paid - parseFloat(price)).toFixed(2);
       return aw("money-change-counting",
         `Ein Artikel kostet CHF ${price}, du zahlst mit CHF ${paid}.–. Wie viel Rückgeld?`,
-        [`CHF ${back}`, `CHF ${(paid - parseFloat(price) + 1).toFixed(2)}`, `CHF ${(parseFloat(price) - paid).toFixed(2)}`],
+        // 4 plausible distractors, all POSITIVE amounts. The old third option was
+        // (price - paid), i.e. always negative — an implausible price that let the
+        // student eliminate it for free (stratified audit item #98).
+        [`CHF ${back}`,
+         `CHF ${(paid - parseFloat(price) + 1).toFixed(2)}`,
+         `CHF ${Math.max(0.05, paid - parseFloat(price) - 1).toFixed(2)}`,
+         `CHF ${Math.max(0.05, paid - parseFloat(price) - 0.1).toFixed(2)}`],
         `${paid} − ${price} = ${back}.`, 2, 0, 2, "subtraction-slip");
     }
     case 9: { // rescheduling
