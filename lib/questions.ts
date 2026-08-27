@@ -2270,12 +2270,29 @@ export function generateBatch(subskillId: string, difficulty: number, n = 6, bas
     seenSig.add(sig);
     out.push(q);
   }
-  // Fallback: if the pool genuinely cannot fill n unique items, top up with the
-  // best available rather than returning short. This is visible, not silent.
+  // Fallback: if the pool genuinely cannot fill n unique items, top up rather than
+  // returning short — but STILL prefer unseen items, and only allow a repeat once the
+  // unique space is truly drained. Without this check small pools (bilder_zaehlen /
+  // symbole_entdecken: true ceiling 86) emitted up to 14 duplicates for n=80 while
+  // unique items were still reachable.
   let topUp = 0;
-  while (out.length < n && topUp < n * 4) {
+  // Budget scales with how hard the tail is: draining the last few items of a small
+  // pool needs many attempts because most seeds land on already-served items.
+  const topUpBudget = Math.max(n * 200, 4000);
+  while (out.length < n && topUp < topUpBudget) {
     const q = generate(subskillId, difficulty, baseSeed + (attempts + topUp) * 104729 + 17);
     topUp++;
+    if (!q) continue;
+    const key = q.prompt + "|" + String(q.answer);
+    if (seenExact.has(key)) continue;
+    seenExact.add(key);
+    out.push(q);
+  }
+  // Only now, with the unique space drained, accept repeats to satisfy the count.
+  let filler = 0;
+  while (out.length < n && filler < n * 4) {
+    const q = generate(subskillId, difficulty, baseSeed + (attempts + topUp + filler) * 15485863 + 29);
+    filler++;
     if (q) out.push(q);
   }
   return out;
