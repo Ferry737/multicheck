@@ -40,7 +40,7 @@ Apprenticeship candidates in Switzerland sit the **Multiccheck** test before the
 ```
    attempt  ──▶  evaluate  ──▶  explain  ──▶  correct  ──▶  retry
       ▲                                                       │
-      └────────────  review  ◀──  record  ◀───────────────────┘
+      └────────────  review  ◀──  record  ◀──────────────────┘
 ```
 
 ## 📁 Project layout
@@ -58,8 +58,9 @@ app/
 components/               ← AppShell, Trainer, MicroLesson, …
 lib/
 ├── curriculum.ts         ← sub-skill map (drives everything)
-├── orchestrator.ts     ← evidence → next action
-b��─── grading.ts · exam.ts · evidence.ts · learner.ts · offlineCoach.ts · coach.ts · lessons.ts · writing.ts
+├── orchestrator.ts       ← evidence → next action
+├── grading.ts · exam.ts · evidence.ts · learner.ts
+├── offlineCoach.ts · coach.ts · lessons.ts · writing.ts
 └── sazbau-lexicon.json · pools.json
 ```
 
